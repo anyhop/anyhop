@@ -18,9 +18,9 @@ succeeded.
 Read commands accept ``--json`` for **shell / cross-language scripting** (jq,
 monitoring hooks, CI): it is a direct serialization of the ``anyhop.service`` return
 value, not a scrape of the human text. It is deliberately *not* the programmatic
-interface for anyhop's own components — the Web UI and any typed client use
-``anyhop.service`` (and later the ``anyhop.api`` control API) directly rather than
-shelling out to the CLI and parsing its output.
+interface for anyhop's own components — the Web UI, desktop companion, and any
+typed client use ``anyhop.service`` (and later the ``anyhop.api`` control API)
+directly rather than shelling out to the CLI and parsing its output.
 """
 
 from __future__ import annotations

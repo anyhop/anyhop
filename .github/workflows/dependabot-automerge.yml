@@ -4,12 +4,13 @@ on:
   workflow_run:
     workflows: [CI]
     types: [requested]
+  push:
+    branches: [main]
 
-# Queue each immutable head once, as soon as CI is requested. Branch
-# protection—not this privileged workflow—holds the merge until every CI and
-# Supply Chain check passes.
+# Merge verification runs once per immutable head; refresh runs serialize
+# behind each other so a cascade of merges never races itself.
 concurrency:
-  group: dependabot-automerge-${{ github.event.workflow_run.head_sha }}
+  group: dependabot-automerge-${{ github.event.workflow_run.head_sha || 'refresh' }}
   cancel-in-progress: false
 
 permissions:
@@ -80,3 +81,46 @@ jobs:
         run: |
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto \
             --squash --match-head-commit "$HEAD_SHA"
+
+  # Branch protection requires PRs to be up to date with main, but nothing in
+  # GitHub updates a behind branch on its own: the moment one Dependabot PR
+  # merges, its siblings go BEHIND and their armed auto-merges stall until
+  # someone updates them by hand. So every push to main, refresh the siblings:
+  # merging main into the branch re-runs the required checks against the new
+  # merge preview and the armed auto-merge finishes without intervention.
+  # The API only creates a merge commit server-side—it never executes code
+  # from the PR—so it is safe to call from this privileged workflow.
+  refresh:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Update behind Dependabot branches onto the new main
+        env:
+          BASE_REF: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Only PRs with auto-merge armed: anything else is already held by
+          # a failed check or an identity mismatch this workflow must not
+          # paper over. Only BEHIND branches need the update—DIRTY needs a
+          # Dependabot rebase, BLOCKED is still checking, CLEAN merges alone.
+          while read -r pr_number head_sha; do
+            [[ -n "$pr_number" ]] || continue
+            state=$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" \
+              --json mergeStateStatus --jq .mergeStateStatus)
+            [[ "$state" == BEHIND ]] || continue
+            # expected_head_sha makes the update atomic with the state we
+            # just inspected; a 422 here means the PR moved underneath us
+            # and the next push will catch it.
+            if gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$pr_number/update-branch" \
+                -f expected_head_sha="$head_sha" >/dev/null; then
+              echo "updated #$pr_number onto $BASE_REF"
+            else
+              echo "skipped #$pr_number: branch moved or conflicts; leaving it to Dependabot" >&2
+            fi
+          done < <(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BASE_REF" \
+            --author 'app/dependabot' --state open --limit 100 \
+            --json number,headRefOid,autoMergeRequest \
+            --jq '.[] | select(.autoMergeRequest != null) | "\(.number) \(.headRefOid)"')

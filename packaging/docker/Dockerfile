@@ -25,7 +25,7 @@
 # digest-only `python@sha256:…` dependabot tracked the default `python` tag
 # and offered the full (non-slim) image. Resolved 2026-08-26; the digest is
 # the multi-arch manifest list.
-FROM python:3.14-slim@sha256:cae66f2ef0ec51a9891263eeee7f987dacf0a9879e8aa9353d5606e0530619a5
+FROM python:3.14-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6
 ARG ALLE_WHEEL_SHA256
 LABEL org.opencontainers.image.alle-wheel-sha256=$ALLE_WHEEL_SHA256
 RUN useradd --uid 1000 --user-group --home-dir /var/lib/alle --create-home \

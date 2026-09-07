@@ -170,7 +170,7 @@ load_uninstall_phase() {
 }
 
 write_uninstall_phase() {
-	phase_tmp=$( (umask 077 && mktemp "$receipt_dir/uninstall-phase.XXXXXX")) || die "cannot stage the uninstall phase."
+	phase_tmp=$( (umask 077 && mktemp "$receipt_dir/uninstall-phase.XXXXXX") ) || die "cannot stage the uninstall phase."
 	if ! printf 'phase_version=1\nreceipt_path=%s\nstate_dir=%s\nphase=tool_removing\n' \
 		"$receipt" "$state_dir" >"$phase_tmp"; then
 		rm -f -- "$phase_tmp"

@@ -13,8 +13,8 @@ import time
 
 import pytest
 
-from alle import daemon
-from alle.state import Store, _read_raw, config_signature
+from anyhop import daemon
+from anyhop.state import Store, _read_raw, config_signature
 from conftest import wg_config
 
 WG = wg_config("se1.example.com")
@@ -88,7 +88,7 @@ def test_failed_reconcile_is_retried_without_a_state_change(monkeypatch):
             if self.sleeps >= 3:
                 raise KeyboardInterrupt
 
-    monkeypatch.setattr("alle.engine.Engine", _BoomEngine)
+    monkeypatch.setattr("anyhop.engine.Engine", _BoomEngine)
     monkeypatch.setattr(daemon, "time", _FakeTime())
     old_term = signal.getsignal(signal.SIGTERM)
     old_int = signal.getsignal(signal.SIGINT)
@@ -108,7 +108,7 @@ def test_failed_reconcile_is_retried_without_a_state_change(monkeypatch):
 def _run_loop(monkeypatch, engine_cls, runner_cls, *, step=2.1, sleeps=3):
     """Drive run_applier with a fake clock stepping ``step``s per sleep and a
     KeyboardInterrupt after ``sleeps`` iterations."""
-    from alle import singbox
+    from anyhop import singbox
 
     class _Clock:
         def __init__(self):
@@ -131,7 +131,7 @@ def _run_loop(monkeypatch, engine_cls, runner_cls, *, step=2.1, sleeps=3):
                 raise KeyboardInterrupt
 
     clock = _Clock()
-    monkeypatch.setattr("alle.engine.Engine", engine_cls)
+    monkeypatch.setattr("anyhop.engine.Engine", engine_cls)
     monkeypatch.setattr(singbox, "Runner", runner_cls)
     monkeypatch.setattr(daemon, "time", clock)
     old = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
@@ -214,7 +214,7 @@ def test_supervision_backs_off_on_a_crash_loop(monkeypatch):
 def test_rejected_config_is_not_retried_on_the_timer(monkeypatch):
     """A deterministic rejection waits for a state change instead of burning
     the RECONCILE_RETRY timer on a config that cannot start."""
-    from alle import singbox
+    from anyhop import singbox
 
     store = Store.load()
     store.add_provider("nordvpn")
@@ -262,7 +262,7 @@ def test_rejected_config_is_not_retried_on_the_timer(monkeypatch):
                 info.update(json.loads(daemon._info_path().read_text()))
                 raise KeyboardInterrupt
 
-    monkeypatch.setattr("alle.engine.Engine", _Eng)
+    monkeypatch.setattr("anyhop.engine.Engine", _Eng)
     monkeypatch.setattr(singbox, "Runner", _Runner)
     monkeypatch.setattr(daemon, "time", _Clock())
     old = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
@@ -292,7 +292,7 @@ def test_a_stuck_probe_pass_does_not_block_reconciles(monkeypatch):
 
     release = threading.Event()
     reconciled = {"n": 0}
-    from alle import singbox
+    from anyhop import singbox
 
     class _Eng:
         def __init__(self, inner_store):
@@ -339,7 +339,7 @@ def test_a_stuck_probe_pass_does_not_block_reconciles(monkeypatch):
             if self.sleeps >= 4:
                 raise KeyboardInterrupt
 
-    monkeypatch.setattr("alle.engine.Engine", _Eng)
+    monkeypatch.setattr("anyhop.engine.Engine", _Eng)
     monkeypatch.setattr(singbox, "Runner", _Runner)
     monkeypatch.setattr(daemon, "time", _Clock())
     old = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
@@ -351,7 +351,7 @@ def test_a_stuck_probe_pass_does_not_block_reconciles(monkeypatch):
         # join the worker by name so any trailing state writes finish before
         # the temp-dir fixture cleans up (no race on the state dir)
         for th in threading.enumerate():
-            if th.name == "alle-probe":
+            if th.name == "anyhop-probe":
                 th.join(5)
         signal.signal(signal.SIGTERM, old[0])
         signal.signal(signal.SIGINT, old[1])
@@ -386,14 +386,14 @@ def test_installed_version_is_readable():
 
 
 def test_daemon_info_records_homebrew_service_identity(monkeypatch):
-    monkeypatch.setenv("ALLE_SERVICE_OWNER", "homebrew")
-    monkeypatch.setenv("ALLE_SERVICE_PREFIX", "/opt/homebrew/opt/alle")
+    monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "homebrew")
+    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", "/opt/homebrew/opt/anyhop")
 
     daemon._write_info({"singbox": "ok"})
     info = json.loads(daemon._info_path().read_text())
 
     assert info["service_owner"] == "homebrew"
-    assert info["service_prefix"] == "/opt/homebrew/opt/alle"
+    assert info["service_prefix"] == "/opt/homebrew/opt/anyhop"
 
 
 class _FrozenClock:
@@ -411,8 +411,8 @@ class _FrozenClock:
 
 def _counted_shim(monkeypatch):
     """A Homebrew-shaped install whose shim reports a new version every run."""
-    monkeypatch.setenv("ALLE_SERVICE_OWNER", "homebrew")
-    monkeypatch.setenv("ALLE_SERVICE_PREFIX", "/opt/homebrew/opt/alle")
+    monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "homebrew")
+    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", "/opt/homebrew/opt/anyhop")
     runs: list[list[str]] = []
 
     def fake_run(cmd, **_kwargs):
@@ -468,7 +468,7 @@ def test_forgetting_the_cache_rediscovers_on_the_next_status_read(monkeypatch):
 
 def test_native_installs_are_unaffected_by_the_status_cache(monkeypatch):
     """No shim, no subprocess — just the same importlib.metadata answer."""
-    monkeypatch.delenv("ALLE_SERVICE_OWNER", raising=False)
+    monkeypatch.delenv("ANYHOP_SERVICE_OWNER", raising=False)
 
     def fail(cmd, **_kwargs):
         raise AssertionError(f"native version discovery spawned {cmd}")
@@ -479,8 +479,8 @@ def test_native_installs_are_unaffected_by_the_status_cache(monkeypatch):
 
 
 def test_homebrew_installed_version_uses_the_stable_opt_shim(monkeypatch):
-    monkeypatch.setenv("ALLE_SERVICE_OWNER", "homebrew")
-    monkeypatch.setenv("ALLE_SERVICE_PREFIX", "/opt/homebrew/opt/alle")
+    monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "homebrew")
+    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", "/opt/homebrew/opt/anyhop")
     calls = []
 
     def fake_run(cmd, **kwargs):
@@ -490,7 +490,7 @@ def test_homebrew_installed_version_uses_the_stable_opt_shim(monkeypatch):
     monkeypatch.setattr(daemon.subprocess, "run", fake_run)
 
     assert daemon.installed_version() == "0.1.9"
-    assert calls[0][0] == ["/opt/homebrew/opt/alle/bin/alle", "version"]
+    assert calls[0][0] == ["/opt/homebrew/opt/anyhop/bin/anyhop", "version"]
     assert calls[0][1]["timeout"] == daemon.VERSION_PROBE_TIMEOUT
 
 
@@ -521,7 +521,7 @@ def _drive_once(monkeypatch, now=daemon.VERSION_CHECK + 1):
         def sleep(self, _s):
             raise KeyboardInterrupt  # end after one iteration
 
-    monkeypatch.setattr("alle.engine.Engine", _NoopEngine)
+    monkeypatch.setattr("anyhop.engine.Engine", _NoopEngine)
     monkeypatch.setattr(daemon, "time", _Clock())
     old = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
     try:
@@ -532,7 +532,7 @@ def _drive_once(monkeypatch, now=daemon.VERSION_CHECK + 1):
 
 
 def test_supervised_daemon_exits_nonzero_on_version_change(monkeypatch):
-    monkeypatch.setenv("ALLE_SERVICE", "1")
+    monkeypatch.setenv("ANYHOP_SERVICE", "1")
     monkeypatch.setattr(daemon, "installed_version", lambda: "99.0.0")
     # version mismatch under a supervisor: exit *non-zero* so even a legacy
     # Restart=on-failure unit respawns onto the new code (a clean exit left
@@ -544,7 +544,7 @@ def test_supervised_daemon_exits_nonzero_on_version_change(monkeypatch):
 
 
 def test_supervised_watcher_waits_for_an_upgrade_response_lease(monkeypatch):
-    monkeypatch.setenv("ALLE_SERVICE", "1")
+    monkeypatch.setenv("ANYHOP_SERVICE", "1")
     monkeypatch.setattr(daemon, "installed_version", lambda: "99.0.0")
 
     # A manager has replaced the package, but the concurrent API handler still
@@ -585,7 +585,7 @@ def test_upgrade_lifecycle_queue_is_scoped_to_its_handler_thread(monkeypatch):
 
 
 def test_unsupervised_daemon_ignores_version_change(monkeypatch):
-    monkeypatch.delenv("ALLE_SERVICE", raising=False)
+    monkeypatch.delenv("ANYHOP_SERVICE", raising=False)
     monkeypatch.setattr(daemon, "installed_version", lambda: "99.0.0")
     # no supervisor → must NOT self-exit (would stay down); the loop runs and we
     # end it via the sleep-raised KeyboardInterrupt instead
@@ -594,7 +594,7 @@ def test_unsupervised_daemon_ignores_version_change(monkeypatch):
 
 
 def _read_log() -> str:
-    from alle import applog
+    from anyhop import applog
 
     return applog.tail(200)
 
@@ -603,7 +603,7 @@ def _read_log() -> str:
 
 
 def test_ensure_running_defers_to_service_manager(monkeypatch, background_runtime):
-    from alle import daemonctl
+    from anyhop import daemonctl
 
     monkeypatch.setattr(daemon, "is_running", lambda: False)
     monkeypatch.setattr(daemonctl, "is_installed", lambda: True)
@@ -616,22 +616,22 @@ def test_ensure_running_defers_to_service_manager(monkeypatch, background_runtim
 
 
 def test_self_command_uses_python_module_in_source_mode(monkeypatch):
-    monkeypatch.delenv("ALLE_EXECUTABLE", raising=False)
+    monkeypatch.delenv("ANYHOP_EXECUTABLE", raising=False)
     monkeypatch.setattr(daemon.sys, "frozen", False, raising=False)
     assert daemon._self_command("applier") == [
         daemon.sys.executable,
         "-m",
-        "alle",
+        "anyhop",
         "applier",
     ]
 
 
 def test_self_command_uses_app_executable_in_bundled_mode(monkeypatch):
     monkeypatch.setenv(
-        "ALLE_EXECUTABLE", "/Applications/Alle.app/Contents/Resources/bin/alle"
+        "ANYHOP_EXECUTABLE", "/Applications/Anyhop.app/Contents/Resources/bin/anyhop"
     )
     assert daemon._self_command("applier") == [
-        "/Applications/Alle.app/Contents/Resources/bin/alle",
+        "/Applications/Anyhop.app/Contents/Resources/bin/anyhop",
         "applier",
     ]
 
@@ -641,13 +641,15 @@ def test_spawn_lifecycle_uses_hidden_cli_command(monkeypatch):
     monkeypatch.setattr(
         daemon, "spawn_detached", lambda command: spawned.append(command)
     )
-    monkeypatch.setenv("ALLE_EXECUTABLE", "/tmp/Alle.app/Contents/Resources/bin/alle")
+    monkeypatch.setenv(
+        "ANYHOP_EXECUTABLE", "/tmp/Anyhop.app/Contents/Resources/bin/anyhop"
+    )
 
     daemon.schedule_lifecycle("restart", delay=0.25)
 
     assert spawned == [
         [
-            "/tmp/Alle.app/Contents/Resources/bin/alle",
+            "/tmp/Anyhop.app/Contents/Resources/bin/anyhop",
             "lifecycle-run",
             "restart",
             "--delay",
@@ -657,19 +659,21 @@ def test_spawn_lifecycle_uses_hidden_cli_command(monkeypatch):
 
 
 def test_tun_trial_watchdog_uses_hidden_cli_command(monkeypatch):
-    from alle import service
+    from anyhop import service
 
     spawned = []
     monkeypatch.setattr(
         daemon, "spawn_detached", lambda command: spawned.append(command)
     )
-    monkeypatch.setenv("ALLE_EXECUTABLE", "/tmp/Alle.app/Contents/Resources/bin/alle")
+    monkeypatch.setenv(
+        "ANYHOP_EXECUTABLE", "/tmp/Anyhop.app/Contents/Resources/bin/anyhop"
+    )
 
     service._spawn_tun_watchdog(12, "abc123")
 
     assert spawned == [
         [
-            "/tmp/Alle.app/Contents/Resources/bin/alle",
+            "/tmp/Anyhop.app/Contents/Resources/bin/anyhop",
             "tun-trial-expire",
             "abc123",
             "--delay",
@@ -679,7 +683,7 @@ def test_tun_trial_watchdog_uses_hidden_cli_command(monkeypatch):
 
 
 def test_stop_routes_through_service_manager(monkeypatch):
-    from alle import daemonctl
+    from anyhop import daemonctl
 
     monkeypatch.setattr(daemonctl, "is_installed", lambda: True)
     monkeypatch.setattr(daemon, "is_running", lambda: True)
@@ -699,7 +703,7 @@ def _run_owned(monkeypatch, *, own_children, signal_stop, sleeps=2):
     path) or a KeyboardInterrupt (an abnormal break, not a stop signal)."""
     import os
 
-    from alle import singbox
+    from anyhop import singbox
 
     stopped = []
 
@@ -743,7 +747,7 @@ def _run_owned(monkeypatch, *, own_children, signal_stop, sleeps=2):
                 else:
                     raise KeyboardInterrupt
 
-    monkeypatch.setattr("alle.engine.Engine", _Eng)
+    monkeypatch.setattr("anyhop.engine.Engine", _Eng)
     monkeypatch.setattr(singbox, "Runner", _Runner)
     monkeypatch.setattr(daemon, "time", _Clock())
     old = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)

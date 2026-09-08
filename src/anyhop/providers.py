@@ -1,0 +1,457 @@
+"""VPN provider registry.
+
+A provider is described by its **kind**, which decides how channels get their
+WireGuard parameters:
+
+* ``token`` — the provider has an API. You add the provider once with a token/login
+  (``anyhop providers add <name>``); thereafter ``anyhop channels add <name>
+  --country …`` resolves a concrete server from the API. NordVPN is the token
+  provider and is wired end-to-end.
+* ``config`` — portal-only providers (e.g. ProtonVPN) that hand out a WireGuard
+  ``.conf``. There is no token; you add the provider so channels can be imported
+  under it via ``channels add <name> --config <file>``.
+
+Everything the engine needs for a functional provider — derive the account key,
+list locations, resolve a location to a peer — comes straight from the provider's
+own API, which is fresher than any bundled server database.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from anyhop import credentials
+from anyhop.credentials import mask
+
+NORD_API = "https://api.nordvpn.com/v1"
+WG_PORT = 51820  # NordLynx / standard WireGuard UDP port
+WireGuardResolver = Callable[[str, str], dict]
+
+
+class ProviderError(Exception):
+    """Raised when a provider rejects credentials or returns nothing usable."""
+
+
+class ProviderAuthError(ProviderError):
+    """A credential problem retrying can never fix (missing/rejected token).
+
+    Kept as a distinct *type* so auto-reconnect can give up immediately on
+    auth failures without pattern-matching words in error messages — which
+    would misclassify transient errors that happen to contain the same words.
+    """
+
+
+class ProviderUnreachableError(ProviderError):
+    """The provider API could not be reached at all — DNS failure, refused
+    connection, timeout. Environmental and retryable; never a credential or
+    payload problem."""
+
+
+class ProviderAPIError(ProviderError):
+    """The provider API answered, but unusably — an HTTP error status, an
+    oversized/undecodable body, or a payload whose shape doesn't match what
+    the API is documented to return. ``status`` carries the HTTP code when
+    one was involved (callers map auth codes to :class:`ProviderAuthError`
+    where they know the context)."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
+# Provider payloads anyhop reads are small (the NordVPN country list is a few
+# hundred KB); anything past this bound is not a payload we should index.
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+
+
+def _get_json(url: str, headers: dict | None = None, timeout: int = 30):
+    """Fetch and decode one JSON payload, normalizing every transport failure.
+
+    The single wrapping point for the provider boundary: network-level
+    failures raise :class:`ProviderUnreachableError`; HTTP error statuses,
+    oversized bodies, and undecodable JSON raise :class:`ProviderAPIError`
+    (with ``status`` set for HTTP errors). Callers therefore only ever see
+    typed ``ProviderError``\\ s — never a raw ``URLError``/``ValueError`` that
+    would put reconnect backoff, bundle fallback, or CLI reporting on the
+    wrong path.
+    """
+    req = urllib.request.Request(url, headers=headers or {"User-Agent": "anyhop/1"})  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310
+            body = r.read(MAX_RESPONSE_BYTES + 1)
+    except urllib.error.HTTPError as e:
+        raise ProviderAPIError(
+            f"provider API failed (HTTP {e.code}) for {url}", status=e.code
+        ) from e
+    except OSError as e:
+        reason = getattr(e, "reason", None) or e
+        raise ProviderUnreachableError(
+            f"could not reach the provider API: {reason}"
+        ) from e
+    if len(body) > MAX_RESPONSE_BYTES:
+        raise ProviderAPIError(
+            f"provider API response exceeds {MAX_RESPONSE_BYTES} bytes"
+        )
+    try:
+        return json.loads(body)
+    except ValueError as e:
+        raise ProviderAPIError(f"provider API returned invalid JSON: {e}") from e
+
+
+# ---- NordVPN ---------------------------------------------------------------
+
+# Client interface address for NordLynx; the same for every server/account.
+NORDVPN_WG_ADDRESS = ["10.5.0.2/32"]  # noqa: S1313
+
+# In-process country/city cache as (fetched_at_monotonic, data). Time-bounded
+# so a long-lived process (the daemon reconnecting channels weeks later, a
+# future Web UI) doesn't pin the list it fetched at startup forever; the
+# on-disk cache in locations.py has its own, longer expiry.
+NORD_CACHE_TTL = 3600.0
+_nord_countries_cache: tuple[float, list[dict]] | None = None
+
+
+def nordvpn_derive_key(creds: dict) -> str:
+    """Exchange a NordVPN access token for the account's NordLynx private key."""
+    token = (creds.get("token") or "").strip()
+    if not token:
+        raise ProviderAuthError("nordvpn access token is missing.")
+    auth = base64.b64encode(f"token:{token}".encode()).decode()
+    try:
+        data = _get_json(
+            f"{NORD_API}/users/services/credentials",
+            headers={"Authorization": f"Basic {auth}", "User-Agent": "anyhop/1"},
+        )
+    except ProviderAPIError as e:
+        if e.status in (401, 403):
+            raise ProviderAuthError(
+                f"nordvpn token rejected by API (HTTP {e.status}). "
+                "Generate a fresh token at "
+                "https://my.nordaccount.com/dashboard/nordvpn/access-tokens."
+            ) from e
+        # e.g. 5xx / bad payload: the API is unhappy, not the credential — retryable
+        raise
+    key = data.get("nordlynx_private_key") if isinstance(data, dict) else None
+    if not isinstance(key, str) or not key:
+        raise ProviderAPIError("nordvpn API did not return nordlynx_private_key.")
+    return key
+
+
+def _check_nord_countries(data) -> list[dict]:
+    """The country list, validated to the shape the lookups below index —
+    ``[{id, name, cities: [{id, name}]}]`` — before anything touches it."""
+    if not isinstance(data, list):
+        raise ProviderAPIError("nordvpn country list is not a list.")
+    for c in data:
+        if not (
+            isinstance(c, dict)
+            and isinstance(c.get("name"), str)
+            and c["name"]
+            and isinstance(c.get("id"), int)
+            and isinstance(c.get("cities", []), list)
+            and all(
+                isinstance(ci, dict)
+                and isinstance(ci.get("name"), str)
+                and ci["name"]
+                and isinstance(ci.get("id"), int)
+                for ci in c.get("cities", [])
+            )
+        ):
+            raise ProviderAPIError(
+                "nordvpn country list has an unexpected shape "
+                f"(offending entry: {str(c)[:80]!r})."
+            )
+    return data
+
+
+def _nord_countries() -> list[dict]:
+    global _nord_countries_cache
+    cached = _nord_countries_cache
+    if cached is not None and time.monotonic() - cached[0] < NORD_CACHE_TTL:
+        return cached[1]
+    try:
+        countries = _check_nord_countries(_get_json(f"{NORD_API}/servers/countries"))
+    except ProviderError as e:
+        if cached is not None:
+            return cached[1]  # refresh failed: stale beats failing (reconnect path)
+        # same typed class, with the what-was-being-fetched context added
+        raise type(e)(f"could not fetch nordvpn country list: {e}") from e
+    _nord_countries_cache = (time.monotonic(), countries)
+    return countries
+
+
+def nordvpn_locations() -> dict[str, list[str]]:
+    """Country -> sorted cities, exactly as the NordVPN API reports them today."""
+    out: dict[str, list[str]] = {}
+    for c in _nord_countries():
+        out[c["name"]] = sorted(ci["name"] for ci in c.get("cities", []))
+    return out
+
+
+def _nord_ids(country: str, city: str) -> tuple[int, int | None]:
+    for c in _nord_countries():
+        if c["name"].lower() == country.lower():
+            if city:
+                for ci in c.get("cities", []):
+                    if ci["name"].lower() == city.lower():
+                        return c["id"], ci["id"]
+                raise ProviderError(
+                    f"city {city!r} is not a nordvpn location in {country}."
+                )
+            return c["id"], None
+    raise ProviderError(f"country {country!r} is not a nordvpn location.")
+
+
+def _nord_pubkey(server: dict) -> str:
+    for tech in server.get("technologies") or []:
+        if isinstance(tech, dict) and tech.get("identifier") == "wireguard_udp":
+            for m in tech.get("metadata") or []:
+                if isinstance(m, dict) and m.get("name") == "public_key":
+                    value = m.get("value")
+                    if isinstance(value, str) and value:
+                        return value
+    raise ProviderAPIError(
+        f"nordvpn server {server.get('hostname')} has no WireGuard public key."
+    )
+
+
+def _nord_server_host(server: dict) -> str | None:
+    """The server's connect address (first IP, falling back to ``station``),
+    tolerating shape drift in the nested ``ips`` structure."""
+    ips = server.get("ips")
+    if isinstance(ips, list) and ips and isinstance(ips[0], dict):
+        ip = ips[0].get("ip")
+        if isinstance(ip, dict) and isinstance(ip.get("ip"), str) and ip["ip"]:
+            return ip["ip"]
+    station = server.get("station")
+    return station if isinstance(station, str) and station else None
+
+
+def nordvpn_resolve(country: str, city: str) -> dict:
+    """Pick the recommended WireGuard server for a location -> peer parameters."""
+    country_id, city_id = _nord_ids(country, city)
+    flt = (
+        f"filters[country_city_id]={city_id}"
+        if city_id
+        else f"filters[country_id]={country_id}"
+    )
+    url = (
+        f"{NORD_API}/servers/recommendations?{flt}"
+        "&filters[servers_technologies][identifier]=wireguard_udp&limit=1"
+    )
+    try:
+        servers = _get_json(url)
+    except ProviderError as e:
+        # same typed class, with the what-was-being-resolved context added
+        raise type(e)(f"could not resolve a nordvpn server for {country}: {e}") from e
+    if not isinstance(servers, list) or not all(isinstance(s, dict) for s in servers):
+        raise ProviderAPIError(
+            "nordvpn server recommendations have an unexpected shape."
+        )
+    if not servers:
+        where = f"{city}, {country}" if city else country
+        raise ProviderError(f"nordvpn has no WireGuard server available in {where}.")
+    s = servers[0]
+    host = _nord_server_host(s)
+    if not host:
+        raise ProviderAPIError(f"nordvpn server {s.get('hostname')} has no usable IP.")
+    return {
+        "host": host,
+        "port": WG_PORT,
+        "public_key": _nord_pubkey(s),
+        "hostname": s.get("hostname", host),
+    }
+
+
+def forget_nord_countries() -> None:
+    global _nord_countries_cache
+    _nord_countries_cache = None
+
+
+# ---- authentication --------------------------------------------------------
+#
+# Credentials are added explicitly with ``anyhop providers add <name>`` and
+# stored locally (see credentials.py); anyhop never reads them from the
+# environment. Each token provider declares *how* it authenticates so the CLI can
+# drive the right prompt.
+
+
+@dataclass(frozen=True)
+class AuthField:
+    """One credential a provider's login form asks for."""
+
+    key: str  # storage key in credentials.yaml
+    label: str  # prompt / form label shown to the user
+    secret: bool = True  # hidden while typing and masked when displayed
+
+
+# The registry. ``kind`` is "token" (API-backed) or "config" (portal .conf).
+# ``functional`` marks *token* providers whose API resolver is wired up —
+# config-kind providers are never gated by this flag (they're gated by
+# ``kind`` instead, since there's no API to resolve). anyhop ships exactly one
+# of each archetype today: NordVPN (token, ``functional: True``) and Proton
+# VPN (config, resolved via ``kind == "config"`` regardless of this flag).
+REGISTRY: dict[str, dict] = {
+    "nordvpn": {
+        "name": "NordVPN",
+        "kind": "token",
+        "functional": True,
+        # NordVPN's WireGuard (NordLynx) does not fully support IPv6 —
+        # configs are IPv4-only and v6 inside the tunnel is unsupported, so
+        # anyhop explicitly disables v6 for its channels (see Engine._endpoint).
+        "ipv6": False,
+        "fields": [AuthField("token", "Access token")],
+        "help": "https://my.nordaccount.com/dashboard/nordvpn/access-tokens → "
+        "generate a new access token.",
+        "url": "https://my.nordaccount.com/dashboard/nordvpn/access-tokens",
+        "derive_key": nordvpn_derive_key,
+        "wg_address": NORDVPN_WG_ADDRESS,
+        "resolve": nordvpn_resolve,
+        "locations": nordvpn_locations,
+        # Drops the in-process country cache so the next "locations" call truly
+        # hits the API — what a forced refresh must do even in a long-lived
+        # process (the daemon, a future Web UI), not just a fresh CLI run.
+        "forget_locations": forget_nord_countries,
+    },
+    "protonvpn": {
+        "name": "Proton VPN",
+        "kind": "config",
+        "functional": False,
+        # Proton VPN supports IPv6 inside the WireGuard tunnel (~80% of
+        # servers; the server connection itself stays IPv4). A channel
+        # actually carries v6 only when its own config has a global v6
+        # interface address — per-server capability, detected locally.
+        "ipv6": True,
+        "config_help": "Proton VPN has no usable WireGuard API. Generate a WireGuard "
+        "config in the Proton portal (Downloads → WireGuard configuration), "
+        "then add it as a channel: "
+        "anyhop channels add protonvpn --config /path/to/proton.conf",
+        "url": "https://account.protonvpn.com/downloads",
+    },
+}
+
+# Functional providers only, in the shape locations.py / provider_wg expect.
+PROVIDERS = {k: v for k, v in REGISTRY.items() if v.get("functional")}
+
+# Human-facing names. Keys stay lowercase for config/CLI use.
+PROVIDER_NAMES = {k: v["name"] for k, v in REGISTRY.items()}
+
+
+def known() -> list[str]:
+    """Every provider anyhop recognises, sorted."""
+    return sorted(REGISTRY)
+
+
+def supported() -> list[str]:
+    """Functional providers — those you can actually add channels under today."""
+    return sorted(PROVIDERS)
+
+
+def kind(provider: str) -> str:
+    return REGISTRY.get(provider, {}).get("kind", "token")
+
+
+def is_functional(provider: str) -> bool:
+    return bool(REGISTRY.get(provider, {}).get("functional"))
+
+
+def supports_ipv6(provider: str) -> bool:
+    """Whether anyhop enables IPv6 for this provider's channels.
+
+    An explicit per-provider decision (user policy, not autodetection):
+    a provider that does not fully support v6 inside its tunnel gets v6
+    stripped from its channels even if a config smuggles a v6 address in.
+    Unknown providers default to False — v6 is opt-in per provider.
+    """
+    return bool(REGISTRY.get(provider, {}).get("ipv6"))
+
+
+def display_name(key: str) -> str:
+    return PROVIDER_NAMES.get(key, key)
+
+
+def config_help(provider: str) -> str:
+    return REGISTRY.get(provider, {}).get("config_help", "")
+
+
+def auth_fields(provider: str) -> list[AuthField]:
+    return REGISTRY.get(provider, {}).get("fields", [])
+
+
+def auth_help(provider: str) -> tuple[str, str]:
+    """``(instructions, url)`` for obtaining this provider's credential."""
+    a = REGISTRY.get(provider, {})
+    return a.get("help", ""), a.get("url", "")
+
+
+def preview(provider: str, creds: dict) -> str:
+    """Masked form of a provider's primary secret, for display (never the raw value)."""
+    for f in auth_fields(provider):
+        if f.secret:
+            return mask(str(creds.get(f.key, "")))
+    return ""
+
+
+def match(name: str) -> str | None:
+    """Resolve a user-typed provider (key or brand name, any case) to its key."""
+    low = name.strip().lower()
+    for p in REGISTRY:
+        if low in (p, display_name(p).lower()):
+            return p
+    return None
+
+
+def provider_wg(provider: str, country: str, city: str = "") -> dict:
+    """Resolve a functional provider + location into WireGuard params for a channel.
+
+    Uses the stored credential to derive the account's private key and the
+    provider API to pick a server, producing the ``wgconf.parse`` shape so
+    API-derived and (later) imported channels are identical at rest.
+    """
+    if provider not in PROVIDERS:
+        raise ProviderError(
+            f"{display_name(provider)} cannot resolve locations from an API."
+        )
+    creds = credentials.get(provider)
+    if not creds:
+        raise ProviderAuthError(
+            f"{display_name(provider)} is not authenticated — run `anyhop providers add {provider}`."
+        )
+    return provider_resolver(provider, creds)(country, city)
+
+
+def provider_resolver(provider: str, creds: dict) -> WireGuardResolver:
+    """A ``(country, city) -> WireGuard params`` resolver with the account key
+    derived once up front — a bundle apply resolves many channels under one
+    provider, and the key is per-account, not per-channel."""
+    spec = PROVIDERS.get(provider)
+    if spec is None:
+        raise ProviderError(
+            f"{display_name(provider)} cannot resolve locations from an API."
+        )
+    if not creds:
+        raise ProviderAuthError(f"{display_name(provider)} has no credential.")
+    private_key = spec["derive_key"](creds)
+
+    def resolve(country: str, city: str = "") -> dict:
+        peer = spec["resolve"](country, city)
+        return {
+            "private_key": private_key,
+            "address": list(spec["wg_address"]),
+            "peer": {
+                "public_key": peer["public_key"],
+                "endpoint_host": peer["host"],
+                "endpoint_port": peer["port"],
+                "preshared_key": None,
+                "allowed_ips": ["0.0.0.0/0", "::/0"],
+                "keepalive": 25,
+            },
+        }
+
+    return resolve

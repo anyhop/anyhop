@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from alle import throughput
+from anyhop import throughput
 
 
 class _Resp:

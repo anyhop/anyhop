@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const assets = join(root, "src", "alle", "assets");
+const assets = join(root, "src", "anyhop", "assets");
 const files = readdirSync(assets).filter((name) => name.endsWith(".js"));
 const failures = [];
 

@@ -1,11 +1,11 @@
 # CLI reference
 
-Complete reference for the `alle` command-line interface — the primary, complete
+Complete reference for the `anyhop` command-line interface — the primary, complete
 surface for managing providers, channels, and the local runtime.
 
-From a checkout, prefix everything with `uv run` (e.g. `uv run alle status`). A
+From a checkout, prefix everything with `uv run` (e.g. `uv run anyhop status`). A
 native installation (one-command bootstrap, Homebrew, uv, pipx, or managed pip)
-exposes `alle` directly; see the README's Install section. The examples below
+exposes `anyhop` directly; see the README's Install section. The examples below
 omit the checkout prefix.
 
 ## Contents
@@ -14,52 +14,52 @@ omit the checkout prefix.
   - [Contents](#contents)
   - [Conventions](#conventions)
   - [Concepts](#concepts)
-  - [`alle providers`](#alle-providers)
-    - [`alle providers add PROVIDER`](#alle-providers-add-provider)
-    - [`alle providers ls [--json]`](#alle-providers-ls---json)
-    - [`alle providers rm PROVIDER... [--all] [--dry-run] [-y|--yes]`](#alle-providers-rm-provider---all---dry-run--y--yes)
-  - [`alle channels`](#alle-channels)
-    - [`alle channels add PROVIDER …`](#alle-channels-add-provider-)
-    - [`alle channels ls [--json|--ids|--refs]`](#alle-channels-ls---json--ids--refs)
-    - [`alle channels setlabel CHANNEL [label]`](#alle-channels-setlabel-channel-label)
-    - [`alle channels rm CHANNEL...`](#alle-channels-rm-channel)
-    - [`alle channels enable/disable CHANNEL...`](#alle-channels-enabledisable-channel)
-  - [`alle routes`](#alle-routes)
-    - [`alle routes ruleset create NAME --via TARGET --MATCHER...`](#alle-routes-ruleset-create-name---via-target---matcher)
-    - [`alle routes ruleset add RULESET --MATCHER...`](#alle-routes-ruleset-add-ruleset---matcher)
-    - [`alle routes ruleset rm RULESET [--dry-run]`](#alle-routes-ruleset-rm-ruleset---dry-run)
-    - [`alle routes ruleset rename RULESET NAME` / `retarget RULESET TARGET`](#alle-routes-ruleset-rename-ruleset-name--retarget-ruleset-target)
-    - [`alle routes ruleset update RULESET NAME --via TARGET --MATCHER...`](#alle-routes-ruleset-update-ruleset-name---via-target---matcher)
-    - [`alle routes ls [--channel REF] [--flat] [--json]`](#alle-routes-ls---channel-ref---flat---json)
-    - [`alle routes rm ID...`](#alle-routes-rm-id)
-    - [`alle routes mv ID... RULESET`](#alle-routes-mv-id-ruleset)
-    - [`alle routes reorder RULESET-ID... [--flat] [--json]`](#alle-routes-reorder-ruleset-id---flat---json)
-    - [`alle routes killswitch [on|off]`](#alle-routes-killswitch-onoff)
-    - [`alle routes lan [on|off]`](#alle-routes-lan-onoff)
-    - [`alle routes geo [ls|refresh|source]`](#alle-routes-geo-lsrefreshsource)
-    - [`alle routes trace DESTINATION [--json]`](#alle-routes-trace-destination---json)
-  - [`alle locations`](#alle-locations)
-  - [`alle status`](#alle-status)
-  - [`alle start` / `stop` / `restart`](#alle-start--stop--restart)
-  - [`alle upgrade [--check] [--prerelease]`](#alle-upgrade---check---prerelease)
-  - [`alle run`](#alle-run)
-  - [`alle health [--json]`](#alle-health---json)
-  - [`alle tun [on|off]`](#alle-tun-onoff)
-  - [`alle test`](#alle-test)
-  - [`alle export [--out FILE]`](#alle-export---out-file)
-  - [`alle backup [on|off|now]`](#alle-backup-onoffnow)
-  - [`alle import FILE [--replace] [--yes]`](#alle-import-file---replace---yes)
-  - [`alle sync FILE`](#alle-sync-file)
-  - [`alle gateway init`](#alle-gateway-init)
-  - [`alle validate FILE`](#alle-validate-file)
-  - [`alle logs`](#alle-logs)
-  - [`alle ui`](#alle-ui)
-  - [`alle daemon`](#alle-daemon)
-    - [`alle daemon install [--linger]`](#alle-daemon-install---linger)
-    - [`alle daemon uninstall`](#alle-daemon-uninstall)
-    - [`alle daemon status [--json]`](#alle-daemon-status---json)
-  - [`alle helper`](#alle-helper)
-  - [`alle version`](#alle-version)
+  - [`anyhop providers`](#anyhop-providers)
+    - [`anyhop providers add PROVIDER`](#anyhop-providers-add-provider)
+    - [`anyhop providers ls [--json]`](#anyhop-providers-ls---json)
+    - [`anyhop providers rm PROVIDER... [--all] [--dry-run] [-y|--yes]`](#anyhop-providers-rm-provider---all---dry-run--y--yes)
+  - [`anyhop channels`](#anyhop-channels)
+    - [`anyhop channels add PROVIDER …`](#anyhop-channels-add-provider-)
+    - [`anyhop channels ls [--json|--ids|--refs]`](#anyhop-channels-ls---json--ids--refs)
+    - [`anyhop channels setlabel CHANNEL [label]`](#anyhop-channels-setlabel-channel-label)
+    - [`anyhop channels rm CHANNEL...`](#anyhop-channels-rm-channel)
+    - [`anyhop channels enable/disable CHANNEL...`](#anyhop-channels-enabledisable-channel)
+  - [`anyhop routes`](#anyhop-routes)
+    - [`anyhop routes ruleset create NAME --via TARGET --MATCHER...`](#anyhop-routes-ruleset-create-name---via-target---matcher)
+    - [`anyhop routes ruleset add RULESET --MATCHER...`](#anyhop-routes-ruleset-add-ruleset---matcher)
+    - [`anyhop routes ruleset rm RULESET [--dry-run]`](#anyhop-routes-ruleset-rm-ruleset---dry-run)
+    - [`anyhop routes ruleset rename RULESET NAME` / `retarget RULESET TARGET`](#anyhop-routes-ruleset-rename-ruleset-name--retarget-ruleset-target)
+    - [`anyhop routes ruleset update RULESET NAME --via TARGET --MATCHER...`](#anyhop-routes-ruleset-update-ruleset-name---via-target---matcher)
+    - [`anyhop routes ls [--channel REF] [--flat] [--json]`](#anyhop-routes-ls---channel-ref---flat---json)
+    - [`anyhop routes rm ID...`](#anyhop-routes-rm-id)
+    - [`anyhop routes mv ID... RULESET`](#anyhop-routes-mv-id-ruleset)
+    - [`anyhop routes reorder RULESET-ID... [--flat] [--json]`](#anyhop-routes-reorder-ruleset-id---flat---json)
+    - [`anyhop routes killswitch [on|off]`](#anyhop-routes-killswitch-onoff)
+    - [`anyhop routes lan [on|off]`](#anyhop-routes-lan-onoff)
+    - [`anyhop routes geo [ls|refresh|source]`](#anyhop-routes-geo-lsrefreshsource)
+    - [`anyhop routes trace DESTINATION [--json]`](#anyhop-routes-trace-destination---json)
+  - [`anyhop locations`](#anyhop-locations)
+  - [`anyhop status`](#anyhop-status)
+  - [`anyhop start` / `stop` / `restart`](#anyhop-start--stop--restart)
+  - [`anyhop upgrade [--check] [--prerelease]`](#anyhop-upgrade---check---prerelease)
+  - [`anyhop run`](#anyhop-run)
+  - [`anyhop health [--json]`](#anyhop-health---json)
+  - [`anyhop tun [on|off]`](#anyhop-tun-onoff)
+  - [`anyhop test`](#anyhop-test)
+  - [`anyhop export [--out FILE]`](#anyhop-export---out-file)
+  - [`anyhop backup [on|off|now]`](#anyhop-backup-onoffnow)
+  - [`anyhop import FILE [--replace] [--yes]`](#anyhop-import-file---replace---yes)
+  - [`anyhop sync FILE`](#anyhop-sync-file)
+  - [`anyhop gateway init`](#anyhop-gateway-init)
+  - [`anyhop validate FILE`](#anyhop-validate-file)
+  - [`anyhop logs`](#anyhop-logs)
+  - [`anyhop ui`](#anyhop-ui)
+  - [`anyhop daemon`](#anyhop-daemon)
+    - [`anyhop daemon install [--linger]`](#anyhop-daemon-install---linger)
+    - [`anyhop daemon uninstall`](#anyhop-daemon-uninstall)
+    - [`anyhop daemon status [--json]`](#anyhop-daemon-status---json)
+  - [`anyhop helper`](#anyhop-helper)
+  - [`anyhop version`](#anyhop-version)
   - [Output conventions](#output-conventions)
   - [Exit codes](#exit-codes)
   - [Environment variables](#environment-variables)
@@ -69,16 +69,16 @@ omit the checkout prefix.
 
 ## Conventions
 
-- **Help** — run `alle`, `alle <group>`, or any command with `-h/--help` to see usage.
+- **Help** — run `anyhop`, `anyhop <group>`, or any command with `-h/--help` to see usage.
   A group or command invoked with no action prints its help instead of erroring.
 - **`--json`** — read commands (`providers ls`, `channels ls`, `routes ls`,
   `locations`, `status`, `upgrade --check`, `test`) accept `--json` for a stable,
   machine-readable projection of the same data. This is the scripting/cross-language interface (pipe to `jq`, etc.).
-  It is **not** the programmatic API for `alle`'s own components — those call the core
-  (`alle.service`) directly rather than shelling out. Human table output is for
+  It is **not** the programmatic API for `anyhop`'s own components — those call the core
+  (`anyhop.service`) directly rather than shelling out. Human table output is for
   terminals and may change; `--json` shape is stable.
 - **No separate apply step** — adding or removing channels or routing rules writes
-  `~/.alle/state.json`; `alle`'s background runtime reconciles sing-box and probes
+  `~/.anyhop/state.json`; `anyhop`'s background runtime reconciles sing-box and probes
   channels automatically. `start`/`stop`/`restart` are the user-facing controls.
 - **Provider names** — commands take the lowercase key (`nordvpn`, `protonvpn`); the
   brand name (`NordVPN`, `Proton VPN`) is what's shown in output. Both the key and the
@@ -86,7 +86,7 @@ omit the checkout prefix.
 
 ## Concepts
 
-- **Provider** — a VPN service added to `alle`. Two archetypes:
+- **Provider** — a VPN service added to `anyhop`. Two archetypes:
   - **Token/API** (e.g. `nordvpn`): you provide a credential once; the provider's API
     derives WireGuard keys and resolves servers by location.
   - **Config/portal** (e.g. `protonvpn`): no API — you download a WireGuard `.conf`
@@ -98,16 +98,16 @@ omit the checkout prefix.
   provider-qualified (e.g. `nordvpn/wg_us_1`) — the permanent handle
   every command, routing rule, and metric uses, and what the `ID` column shows.
   A channel may also carry an optional **label**, a friendly display name
-  (`alle channels setlabel`) that is presentation only and never a handle.
+  (`anyhop channels setlabel`) that is presentation only and never a handle.
 - **Router entrypoint** — one additional, always-on HTTP+SOCKS proxy that
   dispatches each connection by routing rule to a channel, `direct`, or `block`.
   With no rules it is a transparent pass-through (everything goes direct, no
   VPN). Its port is assigned once and treated as a contract — it never changes
   across restarts. Channel ports remain fully usable alongside it.
-- **Runtime** — the background process managed by `alle start`/`stop`/`restart` that
+- **Runtime** — the background process managed by `anyhop start`/`stop`/`restart` that
   reconciles `state.json` into one sing-box process and heartbeat-probes each channel.
-  It auto-starts on the first mutation or `alle start` and runs for the session;
-  [`alle daemon install`](#alle-daemon) optionally promotes it to a supervised
+  It auto-starts on the first mutation or `anyhop start` and runs for the session;
+  [`anyhop daemon install`](#anyhop-daemon) optionally promotes it to a supervised
   login service.
 
 WireGuard is connectionless, so there is no connect/disconnect. A channel exists in
@@ -115,11 +115,11 @@ config; its health is whatever the most recent background probe found.
 
 ---
 
-## `alle providers`
+## `anyhop providers`
 
 Manage VPN providers.
 
-### `alle providers add PROVIDER`
+### `anyhop providers add PROVIDER`
 
 Add a provider — **or replace an already-added token provider's token**.
 
@@ -151,13 +151,13 @@ token providers only) and `-y`/`--yes` skips the replace confirmation. Off a
 terminal, a replace refuses without `--yes` rather than silently overwriting.
 
 ```bash
-alle providers add nordvpn                       # prompts for an access token
-alle providers add protonvpn                     # registers; import channels with --config
-alle providers add nordvpn                       # already added → confirm + replace token
-alle providers add nordvpn --token "$TOK" --yes  # scriptable token rotation
+anyhop providers add nordvpn                       # prompts for an access token
+anyhop providers add protonvpn                     # registers; import channels with --config
+anyhop providers add nordvpn                       # already added → confirm + replace token
+anyhop providers add nordvpn --token "$TOK" --yes  # scriptable token rotation
 ```
 
-### `alle providers ls [--json]`
+### `anyhop providers ls [--json]`
 
 List added providers as a table: `PROVIDER`, `TYPE` (`token`/`config`), and `DETAIL`
 (a masked credential for token providers, or the number of imported `.conf` files for
@@ -170,20 +170,20 @@ NordVPN     token   ******8fb7
 Proton VPN  config  2 .conf files
 ```
 
-### `alle providers rm PROVIDER... [--all] [--dry-run] [-y|--yes]`
+### `anyhop providers rm PROVIDER... [--all] [--dry-run] [-y|--yes]`
 
 Remove one or more providers **and all their channels and stored credentials**.
 Prompts for confirmation unless `-y` is given.
 
 **Refused while any of the provider's channels is targeted by a routing rule** —
-the error lists every referencing rule and the exact `alle routes rm …` to run
-first (see [`alle routes`](#alle-routes)). There is no force/cascade: routing
+the error lists every referencing rule and the exact `anyhop routes rm …` to run
+first (see [`anyhop routes`](#anyhop-routes)). There is no force/cascade: routing
 config only changes when you change it.
 
 ```bash
-alle providers rm protonvpn -y
-alle providers rm nordvpn protonvpn -y
-alle providers rm --all --dry-run
+anyhop providers rm protonvpn -y
+anyhop providers rm nordvpn protonvpn -y
+anyhop providers rm --all --dry-run
 ```
 
 - `--dry-run` prints what would be removed without changing state.
@@ -191,29 +191,29 @@ alle providers rm --all --dry-run
 
 ---
 
-## `alle channels`
+## `anyhop channels`
 
 Manage channels under a provider. The two ways to add a channel are **mutually
 exclusive**, one per provider archetype.
 
-### `alle channels add PROVIDER …`
+### `anyhop channels add PROVIDER …`
 
 **Token/API providers** — locate a server by country (and optionally city):
 
 ```bash
-alle channels add nordvpn --country "United States"
-alle channels add nordvpn --country "United States" --city "Seattle"
+anyhop channels add nordvpn --country "United States"
+anyhop channels add nordvpn --country "United States" --city "Seattle"
 ```
 
 - `--country` is required; `--city` is optional (omit = any city in the country).
 - Each add resolves a fresh recommended server, so repeating the same location creates
   a distinct channel: `wg_us_1`, `wg_us_2`, …
-- See selectable locations with [`alle locations`](#alle-locations).
+- See selectable locations with [`anyhop locations`](#anyhop-locations).
 
 **Config providers** — import a WireGuard `.conf`:
 
 ```bash
-alle channels add protonvpn --config ~/Downloads/wg-US-CA-842.conf
+anyhop channels add protonvpn --config ~/Downloads/wg-US-CA-842.conf
 ```
 
 - `--config` cannot be combined with `--country`/`--city`.
@@ -226,25 +226,25 @@ alle channels add protonvpn --config ~/Downloads/wg-US-CA-842.conf
 - Country/city are parsed best-effort from the file name's ISO codes (ProtonVPN's
   `wg-<CC>-<SUB>-<n>` convention, e.g. `US`/`CA` → United States / California). Only
   the country code is reliable; a missing/unknown subdivision shows as `(Unknown)`.
-  `alle` never geo-locates the endpoint to guess.
+  `anyhop` never geo-locates the endpoint to guess.
 
 Both forms accept `--label "<text>"` to give the channel a friendly display name
-(see [`alle channels setlabel`](#alle-channels-setlabel-channel-label)):
+(see [`anyhop channels setlabel`](#anyhop-channels-setlabel-channel-label)):
 
 ```bash
-alle channels add nordvpn --country "United States" --label "Streaming - US"
+anyhop channels add nordvpn --country "United States" --label "Streaming - US"
 ```
 
 Both forms also accept `--port <n>` to **declare** the channel's local proxy
-port instead of taking an OS-assigned one — for when something outside alle
+port instead of taking an OS-assigned one — for when something outside anyhop
 (a firewall rule, a compose file publishing the port) must know it ahead of
 time. A declared port that another channel (or the router entrypoint) already
 holds is refused loudly; nothing is ever silently moved. Without `--port`,
-allocation is OS-assigned exactly as before. (`ALLE_PORT_BASE=<n>` switches
+allocation is OS-assigned exactly as before. (`ANYHOP_PORT_BASE=<n>` switches
 the *allocator* to sequential-from-`n` — an opt-in used by the container
 image; see `docs/docker.md`.)
 
-### `alle channels ls [--json|--ids|--refs]`
+### `anyhop channels ls [--json|--ids|--refs]`
 
 List configured channels (static config only — no live status). Columns: `LABEL`,
 `ID`, `PORT`, `COUNTRY`, `CITY`, `STATUS`. `LABEL` is the friendly display name
@@ -252,8 +252,8 @@ List configured channels (static config only — no live status). Columns: `LABE
 provider-qualified handle (`nordvpn/wg_jp_1`) — the same ref every command
 accepts, which is why no separate provider column is needed. `STATUS` is the
 administrative `enabled` / `disabled` state (see
-[`alle channels disable`](#alle-channels-enabledisable-channel)), distinct from
-probe liveness — this table stays the same whether alle is up or down.
+[`anyhop channels disable`](#anyhop-channels-enabledisable-channel)), distinct from
+probe liveness — this table stays the same whether anyhop is up or down.
 
 ```text
 LABEL           ID                        PORT    COUNTRY        CITY           IPV6  STATUS
@@ -269,11 +269,11 @@ For scripting, print just channel ids or provider-qualified refs (labels are
 never used as identifiers):
 
 ```bash
-alle channels ls --ids
-alle channels ls --refs
+anyhop channels ls --ids
+anyhop channels ls --refs
 ```
 
-### `alle channels setlabel CHANNEL [label]`
+### `anyhop channels setlabel CHANNEL [label]`
 
 Set (or, with no `label`, clear) a channel's display label. The label is
 presentation only — commands, routing rules, and metrics always use the id, so
@@ -281,9 +281,9 @@ relabelling is safe and cascades nowhere. Labels may duplicate and are never
 accepted as a channel ref.
 
 ```bash
-alle channels setlabel wg_us_seattle_1 "Streaming - US West"
-alle channels setlabel nordvpn/wg_jp_1 "Test runner"   # qualified ref works too
-alle channels setlabel wg_jp_1                          # omit to clear → shows the id again
+anyhop channels setlabel wg_us_seattle_1 "Streaming - US West"
+anyhop channels setlabel nordvpn/wg_jp_1 "Test runner"   # qualified ref works too
+anyhop channels setlabel wg_jp_1                          # omit to clear → shows the id again
 ```
 
 `<channel>` is a channel id or `provider/id` ref (no globs — a label targets one
@@ -292,33 +292,33 @@ the same `LABEL` + `ID` columns — `LABEL` is the label or the id when unset, `
 is the provider-qualified ref (`nordvpn/wg_jp_1`); `--json` on those carries the
 bare `name` (id), `provider`, and `label` separately.
 
-### `alle channels rm CHANNEL...`
+### `anyhop channels rm CHANNEL...`
 
 Remove one or more channels (also drops stored metrics).
 
 ```bash
-alle channels rm wg_jp_1 wg_us_seattle_1
-alle channels rm protonvpn/wg_us_ca_842
-alle channels rm 'wg_us_*' --dry-run
-alle channels rm 'wg_us_*'
-alle channels rm --provider nordvpn --all
+anyhop channels rm wg_jp_1 wg_us_seattle_1
+anyhop channels rm protonvpn/wg_us_ca_842
+anyhop channels rm 'wg_us_*' --dry-run
+anyhop channels rm 'wg_us_*'
+anyhop channels rm --provider nordvpn --all
 ```
 
 - Plain channel names are resolved across providers. If the same name exists under
   multiple providers, use a provider-qualified ref like `nordvpn/wg_jp_1`.
 - Glob patterns (`*`, `?`, `[abc]`) match channel names. Quote patterns in shells so
-  the shell does not expand them before `alle` sees them.
+  the shell does not expand them before `anyhop` sees them.
 - `--provider <provider>` scopes names, globs, and `--all` to one provider.
 - `--dry-run` prints exactly what would be removed without changing state.
-- Compatibility form: `alle channels rm <provider> --channel <name>` still works.
+- Compatibility form: `anyhop channels rm <provider> --channel <name>` still works.
 - **A channel targeted by a routing rule cannot be removed.** The refusal lists
   *all* referencing rules in one pass with the exact fix
-  (`alle routes rm r1 r2 …`); `--dry-run` reports the same conflict. Check ahead
-  with `alle routes ls --channel <name>`. There is no `--force` — removing rules
+  (`anyhop routes rm r1 r2 …`); `--dry-run` reports the same conflict. Check ahead
+  with `anyhop routes ls --channel <name>`. There is no `--force` — removing rules
   is always its own explicit step, so a channel removal can never silently
   reroute traffic.
 
-### `alle channels enable/disable CHANNEL...`
+### `anyhop channels enable/disable CHANNEL...`
 
 Set a channel's **administrative state** without removing it. A **disabled**
 channel is kept in the config but not materialised at all: no local proxy
@@ -328,11 +328,11 @@ port, no WireGuard endpoint, no handshake or keepalive toward the provider —
 only the ones you want live:
 
 ```bash
-alle channels disable wg_jp_1                    # free its provider slot
-alle channels disable 'wg_us_*'          # globs and batches, like rm
-alle channels disable --provider nordvpn --all
-alle channels enable nordvpn/wg_jp_1             # dial it again
-alle channels disable wg_jp_1 --dry-run          # plan without changing state
+anyhop channels disable wg_jp_1                    # free its provider slot
+anyhop channels disable 'wg_us_*'          # globs and batches, like rm
+anyhop channels disable --provider nordvpn --all
+anyhop channels enable nordvpn/wg_jp_1             # dial it again
+anyhop channels disable wg_jp_1 --dry-run          # plan without changing state
 ```
 
 - Same ref grammar as `channels rm`: bare ids, `provider/id` refs, globs,
@@ -344,7 +344,7 @@ alle channels disable wg_jp_1 --dry-run          # plan without changing state
 - **A channel targeted by a routing rule cannot be disabled** — the same
   restrict-only refusal as `rm`, listing every referencing rule. Rules can't
   target a disabled channel either; enable it first.
-- Disabling is purely **local**: alle stops dialling the server. It does not
+- Disabling is purely **local**: anyhop stops dialling the server. It does not
   deregister the device/peer from the provider account.
 - Enabling is instant when the channel has its WireGuard params (the usual
   case). A channel imported *disabled* from a bundle without a `wg` snapshot
@@ -356,15 +356,15 @@ alle channels disable wg_jp_1 --dry-run          # plan without changing state
 
 ---
 
-## `alle routes`
+## `anyhop routes`
 
 Rule-based routing through the router entrypoint. Rules are evaluated **top to
-bottom — first match wins**; use `alle routes reorder` or drag-reorder in the
+bottom — first match wins**; use `anyhop routes reorder` or drag-reorder in the
 Web UI dashboard to change evaluation order. Traffic that matches no rule goes
-**direct (no VPN)** unless the [kill-switch](#alle-routes-killswitch-onoff) is on.
+**direct (no VPN)** unless the [kill-switch](#anyhop-routes-killswitch-onoff) is on.
 
 Before any user rule, a **built-in LAN block** (on by default — see
-[`alle routes lan`](#alle-routes-lan-onoff)) sends private, link-local, and
+[`anyhop routes lan`](#anyhop-routes-lan-onoff)) sends private, link-local, and
 multicast destinations direct, so a catch-all VPN rule never cuts off printers,
 NAS boxes, router admin pages, or LAN discovery.
 
@@ -377,7 +377,7 @@ earlier rule (or the built-in LAN block, when on) already covers it.
 
 **DNS depends on the mode — mind DNS leakage.**
 
-- *Explicit-proxy mode (the default):* alle routes by destination
+- *Explicit-proxy mode (the default):* anyhop routes by destination
   (IP/CIDR/domain), it does not intercept the system resolver. An app that
   resolves a hostname *locally* and then connects by IP can leak which host it
   is contacting through the local DNS query, and a hostname resolved to a
@@ -386,20 +386,20 @@ earlier rule (or the built-in LAN block, when on) already covers it.
   apps at the proxy with **remote DNS** — `socks5h://` (not `socks5://`) or an
   HTTP proxy that resolves remotely — so sing-box resolves the destination,
   not the host.
-- *[TUN mode](#alle-tun-onoff):* alle **owns the resolver** — plain DNS from
+- *[TUN mode](#anyhop-tun-onoff):* anyhop **owns the resolver** — plain DNS from
   every app is hijacked and answered by sing-box, so the `socks5h://` advice
   becomes moot and local-resolver leakage disappears. See the tun section for
   where the upstream query goes (a public resolver, dialed direct).
 
-The entrypoint's port is shown by `alle status` and by `routes ls`; it is
+The entrypoint's port is shown by `anyhop status` and by `routes ls`; it is
 allocated on the first daemon start and then never changes.
 
-### `alle routes ruleset create NAME --via TARGET --MATCHER...`
+### `anyhop routes ruleset create NAME --via TARGET --MATCHER...`
 
 Create a named ruleset: a contiguous, ordered block of matchers that all share
 one exit target. `<target>` is where matched traffic exits:
 
-- `<provider>/<channel>` — a channel (must exist; see `alle channels ls --refs`),
+- `<provider>/<channel>` — a channel (must exist; see `anyhop channels ls --refs`),
 - `direct` — straight to the network, no VPN,
 - `block` — refuse the connection.
 
@@ -415,10 +415,10 @@ lands in one transaction and one daemon reconcile:
 | `--all`           | everything — the catch-all for "VPN by default"                                                           |
 
 ```bash
-alle routes ruleset create Streaming --via nordvpn/wg_us_1 --domain netflix.com --domain hulu.com
-alle routes ruleset create LocalDirect --via direct --cidr 192.168.0.0/16
-alle routes ruleset create BlockTrackers --via block --domain tracker.example.com
-alle routes ruleset create DefaultVPN --via nordvpn/wg_jp_1 --all
+anyhop routes ruleset create Streaming --via nordvpn/wg_us_1 --domain netflix.com --domain hulu.com
+anyhop routes ruleset create LocalDirect --via direct --cidr 192.168.0.0/16
+anyhop routes ruleset create BlockTrackers --via block --domain tracker.example.com
+anyhop routes ruleset create DefaultVPN --via nordvpn/wg_jp_1 --all
 ```
 
 Notes:
@@ -433,29 +433,29 @@ Notes:
   before `--domain api.google.com`), `routes ls` marks the later matcher as
   **shadowed** and it will never match.
 
-### `alle routes ruleset add RULESET --MATCHER...`
+### `anyhop routes ruleset add RULESET --MATCHER...`
 
 Add matcher(s) to an existing ruleset block. The new matchers inherit that
 ruleset's priority immediately; lower-priority duplicates are left in place and
 shown as shadowed rather than silently deleted.
 
-### `alle routes ruleset rm RULESET [--dry-run]`
+### `anyhop routes ruleset rm RULESET [--dry-run]`
 
 Remove a whole ruleset block. (A ruleset whose matchers are all removed via
 `routes rm` simply has no rows left, so it no longer appears.)
 
-### `alle routes ruleset rename RULESET NAME` / `retarget RULESET TARGET`
+### `anyhop routes ruleset rename RULESET NAME` / `retarget RULESET TARGET`
 
 Rename a ruleset or change its exit target. Renaming is presentation-only and
 does not trigger a sing-box reconcile; retargeting does.
 
-### `alle routes ruleset update RULESET NAME --via TARGET --MATCHER...`
+### `anyhop routes ruleset update RULESET NAME --via TARGET --MATCHER...`
 
 Replace a ruleset's name, target, and matchers in one atomic call, keeping its
 id and priority position — the per-ruleset editor's Apply (the Web UI uses the
 same operation). Matcher flags are the same as `ruleset create`.
 
-### `alle routes ls [--channel REF] [--flat] [--json]`
+### `anyhop routes ls [--channel REF] [--flat] [--json]`
 
 List rulesets in evaluation order. The header line shows the entrypoint address
 and its unmatched behavior. `--channel <name|provider/name>` filters to flat
@@ -472,17 +472,17 @@ rs2  Direct exceptions → direct (1 matcher(s))
   r3  ip_cidr 192.168.0.0/16
 ```
 
-### `alle routes rm ID...`
+### `anyhop routes rm ID...`
 
 Remove matcher rows by id (`--dry-run` to preview). Unknown ids are reported all
 at once and nothing is removed.
 
 ```bash
-alle routes rm r2
-alle routes rm r1 r3 --dry-run
+anyhop routes rm r2
+anyhop routes rm r1 r3 --dry-run
 ```
 
-### `alle routes mv ID... RULESET`
+### `anyhop routes mv ID... RULESET`
 
 Move matcher rows into another ruleset in **one transaction** — the moved
 matchers keep their ids, adopt the destination's target, and are appended at
@@ -494,14 +494,14 @@ error. Unknown ids, an unknown destination, and ids already in the
 destination are all rejected before anything changes.
 
 ```bash
-alle routes mv r2 rs3            # one matcher into ruleset rs3
-alle routes mv r1 r4 r7 rs2      # several at once
+anyhop routes mv r2 rs3            # one matcher into ruleset rs3
+anyhop routes mv r1 r4 r7 rs2      # several at once
 ```
 
 Shadow-lint warnings are re-checked after the move: a matcher that lands
 behind a covering rule in its new position is flagged immediately.
 
-### `alle routes reorder RULESET-ID... [--flat] [--json]`
+### `anyhop routes reorder RULESET-ID... [--flat] [--json]`
 
 Replace the ruleset-block evaluation order with a full list of ruleset ids. Pass
 every existing ruleset id exactly once; ids stay stable and only their order
@@ -509,36 +509,36 @@ changes. `--flat` is a debug escape hatch that reorders raw rule ids, but refuse
 any permutation that would split a ruleset block.
 
 ```bash
-alle routes reorder rs3 rs1 rs2
+anyhop routes reorder rs3 rs1 rs2
 ```
 
-### `alle routes killswitch [on|off]`
+### `anyhop routes killswitch [on|off]`
 
 Block router traffic that matches no rule, instead of letting it go direct.
 Run without an argument to show the current state.
 
 ```bash
-alle routes killswitch on
-alle routes killswitch
+anyhop routes killswitch on
+anyhop routes killswitch
 ```
 
-- Applies to the router entrypoint **and**, when [TUN mode](#alle-tun-onoff) is
+- Applies to the router entrypoint **and**, when [TUN mode](#anyhop-tun-onoff) is
   on, to all system traffic — per-channel ports are always unaffected.
-  (Commercial VPN apps use "kill switch" for a system-wide block; alle's is
+  (Commercial VPN apps use "kill switch" for a system-wide block; anyhop's is
   system-wide exactly when TUN mode is on.)
-- `alle status` and `routes ls` show `unmatched → block — kill-switch ON` while
+- `anyhop status` and `routes ls` show `unmatched → block — kill-switch ON` while
   active, so it's always visible why unmatched traffic fails.
 
-### `alle routes lan [on|off]`
+### `anyhop routes lan [on|off]`
 
 Toggle the built-in default-direct rules for LAN/local traffic (default: **on**,
 the recommended state). Run without an argument to show the current state;
 `-v`/`--verbose` also lists the covered ranges.
 
 ```bash
-alle routes lan
-alle routes lan off
-alle routes lan on -v
+anyhop routes lan
+anyhop routes lan off
+anyhop routes lan on -v
 ```
 
 While on, destinations in these ranges go direct **ahead of every user rule**,
@@ -565,29 +565,29 @@ responders answer unicast from their well-known port):
 Notes:
 
 - The built-in rules are fixed — they cannot be edited or removed individually;
-  this toggle is the whole surface. They never appear in `alle routes ls`
+  this toggle is the whole surface. They never appear in `anyhop routes ls`
   (inspect them here with `-v`, or via `lan.cidrs`/`lan.udp_ports` in
   `GET /api/v1/routes`). The list stays small and curated on purpose: every
   direct-bypass entry is a small tunnel bypass, so it is not user-extensible.
 - Customization belongs in user rules, not in this block: to send something
   *extra* direct (e.g. Tailscale's CGNAT range), create a `direct` ruleset
-  and order it above your catch-all — `alle routes ruleset create Tailscale
-  --via direct --cidr 100.64.0.0/10`, then `alle routes reorder …`. To exclude
+  and order it above your catch-all — `anyhop routes ruleset create Tailscale
+  --via direct --cidr 100.64.0.0/10`, then `anyhop routes reorder …`. To exclude
   *less* than the built-in block, turn it off and recreate just the ranges you
   want as your own ruleset. Recipes and the design rationale:
   [routing.md](routing.md#the-built-in-lan-block-one-toggle-fixed-contents).
-- Applies to the router entrypoint **and**, when [TUN mode](#alle-tun-onoff) is
+- Applies to the router entrypoint **and**, when [TUN mode](#anyhop-tun-onoff) is
   on, to all system traffic; per-channel ports are unaffected.
 - DNS is deliberately **not** excluded from the tunnel: sending plain DNS direct
   by default would leak browsing activity, so DNS traffic stays subject to your
   rules — port `53` is not in the port list, and in TUN mode DNS hijacking
   still runs ahead of the range exclusions.
-- `alle status` and `routes ls` append `— LAN direct off` to the router line
+- `anyhop status` and `routes ls` append `— LAN direct off` to the router line
   while the protection is disabled.
 
 ---
 
-### `alle routes geo [ls|refresh|source]`
+### `anyhop routes geo [ls|refresh|source]`
 
 Manage the community geosite/geoip databases that power `--geosite`/`--geoip`
 matchers. Run without an argument to show status; `ls [QUERY]` searches
@@ -597,11 +597,11 @@ available category names (offline, from the manifest recorded at refresh);
 alternative).
 
 ```bash
-alle routes geo                      # status: source, cache, what's referenced
-alle routes geo ls netflix           # search category names (offline)
-alle routes geo ls --kind geosite    # list one kind
-alle routes geo refresh              # re-pin and re-download all referenced categories
-alle routes geo source metacubex     # switch to the MetaCubeX upstream
+anyhop routes geo                      # status: source, cache, what's referenced
+anyhop routes geo ls netflix           # search category names (offline)
+anyhop routes geo ls --kind geosite    # list one kind
+anyhop routes geo refresh              # re-pin and re-download all referenced categories
+anyhop routes geo source metacubex     # switch to the MetaCubeX upstream
 ```
 
 To see what a category *contains* in plaintext, read its file in
@@ -617,18 +617,18 @@ on every use. See [routing.md](routing.md#geo-matchers) for the full design.
 
 ---
 
-### `alle routes trace DESTINATION [--json]`
+### `anyhop routes trace DESTINATION [--json]`
 
 Which routing rule wins for a destination — an offline dry-run of the rule
-table. Nothing is sent through any tunnel (use [`alle test`](#alle-test) for a
+table. Nothing is sent through any tunnel (use [`anyhop test`](#anyhop-test) for a
 real probe); no daemon or running sing-box is needed. The destination may be a
 domain, a literal IP, or a URL (reduced to its host).
 
 ```bash
-alle routes trace netflix.com
-alle routes trace 192.168.1.1
-alle routes trace https://cache3.example.com/path   # URLs reduce to their host
-alle routes trace 2606:4700::1111 --json            # scripting form
+anyhop routes trace netflix.com
+anyhop routes trace 192.168.1.1
+anyhop routes trace https://cache3.example.com/path   # URLs reduce to their host
+anyhop routes trace 2606:4700::1111 --json            # scripting form
 ```
 
 The trace walks the same rule order the engine compiles into sing-box — the
@@ -644,44 +644,44 @@ honest limits of the model: [routing.md](routing.md#tracing-rules-which-rule-win
 
 ---
 
-## `alle locations`
+## `anyhop locations`
 
-`alle locations <provider> [--country "<country>"] [--refresh] [--json]`
+`anyhop locations <provider> [--country "<country>"] [--refresh] [--json]`
 
 List a token provider's selectable countries (and their cities). With `--country`,
 list just that country's cities. `--refresh` forces a re-fetch of the cached list.
 Config providers have no locations API and print guidance instead.
 
 ```bash
-alle locations nordvpn
-alle locations nordvpn --country "United States"
+anyhop locations nordvpn
+anyhop locations nordvpn --country "United States"
 ```
 
 ---
 
-## `alle status`
+## `anyhop status`
 
-`alle status [--json]`
+`anyhop status [--json]`
 
-The system-level summary: whether `alle` is running, per-provider channel
+The system-level summary: whether `anyhop` is running, per-provider channel
 counts, the router entrypoint's address and posture, and the Web UI and REST
 API endpoints —
 deliberately **no per-channel table**. Channel detail lives in one place,
-[`alle test`](#alle-test) (fresh probes + traffic totals); rendering the same
+[`anyhop test`](#anyhop-test) (fresh probes + traffic totals); rendering the same
 rows here from cached probes would just duplicate that table behind a probe-age
 column. Daemon problems (version skew after an upgrade, a crash-looping or
 config-rejected sing-box) surface as warning lines.
 
 ```text
-Alle - Active
-  Channels  NordVPN: 6 channels (4 enabled), Proton VPN: 1 channel  (details: alle channels ls)
-  Router    127.0.0.1:54585 — 2 rule(s), LAN bypasses VPN, unmatched → direct  (details: alle routes ls)
-  Web UI    http://alle-cb9cd104.localhost:58601  (open it: alle ui)
-  REST API  http://alle-cb9cd104.localhost:58601/api/v1 — shares the Web UI listener; Bearer auth required
+Anyhop - Active
+  Channels  NordVPN: 6 channels (4 enabled), Proton VPN: 1 channel  (details: anyhop channels ls)
+  Router    127.0.0.1:54585 — 2 rule(s), LAN bypasses VPN, unmatched → direct  (details: anyhop routes ls)
+  Web UI    http://anyhop-cb9cd104.localhost:58601  (open it: anyhop ui)
+  REST API  http://anyhop-cb9cd104.localhost:58601/api/v1 — shares the Web UI listener; Bearer auth required
 ```
 
 A provider's count shows the enabled split (`6 channels (4 enabled)`) only
-when some of its channels are [disabled](#alle-channels-enabledisable-channel).
+when some of its channels are [disabled](#anyhop-channels-enabledisable-channel).
 
 The router line always states the entrypoint's full posture — `pass-through
 (no rules)`, or the rule count plus the two priority boundaries: the built-in
@@ -694,45 +694,45 @@ human rendering is a summary.
 
 ---
 
-## `alle start` / `stop` / `restart`
+## `anyhop start` / `stop` / `restart`
 
-- **`alle start`** — start the runtime (background reconciler + sing-box). Runs idle if
+- **`anyhop start`** — start the runtime (background reconciler + sing-box). Runs idle if
   no channels are configured yet. The first interactive start offers — exactly
-  once, ever — to register the login service (`alle daemon install`); answer
+  once, ever — to register the login service (`anyhop daemon install`); answer
   `n` and it never asks again. `--yes` installs the service without asking,
   `--no-service` declines without asking (both suited to scripts). The offer
   is skipped entirely on non-TTY runs, in containers, under a supervisor, or
   when a unit already exists — and a skipped offer is not a spent one.
-- **`alle stop`** — stop the runtime. Channels stay in config; only the processes stop.
-- **`alle restart`** — stop then start. Also clears any `Reconnect failed` flags so
+- **`anyhop stop`** — stop the runtime. Channels stay in config; only the processes stop.
+- **`anyhop restart`** — stop then start. Also clears any `Reconnect failed` flags so
   dead channels are retried from scratch.
 
 ```bash
-alle start
-alle restart
-alle stop
+anyhop start
+anyhop restart
+anyhop stop
 ```
 
 ---
 
-## `alle upgrade [--check] [--prerelease]`
+## `anyhop upgrade [--check] [--prerelease]`
 
-Upgrade alle through the tool that installed it — alle never replaces its own
+Upgrade anyhop through the tool that installed it — anyhop never replaces its own
 files. The install channel is detected, its authoritative source is checked
 (the Homebrew tap for brew, PyPI for uv tool/pipx/pip), and the upgrade is
 delegated only when a newer version exists. If the daemon is running, restart
-is handed to its actual owner: alle's native service restarts directly, a
+is handed to its actual owner: anyhop's native service restarts directly, a
 brew-supervised daemon self-exits for Homebrew to respawn, and an older or
 unsupervised brew daemon reports the explicit command the user must run.
 
 ```bash
-alle upgrade --check   # ask the owning channel for latest; changes nothing
-alle upgrade           # delegate to brew/uv tool/pipx/pip; report restart status
-alle upgrade --check --prerelease  # explicitly include PyPI prereleases
-alle upgrade --prerelease          # include PyPI prereleases in selection
+anyhop upgrade --check   # ask the owning channel for latest; changes nothing
+anyhop upgrade           # delegate to brew/uv tool/pipx/pip; report restart status
+anyhop upgrade --check --prerelease  # explicitly include PyPI prereleases
+anyhop upgrade --prerelease          # include PyPI prereleases in selection
 ```
 
-- `--check` contacts the Homebrew tap or PyPI **only when you run it** — alle
+- `--check` contacts the Homebrew tap or PyPI **only when you run it** — anyhop
   never checks for updates in the background. The Web UI's version badge does
   the same check on click.
 - Stable releases are the default. `--prerelease` is an explicit, per-command
@@ -749,7 +749,7 @@ alle upgrade --prerelease          # include PyPI prereleases in selection
 
 ---
 
-## `alle run`
+## `anyhop run`
 
 The same daemon loop, in the **foreground**: the process does not detach, and
 every operation-log line is also written to stderr. This is what a container
@@ -757,27 +757,27 @@ runs as PID 1 (`docker logs` gets the timeline; a restart policy replaces the
 login service — see `docs/docker.md`), and it doubles as an interactive way
 to watch the daemon work. `Ctrl-C`/SIGTERM stop it cleanly. Everything else —
 locking, pidfile, the Web UI thread — is identical to the background daemon,
-so a foreground run and `alle start` exclude each other like two daemons
+so a foreground run and `anyhop start` exclude each other like two daemons
 always have.
 
 ---
 
-## `alle health [--json]`
+## `anyhop health [--json]`
 
 A **cheap liveness probe with a strict exit code**: `0` when the daemon is
 running and sing-box is up, `1` otherwise. Built for machines — container
-`HEALTHCHECK`s, cron, monitoring — where [`alle status`](#alle-status) is the
+`HEALTHCHECK`s, cron, monitoring — where [`anyhop status`](#anyhop-status) is the
 human/diagnostic view. No probes and no network I/O: two pidfile checks and a
 state read.
 
 ```bash
-alle health           # healthy: daemon=up sing-box=up channels=3
-alle health --json    # {"ok": true, "daemon": true, "singbox": true, ...}
+anyhop health           # healthy: daemon=up sing-box=up channels=3
+anyhop health --json    # {"ok": true, "daemon": true, "singbox": true, ...}
 ```
 
 ---
 
-## `alle tun [on|off]`
+## `anyhop tun [on|off]`
 
 System-wide VPN mode: sing-box creates a TUN device and takes over the
 system's default route, so **all** system traffic — every app, raw sockets,
@@ -785,38 +785,38 @@ UDP — enters the same routing rules the router entrypoint uses. Run without an
 argument to show the current state.
 
 ```bash
-alle tun on
-alle tun
-alle tun off
+anyhop tun on
+anyhop tun
+anyhop tun off
 ```
 
 - **One rule table, two doors.** The tun joins the router entrypoint's
   compiled rules (built-in LAN-direct block, your rulesets, unmatched
   handling) — nothing is duplicated, and per-channel proxy ports plus the
-  router port keep working unchanged. With tun on, `alle routes killswitch on`
+  router port keep working unchanged. With tun on, `anyhop routes killswitch on`
   is genuinely system-wide.
 - **Privilege: one-time install, then no sudo.** Creating the TUN device is
-  privileged, so `alle tun on` refuses unless one of these holds (the helper
+  privileged, so `anyhop tun on` refuses unless one of these holds (the helper
   is the intended steady state; the others are fallbacks):
   - **macOS — privileged helper (recommended).** Install it **once**:
 
     ```bash
-    sudo alle helper install
+    sudo anyhop helper install
     ```
 
     This registers a root LaunchDaemon that owns sing-box while tun mode is on.
-    After this single install, `alle tun on` (and the Web UI toggle) works as
+    After this single install, `anyhop tun on` (and the Web UI toggle) works as
     your normal user with **no password, ever** — it
     survives reboots (launchd starts the helper at boot). Remove it with
-    `sudo alle helper uninstall`; check it with `alle helper status`. See
+    `sudo anyhop helper uninstall`; check it with `anyhop helper status`. See
     `docs/security.md` for the helper's hard scope.
 
   - **Linux — setcap (no root, recommended).** Grant the pinned sing-box
-    binary the capability once; then `alle tun on` works as your normal user
+    binary the capability once; then `anyhop tun on` works as your normal user
     with an unprivileged daemon — no root process anywhere:
 
     ```bash
-    sudo setcap cap_net_admin,cap_net_raw+ep "$(alle version --singbox-path)"
+    sudo setcap cap_net_admin,cap_net_raw+ep "$(anyhop version --singbox-path)"
     ```
 
     No restart step is needed: enabling tun re-execs sing-box automatically
@@ -831,14 +831,14 @@ alle tun off
     normal state directory:
 
     ```bash
-    alle stop
-    sudo ALLE_HOME="$HOME/.alle" alle tun on
+    anyhop stop
+    sudo ANYHOP_HOME="$HOME/.anyhop" anyhop tun on
     ```
 
-    The rest of the alle CLI is **not** sudo-only — only this one-off tun
+    The rest of the anyhop CLI is **not** sudo-only — only this one-off tun
     enable needs it, and the helper/setcap paths exist to avoid even that.
 
-- **DNS is owned by alle in TUN mode.** Plain DNS from any app is hijacked
+- **DNS is owned by anyhop in TUN mode.** Plain DNS from any app is hijacked
   and answered by sing-box; the upstream is `1.1.1.1` over UDP, dialed
   **direct** — never a LAN resolver, and (in v1) never a channel: with
   multiple channels there is no single "the tunnel" to prefer, so resolution
@@ -848,17 +848,17 @@ alle tun off
 - **IPv6 — explicit per-provider policy, never leaked.** IPv6 is enabled or
   disabled per provider based on whether that provider's WireGuard tunnel
   actually supports it: NordVPN (NordLynx) does not fully support IPv6, so
-  alle strips it; Proton VPN supports IPv6 inside the tunnel (~80% of
-  servers), so alle carries it when the server's config supplies a global v6
+  anyhop strips it; Proton VPN supports IPv6 inside the tunnel (~80% of
+  servers), so anyhop carries it when the server's config supplies a global v6
   address. A mixed fleet fails closed: v6 flows into v6-capable channels,
   while every rule targeting a v4-only channel gets a same-matcher v6 reject
   ahead of it, and any v6 matching no rule is rejected too — never leaked to
   the physical interface. With no v6-capable channel at all, the blanket
   block-all-v6 behavior holds (byte-identical to a v4-only setup). LAN-direct
   still passes local IPv6 (link-local/ULA) when enabled.
-- **Kill-switch + tun blocks alle's own provider calls.** Only sing-box's own
-  sockets bypass the tun; the alle daemon's provider API traffic (NordVPN
-  server re-resolution on reconnect, `alle locations --refresh`) is ordinary
+- **Kill-switch + tun blocks anyhop's own provider calls.** Only sing-box's own
+  sockets bypass the tun; the anyhop daemon's provider API traffic (NordVPN
+  server re-resolution on reconnect, `anyhop locations --refresh`) is ordinary
   direct egress, so with both tun **and** the kill-switch on it is blocked
   like any other unmatched traffic (verified live in the sandbox). Channels
   keep flowing — WireGuard runs inside sing-box — but automatic reconnect
@@ -869,23 +869,23 @@ alle tun off
   back to the physical route — traffic fails **open** for the ~2s supervision
   window until sing-box restarts. A firewall-anchored always-on kill-switch is
   future hardening.
-- **Trying it safely: `alle tun on --trial <seconds>`.** Arms a detached
+- **Trying it safely: `anyhop tun on --trial <seconds>`.** Arms a detached
   watchdog *before* activation (the `iptables-apply` pattern): unless you run
-  `alle tun confirm` within the window, TUN mode reverts off automatically —
-  even if your SSH session died with the network. `alle tun` shows the
-  pending trial; a plain `alle tun on`/`off` supersedes it.
-- **Recovery.** `alle tun off` (reconciles the tun away); if the CLI is
-  broken, `alle stop` — a cleanly killed sing-box always restores the routes.
+  `anyhop tun confirm` within the window, TUN mode reverts off automatically —
+  even if your SSH session died with the network. `anyhop tun` shows the
+  pending trial; a plain `anyhop tun on`/`off` supersedes it.
+- **Recovery.** `anyhop tun off` (reconciles the tun away); if the CLI is
+  broken, `anyhop stop` — a cleanly killed sing-box always restores the routes.
   Do **not** `pkill sing-box`: the daemon restarts it with the same tun config
   within ~2s. Full ordered runbook (read it before the first activation):
   [docs/tun-runbook.md](tun-runbook.md).
-- `alle status` shows a `TUN` line while active.
+- `anyhop status` shows a `TUN` line while active.
 
 ---
 
-## `alle test`
+## `anyhop test`
 
-`alle test [--channel <id>] [--speed] [--fail] [--json]`
+`anyhop test [--channel <id>] [--speed] [--fail] [--json]`
 
 **The** per-channel table: probe channels **now** (rather than waiting for the
 next background cycle) and print each channel's fresh connectivity plus its
@@ -895,7 +895,7 @@ counters began). With `--channel`, test just one channel by id. `STATE` is
 `Healthy`, or the failure reason (`Stopped` while the runtime is down,
 otherwise the probe error — e.g. `Timeout`, `Failed`); a failing channel marks
 its own row, it never aborts the rest of the run. A
-[disabled](#alle-channels-enabledisable-channel) channel is listed too —
+[disabled](#anyhop-channels-enabledisable-channel) channel is listed too —
 skipped with `STATE` `Disabled`, not probed (it has no inbound to probe) and
 never counted as failed. Every channel table shares the same `LABEL` + `ID`
 lead — `LABEL` is the display name (the id when no label is set), `ID` is the
@@ -911,8 +911,8 @@ California      protonvpn/wg_us_ca_842    :53126  United States  California     
 
 Add `--fail` for monitoring use: exit code 1 when any probed channel is
 unhealthy — or when nothing was probed at all (a monitor that watched nothing
-must not report success). Without it, `alle test` is informational and always
-exits 0. The daemon-liveness counterpart is [`alle health`](#alle-health---json).
+must not report success). Without it, `anyhop test` is informational and always
+exits 0. The daemon-liveness counterpart is [`anyhop health`](#anyhop-health---json).
 
 Add `--speed` to run the slower download/upload test after the fresh
 connectivity probe; it appends `DOWNLOAD` and `UPLOAD` columns. Speed tests run
@@ -920,17 +920,17 @@ only for channels that were healthy in that same probe; an unhealthy or
 disabled channel keeps its row (reason in `STATE`, `-` in the speed columns)
 while the others proceed.
 
-In an interactive terminal `alle test --speed` **streams**: the table header
+In an interactive terminal `anyhop test --speed` **streams**: the table header
 prints up front and each channel's row appears the moment its own test completes
 (with a live progress indicator on the channel under test), instead of waiting
 for the whole batch to finish. Piped / non-TTY output and `--json` still produce
 the complete table / a single JSON object at the end.
 
 ```bash
-alle test
-alle test --channel wg_us_ca_842
-alle test --speed
-alle test --speed --json
+anyhop test
+anyhop test --channel wg_us_ca_842
+anyhop test --speed
+anyhop test --speed --json
 ```
 
 **Interpretation:** speed-test `LATENCY` is a min round trip through the tunnel and
@@ -948,18 +948,18 @@ cumulative usage trends, not exact accounting. (`--json` also carries a
 
 ---
 
-## `alle export [--out FILE]`
+## `anyhop export [--out FILE]`
 
 Write the entire setup — providers (with their credentials), channels of both
 archetypes, rulesets, and the router toggles — as one declarative YAML
 **bundle**, for backup, moving to another machine, or replaying after a
-reinstall. Defaults to `alle-backup-<date>-<time>.yaml` in the current
+reinstall. Defaults to `anyhop-backup-<date>-<time>.yaml` in the current
 directory, written `0600`; `--out -` prints to stdout instead (for scripts).
 
 ```bash
-alle export                          # -> alle-backup-20260709-143022.yaml (0600)
-alle export --out ~/setup.yaml
-alle export --out - | wc -l          # stdout for scripts
+anyhop export                          # -> anyhop-backup-20260709-143022.yaml (0600)
+anyhop export --out ~/setup.yaml
+anyhop export --out - | wc -l          # stdout for scripts
 ```
 
 - **The file is a secret.** It contains WireGuard private keys and provider
@@ -975,7 +975,7 @@ their WireGuard params are derived state, resolved via the provider token at
 apply time. Config-provider channels (Proton `.conf`) must include `wg` — it
 *is* their configuration. Matchers in hand-written rulesets can be bare
 strings (`netflix.com`, `10.8.0.0/16`, `all`), inferred exactly like
-`alle routes ruleset create --domain`.
+`anyhop routes ruleset create --domain`.
 
 **Guides** — writing a setup from scratch, with per-provider how-to for
 filling the YAML: [declarative-config.md](declarative-config.md). Format
@@ -984,45 +984,45 @@ machines): [bundle.md](bundle.md).
 
 ---
 
-## `alle backup [on|off|now]`
+## `anyhop backup [on|off|now]`
 
 Scheduled local backups of the setup bundle — the automatic flavor of
-`alle export`. Run without an argument to show status; `on`/`off` toggles the
+`anyhop export`. Run without an argument to show status; `on`/`off` toggles the
 schedule (`on` also writes a first backup immediately, so you get instant
 feedback that the destination works); `now` writes one backup on the spot,
 whether or not the schedule is on.
 
 ```bash
-alle backup                       # status: schedule + what's on disk
-alle backup on                    # daily into <state dir>/backups, keep 7
-alle backup on --every 6 --keep 4 # every 6 hours, keep the newest 4
-alle backup on --dir ~/Backups/alle
-alle backup now                   # one-shot into the rotation directory
-alle backup off
+anyhop backup                       # status: schedule + what's on disk
+anyhop backup on                    # daily into <state dir>/backups, keep 7
+anyhop backup on --every 6 --keep 4 # every 6 hours, keep the newest 4
+anyhop backup on --dir ~/Backups/anyhop
+anyhop backup now                   # one-shot into the rotation directory
+anyhop backup off
 ```
 
-- `--dir <path>` — destination directory (default: `backups/` inside alle's
-  state directory). It must be user-owned and not group/world-writable; alle
+- `--dir <path>` — destination directory (default: `backups/` inside anyhop's
+  state directory). It must be user-owned and not group/world-writable; anyhop
   creates it `0700` and refuses symlinks. Backup files are written `0600`.
 - `--every <hours>` — interval (default: 24).
-- `--keep <n>` — retention: only the newest *n* `alle-backup-*.yaml` files are
+- `--keep <n>` — retention: only the newest *n* `anyhop-backup-*.yaml` files are
   kept; older ones are pruned. Nothing else in the directory is ever touched.
 
 How it runs:
 
-- **Backups are written by the alle daemon** while it is running — alle
+- **Backups are written by the anyhop daemon** while it is running — anyhop
   installs no cron jobs or OS timers, and a backup pass is pure local file
   I/O (the no-background-traffic posture holds). If the daemon was down past
   a due time, the next daemon start catches up within a few minutes.
 - Due-ness is derived from the newest backup file's timestamp, not stored
   state — delete the directory and the next check writes a fresh backup.
-- **Backups are secrets**, exactly like `alle export` output: they contain
+- **Backups are secrets**, exactly like `anyhop export` output: they contain
   WireGuard private keys and provider tokens. The directory permissions are
   the protection; treat the files like a password store.
 
 ---
 
-## `alle import FILE [--replace] [--yes]`
+## `anyhop import FILE [--replace] [--yes]`
 
 Apply a bundle. Two modes, one command:
 
@@ -1041,12 +1041,12 @@ Apply a bundle. Two modes, one command:
     Config channels are applied exactly as written.
   - **Rulesets always append at the bottom of the priority order.** Under
     first-match-wins an appended block can never hijack existing routing; use
-    `alle routes ls` (shadow lint) and `alle routes reorder` afterwards.
+    `anyhop routes ls` (shadow lint) and `anyhop routes reorder` afterwards.
   - `killswitch` / `lan_direct`, when present in the bundle, are applied.
 
 ```bash
-alle import alle-backup-20260709-143022.yaml                  # merge
-alle import alle-backup-20260709-143022.yaml --replace --yes  # replace, non-interactive
+anyhop import anyhop-backup-20260709-143022.yaml                  # merge
+anyhop import anyhop-backup-20260709-143022.yaml --replace --yes  # replace, non-interactive
 ```
 
 - **`--replace`** — **overwrite the whole setup** instead of merging.
@@ -1057,7 +1057,7 @@ alle import alle-backup-20260709-143022.yaml --replace --yes  # replace, non-int
   so they don't survive a replace — a channel whose `(provider, id)` already
   exists keeps its current port, but new identities get fresh ports and the
   router entrypoint port is untouched; repoint apps at the ports from
-  `alle status` after a cross-machine replace. Runtime state resets (fresh
+  `anyhop status` after a cross-machine replace. Runtime state resets (fresh
   probes, no carried-over history).
 
 The whole file is validated first — every WireGuard field, matcher, and target
@@ -1067,7 +1067,7 @@ caveats: [bundle.md](bundle.md).
 
 ---
 
-## `alle sync FILE`
+## `anyhop sync FILE`
 
 Converge on a bundle as the **managed desired state** — the startup-sync
 apply mode. This is what the Docker entrypoint runs on every container start;
@@ -1076,7 +1076,7 @@ setup file.
 
 Same upsert rules as a merge import (ports, labels, fresh token resolution,
 the `enabled` tri-state — an *unstated* `enabled` still preserves an ad-hoc
-`alle channels disable`), plus **provenance**: everything sync creates is
+`anyhop channels disable`), plus **provenance**: everything sync creates is
 marked as owned by the bundle, and each sync updates/prunes only that owned
 state:
 
@@ -1086,21 +1086,21 @@ state:
   existing priority position; a changed channel updates in place.
 - **Removals prune** — a channel/ruleset/provider dropped from the bundle is
   removed (a dropped provider's credential too). Channels and rulesets
-  created *outside* sync (CLI, Web UI, `alle import`) are never pruned or
+  created *outside* sync (CLI, Web UI, `anyhop import`) are never pruned or
   adopted. A managed channel that a hand-made rule still references is kept
   and reported instead of breaking the rule.
 
-`alle import` keeps its append/merge semantics; use `sync` when the file is
+`anyhop import` keeps its append/merge semantics; use `sync` when the file is
 the single source of truth, `import` when layering a backup or template onto
 an existing setup.
 
 ```bash
-alle sync my-setup.yaml     # converge: idempotent, prunes what the file dropped
+anyhop sync my-setup.yaml     # converge: idempotent, prunes what the file dropped
 ```
 
 ---
 
-## `alle gateway init`
+## `anyhop gateway init`
 
 Declare the container **gateway profile**'s fail-closed data plane: privilege-
 check first (root mode, `/dev/net/tun`, `CAP_NET_ADMIN` — a gateway container
@@ -1109,27 +1109,27 @@ and enable TUN, so the first reconcile activates capture with reject-unmatched
 already in force. Idempotent across restarts.
 
 You normally never run this by hand — the container entrypoint runs it on every
-start when `ALLE_GATEWAY=1` is set (see [docs/docker.md](docker.md) and the
+start when `ANYHOP_GATEWAY=1` is set (see [docs/docker.md](docker.md) and the
 gateway variant in [docs/docker-compose.md](docker-compose.md)). Readiness
-(`alle health` under the profile) stays red until the declared data plane
+(`anyhop health` under the profile) stays red until the declared data plane
 actually holds.
 
 ---
 
-## `alle validate FILE`
+## `anyhop validate FILE`
 
 Check a bundle **without applying it** — a pre-import dry run. Reports **every**
 problem in one pass (never stopping at the first), each with the **line number**
 and reason, and exits non-zero if any are found.
 
 ```bash
-alle validate my-setup.yaml
-alle validate my-setup.yaml && alle import my-setup.yaml   # gate an import
+anyhop validate my-setup.yaml
+anyhop validate my-setup.yaml && anyhop import my-setup.yaml   # gate an import
 ```
 
 It runs the self-contained (`--replace`-style) checks:
 
-- `kind: alle-bundle` and a `bundle_version` this alle understands.
+- `kind: anyhop-bundle` and a `bundle_version` this anyhop understands.
 - Providers are among the supported set (`nordvpn`, `protonvpn`).
 - Token providers (NordVPN) carry a non-empty token; channel ids are unique
   within a provider; **country is required and checked against the provider's
@@ -1145,7 +1145,7 @@ It runs the self-contained (`--replace`-style) checks:
   `domain` type is accepted and read as `domain_suffix`).
 
 ```text
-$ alle validate broken.yaml
+$ anyhop validate broken.yaml
 bundle rejected (3 problems) — nothing was changed:
   line 7   providers.nordvpn.credential — a non-empty token is required for NordVPN
   line 10  providers.nordvpn.channels.wg_us_1.country — 'Atlantis' is not a known NordVPN country
@@ -1154,27 +1154,27 @@ bundle rejected (3 problems) — nothing was changed:
 
 ---
 
-## `alle logs`
+## `anyhop logs`
 
-`alle logs [-f|--follow] [-n|--lines N]`
+`anyhop logs [-f|--follow] [-n|--lines N]`
 
-Show `alle`'s operation log (default last 200 lines). `-f` streams new lines.
+Show `anyhop`'s operation log (default last 200 lines). `-f` streams new lines.
 
 ```bash
-alle logs -n 50
-alle logs -f
+anyhop logs -n 50
+anyhop logs -f
 ```
 
 ---
 
-## `alle ui`
+## `anyhop ui`
 
 Open the Web UI dashboard in your browser. Ensures the daemon (which serves the
 UI) is running, then opens a one-time sign-in link.
 
 ```bash
-alle ui
-alle ui --no-open    # print the sign-in URL instead of opening a browser
+anyhop ui
+anyhop ui --no-open    # print the sign-in URL instead of opening a browser
 ```
 
 The UI has a **Dashboard**, a **Bundle** page, and a **Logs** page. The
@@ -1189,50 +1189,50 @@ VPN uploads a WireGuard `.conf`. Router rules can be added, deleted, and
 drag-reordered (first match wins), with an **Allow Non-VPN Traffic** toggle
 (Unmatched row) and a fixed **Priority 0 / LAN** row keeping local traffic
 direct. Channels a routing rule still targets can't be removed — the
-UI shows the exact rules to clear first, same as `alle channels rm`. A **Bundle**
-page downloads the setup as a bundle (`alle export`) and uploads one to **merge**
-or **replace** the whole setup (replace confirms) — same as `alle import` /
-`alle import --replace` — plus a **Validate** button to dry-run-check a file. A
+UI shows the exact rules to clear first, same as `anyhop channels rm`. A **Bundle**
+page downloads the setup as a bundle (`anyhop export`) and uploads one to **merge**
+or **replace** the whole setup (replace confirms) — same as `anyhop import` /
+`anyhop import --replace` — plus a **Validate** button to dry-run-check a file. A
 **Logs** page polls the local log tail. Lifecycle (start/stop/restart) is via the CLI;
 the masthead links to the project on GitHub.
 
 - The server binds to `127.0.0.1` only and is never exposed to the network (there
   is no `--bind` option, by design). The browser URL uses a per-installation
-  `alle-<random>.localhost` hostname (browsers resolve it to loopback
-  themselves) so the session cookie is scoped to alle alone, never shared with
+  `anyhop-<random>.localhost` hostname (browsers resolve it to loopback
+  themselves) so the session cookie is scoped to anyhop alone, never shared with
   other local web apps. Reach it remotely over an SSH tunnel on the **same**
-  port: `ssh -L <port>:127.0.0.1:<port> user@host`, then open the `alle ui`
-  sign-in link locally (the `<port>` is shown by `alle status` / `alle start`).
+  port: `ssh -L <port>:127.0.0.1:<port> user@host`, then open the `anyhop ui`
+  sign-in link locally (the `<port>` is shown by `anyhop status` / `anyhop start`).
   SSH provides encryption and access control; do not expose or reverse-proxy
-  the alle Web UI port directly.
-- Auth: `alle ui` mints a single-use login token (exchanged for an `HttpOnly`
-  session cookie); the persistent secret never appears in a URL, and `alle ui`
+  the anyhop Web UI port directly.
+- Auth: `anyhop ui` mints a single-use login token (exchanged for an `HttpOnly`
+  session cookie); the persistent secret never appears in a URL, and `anyhop ui`
   only sends the sign-in link after the listener proves (via an HMAC health
-  challenge) that it really is alle. Manual sign-in: paste the `secret` from
-  `~/.alle/control_api.json`. Sessions idle out after 30 minutes without an
+  challenge) that it really is anyhop. Manual sign-in: paste the `secret` from
+  `~/.anyhop/control_api.json`. Sessions idle out after 30 minutes without an
   open tab (12 h absolute cap); the masthead's **Sign out** revokes every
   session. The full threat model: [docs/security.md](security.md).
 
 ---
 
-## `alle daemon`
+## `anyhop daemon`
 
-Manage whether alle's background daemon runs as a **user-level login service**.
+Manage whether anyhop's background daemon runs as a **user-level login service**.
 Advanced and optional — without it the runtime auto-starts on first use and runs
 for the session. Installing the service makes it start at login and be
 supervised (auto-restarted on crash, and on an in-place upgrade). No `sudo`: it
 is a per-user service, never system-wide.
 
-- **macOS** — a LaunchAgent (`~/Library/LaunchAgents/com.github.zydo.alle.plist`),
+- **macOS** — a LaunchAgent (`~/Library/LaunchAgents/io.github.anyhop.anyhop.plist`),
   managed with `launchctl`.
-- **Linux** — a `systemd --user` unit (`~/.config/systemd/user/alle.service`),
+- **Linux** — a `systemd --user` unit (`~/.config/systemd/user/anyhop.service`),
   managed with `systemctl --user`.
 
 Both auto-start at login and run for the login session. (A macOS LaunchAgent
 cannot survive logout — that needs a root service, out of scope. On Linux,
 `--linger` keeps it running after logout.)
 
-### `alle daemon install [--linger]`
+### `anyhop daemon install [--linger]`
 
 Register and start the login service. Pre-fetches the pinned sing-box binary so
 the service starts ready. Idempotent — re-running refreshes the unit (e.g. after
@@ -1246,64 +1246,64 @@ error says so explicitly; the service is installed and running at that point,
 only logout survival is missing.
 
 ```bash
-alle daemon install
-alle daemon install --linger      # Linux: survive logout
+anyhop daemon install
+anyhop daemon install --linger      # Linux: survive logout
 ```
 
-(**Homebrew:** the `alle` formula in the `zydo/tap` tap ships only the CLI and
+(**Homebrew:** the `anyhop` formula in the `anyhop/tap` tap ships only the CLI and
 bundled Web UI. On that channel let `brew services` own
-registration instead of `alle daemon install`: `brew services start alle`.
-`alle upgrade` recognizes a brew-owned install and delegates to `brew upgrade`.)
+registration instead of `anyhop daemon install`: `brew services start anyhop`.
+`anyhop upgrade` recognizes a brew-owned install and delegates to `brew upgrade`.)
 
-### `alle daemon uninstall`
+### `anyhop daemon uninstall`
 
-Remove the login service and stop its supervised runtime. Your `~/.alle` state
+Remove the login service and stop its supervised runtime. Your `~/.anyhop` state
 (providers, channels, keys) is left untouched.
 
-### `alle daemon status [--json]`
+### `anyhop daemon status [--json]`
 
 Show whether the login service is installed/active and whether the daemon is
 running, with its version.
 
 ```text
 Login service: active (launchd).
-  Unit: /Users/you/Library/LaunchAgents/com.github.zydo.alle.plist
+  Unit: /Users/you/Library/LaunchAgents/io.github.anyhop.anyhop.plist
 Daemon: running, version 0.1.3.
 ```
 
-**Upgrades:** the service unit execs a stable shim, so `alle upgrade` (or an
+**Upgrades:** the service unit execs a stable shim, so `anyhop upgrade` (or an
 equivalent owning-manager command) never needs to touch it, and a supervised
 daemon notices the new version and restarts itself onto it within ~30s. For an
-unsupervised daemon, `alle status` prints a one-line warning when the running
-daemon is older than the CLI (`run alle restart to pick up the upgrade`).
+unsupervised daemon, `anyhop status` prints a one-line warning when the running
+daemon is older than the CLI (`run anyhop restart to pick up the upgrade`).
 
 ---
 
-## `alle helper`
+## `anyhop helper`
 
-`alle helper install` · `alle helper uninstall` · `alle helper status`
+`anyhop helper install` · `anyhop helper uninstall` · `anyhop helper status`
 
 The privileged TUN helper — macOS only (Linux uses `setcap`, no helper). It is
-the one-time grant that makes [`alle tun on`](#alle-tun-onoff) need no sudo:
+the one-time grant that makes [`anyhop tun on`](#anyhop-tun-onoff) need no sudo:
 install once, and the helper (a root LaunchDaemon) owns sing-box while tun mode
 is on, so `tun on`/`off` and the Web UI toggle run as your normal user with no
 password, across reboots.
 
 ```bash
-sudo alle helper install     # one-time; then `alle tun on` needs no sudo
-alle helper status           # is it installed and answering?
-sudo alle helper uninstall   # remove it (tun on then needs the sudo fallback)
+sudo anyhop helper install     # one-time; then `anyhop tun on` needs no sudo
+anyhop helper status           # is it installed and answering?
+sudo anyhop helper uninstall   # remove it (tun on then needs the sudo fallback)
 ```
 
 - `install`/`uninstall` need root (they write `/Library/LaunchDaemons/`); run
   them under `sudo`. `status` does not. The helper serves the user behind
   `sudo` (`SUDO_UID`) over a unix socket, authenticated by peer uid.
-- One helper serves one `ALLE_HOME` — the one active at install time
-  (`alle helper status` reports it as `serves_home`). Commands from a
+- One helper serves one `ANYHOP_HOME` — the one active at install time
+  (`anyhop helper status` reports it as `serves_home`). Commands from a
   different home are refused; to move the helper to another home, rerun
-  `sudo alle helper install --takeover` from that home.
+  `sudo anyhop helper install --takeover` from that home.
 - There is **one helper per machine** (one label, one plist, one socket), so a
-  second install — a second `ALLE_HOME`, or a GUI app alongside a CLI install —
+  second install — a second `ANYHOP_HOME`, or a GUI app alongside a CLI install —
   shares it rather than getting its own. Installing from a second home is
   therefore refused by default: it would silently take TUN away from the first.
   `--takeover` is the explicit opt-in, and the command reports which home it
@@ -1320,12 +1320,12 @@ sudo alle helper uninstall   # remove it (tun on then needs the sudo fallback)
 
 ---
 
-## `alle version`
+## `anyhop version`
 
 Print the installed package version.
 
 ```bash
-alle version
+anyhop version
 ```
 
 ---
@@ -1348,8 +1348,8 @@ alle version
 - `0` — success.
 - `1` — a user-correctable error (bad input, unknown provider/channel, rejected
   credential, missing config file, etc.); the message explains what to fix.
-  Two commands also use `1` as a deliberate monitoring signal: `alle health`
-  (daemon/sing-box liveness) and `alle test --fail` (any probed channel
+  Two commands also use `1` as a deliberate monitoring signal: `anyhop health`
+  (daemon/sing-box liveness) and `anyhop test --fail` (any probed channel
   unhealthy, or nothing probed).
 - `2` — argument/usage error (argparse); help is printed.
 - `130` — interrupted (Ctrl-C).
@@ -1362,24 +1362,24 @@ several — see `docs/docker.md`) and for hermetic testing:
 
 | Variable               | Effect                                                                                                                                                                                                                                                                                                         |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ALLE_HOME`            | State directory (default `~/.alle`).                                                                                                                                                                                                                                                                           |
-| `ALLE_LISTEN`          | Bind address for channel + router proxy inbounds (default `127.0.0.1`). The container image sets `0.0.0.0`; invalid values are logged and ignored, never widened.                                                                                                                                              |
-| `ALLE_PORT_BASE`       | Allocate new ports sequentially from this number instead of the OS ephemeral pool — deterministic, publishable ports. Declared `--port`/bundle `port:` values still win.                                                                                                                                       |
-| `ALLE_WG_MTU`          | Tunnel MTU for every generated WireGuard endpoint (default `1280` — safe under any encapsulation; sing-box's own 1408 default crashes with `sendmmsg: message too long` on sub-1500 paths, e.g. Docker on a GCP VM). Accepts 1280–9000; invalid values are logged and ignored.                                 |
-| `ALLE_SINGBOX`         | Path to a pre-provisioned sing-box binary. Still verified against the pinned SHA-256 on every start; a mismatch is a hard error, never a re-download.                                                                                                                                                          |
-| `ALLE_CONTAINER`       | Marks the process as containerized (guardrails + hint text only — never changes binds, ports, or lifecycle by itself).                                                                                                                                                                                         |
-| `ALLE_API_LISTEN`      | Bind address (`host[:port]`) for the control API/Web UI server (default: loopback on the minted `control_api.json` port). Non-loopback values expose the Bearer-authenticated REST API — see `docs/api.md`; the browser cookie path stays loopback-only. Invalid values are logged and ignored, never widened. |
-| `ALLE_API_SECRET`      | Replaces the minted API secret with this value (min 16 chars) — for handing the same credential to compose siblings. Set for the daemon *and* local CLI use.                                                                                                                                                   |
-| `ALLE_API_SECRET_FILE` | Same, read from a file (compose/k8s secrets). Exactly one of the two; setting both, an unreadable file, or a weak value makes the API refuse to start.                                                                                                                                                         |
-| `ALLE_BUNDLE`          | Read by the container entrypoint only: the bundle path applied at boot (default `/etc/alle/bundle.yaml`).                                                                                                                                                                                                      |
+| `ANYHOP_HOME`            | State directory (default `~/.anyhop`).                                                                                                                                                                                                                                                                           |
+| `ANYHOP_LISTEN`          | Bind address for channel + router proxy inbounds (default `127.0.0.1`). The container image sets `0.0.0.0`; invalid values are logged and ignored, never widened.                                                                                                                                              |
+| `ANYHOP_PORT_BASE`       | Allocate new ports sequentially from this number instead of the OS ephemeral pool — deterministic, publishable ports. Declared `--port`/bundle `port:` values still win.                                                                                                                                       |
+| `ANYHOP_WG_MTU`          | Tunnel MTU for every generated WireGuard endpoint (default `1280` — safe under any encapsulation; sing-box's own 1408 default crashes with `sendmmsg: message too long` on sub-1500 paths, e.g. Docker on a GCP VM). Accepts 1280–9000; invalid values are logged and ignored.                                 |
+| `ANYHOP_SINGBOX`         | Path to a pre-provisioned sing-box binary. Still verified against the pinned SHA-256 on every start; a mismatch is a hard error, never a re-download.                                                                                                                                                          |
+| `ANYHOP_CONTAINER`       | Marks the process as containerized (guardrails + hint text only — never changes binds, ports, or lifecycle by itself).                                                                                                                                                                                         |
+| `ANYHOP_API_LISTEN`      | Bind address (`host[:port]`) for the control API/Web UI server (default: loopback on the minted `control_api.json` port). Non-loopback values expose the Bearer-authenticated REST API — see `docs/api.md`; the browser cookie path stays loopback-only. Invalid values are logged and ignored, never widened. |
+| `ANYHOP_API_SECRET`      | Replaces the minted API secret with this value (min 16 chars) — for handing the same credential to compose siblings. Set for the daemon *and* local CLI use.                                                                                                                                                   |
+| `ANYHOP_API_SECRET_FILE` | Same, read from a file (compose/k8s secrets). Exactly one of the two; setting both, an unreadable file, or a weak value makes the API refuse to start.                                                                                                                                                         |
+| `ANYHOP_BUNDLE`          | Read by the container entrypoint only: the bundle path applied at boot (default `/etc/anyhop/bundle.yaml`).                                                                                                                                                                                                      |
 
-(`ALLE_SERVICE` / `ALLE_APPLIER` are internal markers set by the login service,
-the image, and `alle run` — not user knobs.)
+(`ANYHOP_SERVICE` / `ANYHOP_APPLIER` are internal markers set by the login service,
+the image, and `anyhop run` — not user knobs.)
 
 ## Files
 
-Everything lives under `~/.alle/` unless `$ALLE_HOME` is set (handy for hermetic
-testing: `ALLE_HOME=/tmp/alle-test alle status`):
+Everything lives under `~/.anyhop/` unless `$ANYHOP_HOME` is set (handy for hermetic
+testing: `ANYHOP_HOME=/tmp/anyhop-test anyhop status`):
 
 - `state.json` — providers, channels, WireGuard params, ports, probe + reconnect
   state, and the router section (entrypoint port, kill-switch, routing rules)
@@ -1392,23 +1392,23 @@ testing: `ALLE_HOME=/tmp/alle-test alle status`):
 - `control_api.json` — generated address + secret for the Web UI control server
   (`0600`); the contract port the dashboard is served on.
 - `bin/sing-box@<version>` — pinned, checksum-verified sing-box binary.
-- `alle.log`, plus `*.pid` and `applier.info.json` (daemon pid + version, read by
-  `alle status` for the skew warning) / runtime files while running.
+- `anyhop.log`, plus `*.pid` and `applier.info.json` (daemon pid + version, read by
+  `anyhop status` for the skew warning) / runtime files while running.
 
 ## Recovery
 
-What alle does when things break, and what is yours to do:
+What anyhop does when things break, and what is yours to do:
 
 - **Corrupt `state.json`.** A file that no longer parses is **quarantined
   loudly** — moved aside as `state.json.corrupt-<timestamp>-<pid>` (evidence
-  kept, never overwritten) and alle continues from a fresh store. Restore from
-  your latest [`alle export`](#alle-export---out-file) bundle. A state file
-  written by a **newer** alle is different: it is *not* corruption, so nothing
-  is quarantined — reads and mutations abort until you upgrade alle. An
+  kept, never overwritten) and anyhop continues from a fresh store. Restore from
+  your latest [`anyhop export`](#anyhop-export---out-file) bundle. A state file
+  written by a **newer** anyhop is different: it is *not* corruption, so nothing
+  is quarantined — reads and mutations abort until you upgrade anyhop. An
   unreadable file (permissions, transient I/O) also aborts rather than
   proceeding from an empty view that the next write would persist.
 - **Occupied / stolen ports.** If sing-box fails to start because another
-  program took a channel, router, or contract port, alle detects the bind
+  program took a channel, router, or contract port, anyhop detects the bind
   failure, **reallocates the port and retries the apply on its own** — no
   manual step. Ports you declared explicitly (`--port`, bundle `port:`) are a
   contract and are *not* silently moved; free the port or change the
@@ -1417,33 +1417,33 @@ What alle does when things break, and what is yours to do:
   it is applied; a rejection **keeps the last-known-good config running**
   (restarting it if the process was down) and reports the rejection. Nothing
   to recover — fix the state that produced it (the error names it), or
-  `alle upgrade` if the rejection follows a sing-box version change.
-- **Service-manager failures.** A failed `alle daemon install` rolls back the
+  `anyhop upgrade` if the rejection follows a sing-box version change.
+- **Service-manager failures.** A failed `anyhop daemon install` rolls back the
   previous unit (or removes the fresh one) and brings back a manually running
   daemon — you are never left with less than you started with. A failed
   uninstall whose stop half did not land **keeps** the unit file for
-  diagnosis; inspect `launchctl print gui/$UID/com.github.zydo.alle` or
-  `systemctl --user status alle.service`, then retry.
-- **Daemon ↔ CLI version skew** (after an upgrade): `alle status` warns;
-  `alle restart` moves the daemon onto the installed version (a supervised
+  diagnosis; inspect `launchctl print gui/$UID/io.github.anyhop.anyhop` or
+  `systemctl --user status anyhop.service`, then retry.
+- **Daemon ↔ CLI version skew** (after an upgrade): `anyhop status` warns;
+  `anyhop restart` moves the daemon onto the installed version (a supervised
   daemon does this itself within ~30s).
 
 ### Upgrade checklist
 
-`alle upgrade` handles the mechanics (delegate to the owning tool and hand
+`anyhop upgrade` handles the mechanics (delegate to the owning tool and hand
 restart to the right owner, or print the required command). Around a meaningful
 version jump:
 
-1. **Back up first**: `alle export` — the bundle is the full setup (it contains
+1. **Back up first**: `anyhop export` — the bundle is the full setup (it contains
    secrets; store it accordingly). You have now rehearsed restore-from-bundle
    the day you need it.
-2. **Upgrade**: `alle upgrade` (or your tool's own `uv tool install --force
-   alle-proxy` / `pipx upgrade alle-proxy` / `python -m pip install --upgrade
-   alle-proxy` / `brew upgrade alle`; container: pull the new image tag).
-3. **Verify**: `alle status` (no skew warning), `alle health`, and
-   `alle test --fail` if channels should be up. State schema migrations are
-   automatic and forward-only; an older alle refuses a newer state file rather
+2. **Upgrade**: `anyhop upgrade` (or your tool's own `uv tool install --force
+   anyhop` / `pipx upgrade anyhop` / `python -m pip install --upgrade
+   anyhop` / `brew upgrade anyhop`; container: pull the new image tag).
+3. **Verify**: `anyhop status` (no skew warning), `anyhop health`, and
+   `anyhop test --fail` if channels should be up. State schema migrations are
+   automatic and forward-only; an older anyhop refuses a newer state file rather
    than guessing (see Recovery above).
 4. **Roll back if needed**: install the previous version through the same tool
-   (e.g. `uv tool install alle-proxy==<old>`), then `alle import --replace`
+   (e.g. `uv tool install anyhop==<old>`), then `anyhop import --replace`
    your pre-upgrade bundle if the newer version already migrated state.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tier 3 driver: run a script inside a fresh macOS guest (see docs/tun-runbook.md).
 #
-# Clones the base image, boots it headless, installs alle from this checkout,
+# Clones the base image, boots it headless, installs anyhop from this checkout,
 # and runs the named guest script over SSH. Everything privileged happens in
 # the guest — the host's network is never touched.
 #
@@ -12,7 +12,7 @@
 #     tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
 set -euo pipefail
 
-VM=${VM:-alle-tier3}
+VM=${VM:-anyhop-tier3}
 BASE=${BASE:-ghcr.io/cirruslabs/macos-tahoe-base:latest}
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
@@ -62,15 +62,15 @@ say "sync the checkout into the guest"
 sshpass -p admin rsync -a --delete -e "ssh ${SSH_OPTS[*]}" \
 	--exclude .git --exclude .venv --exclude node_modules \
 	--exclude .tun-sandbox-cache --exclude dist --exclude .localonly \
-	"$repo/" "admin@$IP:alle/"
+	"$repo/" "admin@$IP:anyhop/"
 
-say "install uv + alle in the guest"
-# `sudo alle tun on` writes root-owned __pycache__ into the user's uv tool
+say "install uv + anyhop in the guest"
+# `sudo anyhop tun on` writes root-owned __pycache__ into the user's uv tool
 # directory, which blocks a later plain reinstall. Clear it with sudo first.
-gssh 'sudo rm -rf ~/.local/share/uv/tools/alle-proxy'
+gssh 'sudo rm -rf ~/.local/share/uv/tools/anyhop'
 gssh 'command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh >/dev/null'
 # shellcheck disable=SC2016  # $HOME/$PATH must expand in the guest, not here
-gssh 'export PATH=$HOME/.local/bin:$PATH; uv tool install --force ~/alle 2>&1 | tail -1; alle version'
+gssh 'export PATH=$HOME/.local/bin:$PATH; uv tool install --force ~/anyhop 2>&1 | tail -1; anyhop version'
 
 say "stage fixtures + $script"
 tmp=$(mktemp -d)

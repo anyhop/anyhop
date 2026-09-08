@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from alle import cli, service
-from alle.state import Store
+from anyhop import cli, service
+from anyhop.state import Store
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -128,7 +128,7 @@ def test_routes_list_annotates_and_filters(channel):
 
     data = service.routes_list()
     # the fixed LAN-direct contents ride along read-only (API transparency)
-    from alle import routes as routes_mod
+    from anyhop import routes as routes_mod
 
     assert data["lan"] == {
         "cidrs": list(routes_mod.LAN_DIRECT_CIDRS),
@@ -275,7 +275,7 @@ def test_killswitch_toggles_unmatched_behavior():
 
 
 def test_lan_direct_defaults_on_and_toggles():
-    from alle import routes as routes_mod
+    from anyhop import routes as routes_mod
 
     report = service.routes_lan_direct()
     assert report["changed"] is False
@@ -305,7 +305,7 @@ def test_tun_mode_reports_without_touching_state():
 
 
 def test_tun_on_requires_root(monkeypatch):
-    monkeypatch.setattr("alle.helper.reachable", lambda: False)
+    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
     monkeypatch.setattr("os.geteuid", lambda: 501)
     with pytest.raises(service.ServiceError, match="privileged helper"):
@@ -315,7 +315,7 @@ def test_tun_on_requires_root(monkeypatch):
     # helper (the shipped path, not the stale "helper is planned" framing) —
     # pin the platform so the assertion holds on Linux CI too
     monkeypatch.setattr(service.sys, "platform", "darwin")
-    with pytest.raises(service.ServiceError, match="sudo alle helper install"):
+    with pytest.raises(service.ServiceError, match="sudo anyhop helper install"):
         service.tun_mode(True)
     # …and on Linux it leads with the setcap grant
     monkeypatch.setattr(service.sys, "platform", "linux")
@@ -325,7 +325,7 @@ def test_tun_on_requires_root(monkeypatch):
 
 
 def test_tun_on_requires_a_root_daemon_when_one_is_running(monkeypatch):
-    monkeypatch.setattr("alle.helper.reachable", lambda: False)
+    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: {"pid": 4242})
     monkeypatch.setattr(service, "_process_uid", lambda pid: 501)
     with pytest.raises(service.ServiceError, match="privileged helper"):
@@ -335,7 +335,7 @@ def test_tun_on_requires_a_root_daemon_when_one_is_running(monkeypatch):
 def test_tun_on_allowed_when_singbox_has_net_admin(monkeypatch):
     # The Linux setcap path: a capability on the binary means no root is
     # needed anywhere, even with an unprivileged daemon running.
-    monkeypatch.setattr("alle.helper.reachable", lambda: False)
+    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service, "_singbox_has_net_admin", lambda: True)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: {"pid": 4242})
     monkeypatch.setattr(service, "_process_uid", lambda pid: 501)
@@ -368,7 +368,7 @@ def test_capeff_net_admin_bit_parsing():
 
 
 def test_tun_root_error_mentions_setcap_on_linux(monkeypatch):
-    monkeypatch.setattr("alle.helper.reachable", lambda: False)
+    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service, "_singbox_has_net_admin", lambda: False)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
     monkeypatch.setattr("os.geteuid", lambda: 501)
@@ -561,7 +561,7 @@ def test_referenced_channel_removal_is_blocked_with_fix_commands(channel):
     msg = str(exc.value)
     assert "nordvpn/wg_us_1" in msg
     assert "r1" in msg and "r2" in msg  # every blocker in one pass
-    assert "alle routes rm r1 r2" in msg  # with the exact fix
+    assert "anyhop routes rm r1 r2" in msg  # with the exact fix
     assert Store.load().get_channel("nordvpn", "wg_us_1") is not None
 
     # dry-run reports the same conflict instead of pretending it would work
@@ -571,7 +571,7 @@ def test_referenced_channel_removal_is_blocked_with_fix_commands(channel):
 
 def test_referenced_provider_removal_is_blocked(channel):
     _add("domain_suffix", "a.com", "nordvpn/wg_us_1")
-    with pytest.raises(service.ServiceError, match="alle routes rm r1"):
+    with pytest.raises(service.ServiceError, match="anyhop routes rm r1"):
         service.provider_remove_many(["nordvpn"])
     assert Store.load().has_provider("nordvpn")
 
@@ -651,7 +651,7 @@ def test_cli_routes_round_trip(channel, capsys):
 
 def test_cli_tun_round_trip(monkeypatch, capsys):
     out = run_cli(["tun"], capsys)
-    assert "TUN mode off" in out and "alle tun on" in out
+    assert "TUN mode off" in out and "anyhop tun on" in out
 
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
     monkeypatch.setattr("os.geteuid", lambda: 0)
@@ -674,7 +674,7 @@ def test_cli_tun_trial_round_trip(monkeypatch, capsys):
     monkeypatch.setattr(service, "_spawn_tun_watchdog", lambda secs, nonce: None)
 
     out = run_cli(["tun", "on", "--trial", "60"], capsys)
-    assert "trial window: 60s" in out and "alle tun confirm" in out
+    assert "trial window: 60s" in out and "anyhop tun confirm" in out
 
     out = run_cli(["tun"], capsys)
     assert "TUN trial pending" in out and "TUN mode ON" in out
@@ -694,4 +694,4 @@ def test_cli_blocked_channel_rm_shows_blockers(channel, capsys):
     )
     with pytest.raises(SystemExit) as exc:
         cli.main(["channels", "rm", "wg_us_1"])
-    assert "alle routes rm r1" in str(exc.value)
+    assert "anyhop routes rm r1" in str(exc.value)

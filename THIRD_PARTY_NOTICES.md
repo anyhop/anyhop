@@ -1,13 +1,13 @@
 # Third-Party Notices
 
-alle's package ships its own code plus small provider brand logos for the Web UI
+anyhop's package ships its own code plus small provider brand logos for the Web UI
 (see "Provider brand assets" below). Two kinds of third-party component are
 involved when you run it:
 
 1. **Python dependencies** — declared in `pyproject.toml` and installed from PyPI
-   alongside alle. These are the work of their respective authors under their own
+   alongside anyhop. These are the work of their respective authors under their own
    licenses (below).
-2. **sing-box** — not a Python dependency and never bundled. alle downloads the
+2. **sing-box** — not a Python dependency and never bundled. anyhop downloads the
    upstream binary at runtime, verifies it against a pinned SHA-256, and runs it
    as a separate process.
 
@@ -17,32 +17,32 @@ involved when you run it:
 
 - Project: https://github.com/pypa/packaging
 - License: **Apache License 2.0 or BSD 2-Clause License**
-- Role in alle: standards-compliant PEP 440 release parsing and ordering for
+- Role in anyhop: standards-compliant PEP 440 release parsing and ordering for
   channel-aware upgrades.
 
 ### PyYAML
 
 - Project: https://github.com/yaml/pyyaml
 - License: **MIT License**
-- Role in alle: reading and writing the YAML credential store (`credentials.yaml`).
+- Role in anyhop: reading and writing the YAML credential store (`credentials.yaml`).
 
 ### pycountry
 
 - Project: https://github.com/pycountry/pycountry
 - License: **GNU Lesser General Public License v2.1 only (LGPL-2.1)**
-- Role in alle: ISO country/subdivision name resolution for location selection.
+- Role in anyhop: ISO country/subdivision name resolution for location selection.
 
 ## sing-box
 
 - Project: https://github.com/SagerNet/sing-box
-- Binary: official release pinned by alle, downloaded from
+- Binary: official release pinned by anyhop, downloaded from
   `https://github.com/SagerNet/sing-box/releases` into
-  `~/.alle/bin/sing-box@<version>` and verified against a pinned SHA-256.
+  `~/.anyhop/bin/sing-box@<version>` and verified against a pinned SHA-256.
 - License: **GNU General Public License v3.0 or later**, with an additional
   naming/association clause.
 
-alle runs the unmodified sing-box binary as a **separate process** (it never
-links against or embeds sing-box), so alle itself remains under the MIT
+anyhop runs the unmodified sing-box binary as a **separate process** (it never
+links against or embeds sing-box), so anyhop itself remains under the MIT
 License. sing-box is a separate work distributed under the GPL-3.0-or-later:
 
 ```
@@ -65,28 +65,28 @@ In addition, no derivative work may use the name or imply association
 with this application without prior consent.
 ```
 
-> alle does not redistribute the sing-box binary; each user downloads it
-> directly from the upstream release page. alle is an independent project and
+> anyhop does not redistribute the sing-box binary; each user downloads it
+> directly from the upstream release page. anyhop is an independent project and
 > is not affiliated with, endorsed by, or sponsored by the sing-box project.
 
 ## Provider brand assets
 
-alle's Web UI shows small provider wordmarks/logos to identify each supported
+anyhop's Web UI shows small provider wordmarks/logos to identify each supported
 provider in the dashboard. These are trademarks of their respective owners,
 used here nominatively — solely to identify the provider and its service — and
 do not imply any affiliation with, endorsement by, or sponsorship from the
 trademark holders.
 
-- **NordVPN** (`src/alle/assets/nordvpn.svg`) — "NordVPN" and the NordVPN logo
+- **NordVPN** (`src/anyhop/assets/nordvpn.svg`) — "NordVPN" and the NordVPN logo
   are trademarks of Nord Security.
-- **Proton VPN** (`src/alle/assets/protonvpn.svg`) — "Proton VPN" and the Proton
+- **Proton VPN** (`src/anyhop/assets/protonvpn.svg`) — "Proton VPN" and the Proton
   logo are trademarks of Proton AG. This SVG was derived from an upstream asset
   whose embedded Inkscape/RDF metadata mislabeled it "Proton Mail"; that stale
   metadata has been corrected to "Proton VPN."
 
 ### README provider icons
 
-`src/alle/assets/readme/providers/*.png` are README-only (excluded from the installed
+`src/anyhop/assets/readme/providers/*.png` are README-only (excluded from the installed
 wheel). Each is the provider's own published icon-only mark, downloaded from the
 source below and **not redrawn**: the only processing is a proportional resize
 and centring on a uniform white rounded tile, so every mark stays legible in
@@ -129,9 +129,9 @@ here so the position is explicit rather than assumed:
 - **VyprVPN** — its Terms of Service (§2) state the marks are provided for
   personal, non-commercial use and grant no third-party logo permission.
 
-Both are shown here to identify a provider alle supports or plans to support,
+Both are shown here to identify a provider anyhop supports or plans to support,
 which is the nominative use described above; neither provider has reviewed or
 approved this project. Remove either on request from the trademark holder.
 
-alle is an independent project and is not affiliated with, endorsed by, or
+anyhop is an independent project and is not affiliated with, endorsed by, or
 sponsored by any of the trademark holders listed above, or any VPN provider.

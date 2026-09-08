@@ -20,7 +20,7 @@ set -euo pipefail
 # shellcheck source=/dev/null
 . "$(dirname "$0")/lib.sh"
 
-TUN_NAME="alle-tun"
+TUN_NAME="anyhop-tun"
 SB_LOG=/tmp/sing-box-setcap.log
 
 fetch_singbox
@@ -32,12 +32,12 @@ chmod 0755 "$LOCAL_SB"
 pass "copied to a local fs for setcap"
 
 say "engine tun config (no router port — tun is the only door)"
-export ALLE_HOME=/tmp/alle-setcap
+export ANYHOP_HOME=/tmp/anyhop-setcap
 python3 - <<'EOF'
 import json, sys
 sys.path.insert(0, "/repo/src")
-from alle.engine import Engine
-from alle.state import Store
+from anyhop.engine import Engine
+from anyhop.state import Store
 data = {"version": 1, "providers": {},
         "router": {"port": 0, "killswitch": False, "lan_direct": True, "tun": True, "rules": []}}
 config, errors = Engine(Store(data=data))._build_config()

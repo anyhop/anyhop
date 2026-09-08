@@ -18,11 +18,11 @@ import time
 import uuid
 from pathlib import Path
 
-from alle import proc
+from anyhop import proc
 
-MARKER = ".alle-pytest-session.json"
-HOME_MARKER = ".alle-pytest-home.json"
-REGISTRY = ".alle-pytest-processes.json"
+MARKER = ".anyhop-pytest-session.json"
+HOME_MARKER = ".anyhop-pytest-home.json"
+REGISTRY = ".anyhop-pytest-processes.json"
 FORMAT = 1
 LARGE_BINARY = 8 << 20
 SESSION_BUDGET = 128 << 20
@@ -172,7 +172,7 @@ def _process_entries(root: Path) -> list[dict]:
             ):
                 continue
             if entry["kind"] == "applier" and not any(
-                marker in command for marker in ("-m alle applier", "alle applier")
+                marker in command for marker in ("-m anyhop applier", "anyhop applier")
             ):
                 continue
             config = str(home / "singbox.json")
@@ -187,9 +187,9 @@ def _process_entries(root: Path) -> list[dict]:
 def _process_has_test_identity(pid: int, token: str, home: Path) -> bool:
     """Prove the process inherited this session token and exact test home."""
     expected = {
-        "ALLE_TEST_SESSION": token,
-        "ALLE_TEST_HOME": str(home),
-        "ALLE_HOME": str(home),
+        "ANYHOP_TEST_SESSION": token,
+        "ANYHOP_TEST_HOME": str(home),
+        "ANYHOP_HOME": str(home),
     }
     try:
         raw = Path(f"/proc/{pid}/environ").read_bytes()
@@ -275,7 +275,7 @@ class RuntimeSession:
     """One pytest invocation's private homes and exact process registry."""
 
     def __init__(self, base: Path | None = None):
-        self.base = base or Path(tempfile.gettempdir()) / "alle-pytest-sessions"
+        self.base = base or Path(tempfile.gettempdir()) / "anyhop-pytest-sessions"
         self.base.mkdir(mode=0o700, parents=True, exist_ok=True)
         os.chmod(self.base, 0o700)
         recover_stale_sessions(self.base)
@@ -382,7 +382,7 @@ class RuntimeSession:
             if record_is_live(entry["record"])
         ]
         if live:
-            raise AssertionError(f"live alle test processes at suite end: {live}")
+            raise AssertionError(f"live anyhop test processes at suite end: {live}")
         binaries = [
             path
             for path in self.root.rglob("sing-box@*")
@@ -470,7 +470,7 @@ class RuntimeHandle:
         command = proc.command_of(record["pid"])
         if kind == "applier":
             shape = command is not None and any(
-                marker in command for marker in ("-m alle applier", "alle applier")
+                marker in command for marker in ("-m anyhop applier", "anyhop applier")
             )
         else:
             shape = command is not None and (
@@ -508,7 +508,7 @@ class RuntimeHandle:
             parts.append("applier.info=absent")
         parts.extend(
             self._log_diagnostic(name)
-            for name in ("alle.log", "applier.log", "singbox.log")
+            for name in ("anyhop.log", "applier.log", "singbox.log")
         )
         return "\n".join(parts)
 

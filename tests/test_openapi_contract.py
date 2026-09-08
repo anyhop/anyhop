@@ -28,8 +28,8 @@ import urllib.request
 import pytest
 import yaml
 
-from alle.api import server
-from alle.state import Store
+from anyhop.api import server
+from anyhop.state import Store
 from conftest import start_test_server, stop_test_server
 
 SPEC_PATH = pathlib.Path(__file__).resolve().parent.parent / "docs" / "openapi.yaml"

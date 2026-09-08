@@ -1,8 +1,8 @@
-# The alle REST API
+# The anyhop REST API
 
-alle's daemon (`alle run`) serves a REST API at `/api/v1` — the same interface
+anyhop's daemon (`anyhop run`) serves a REST API at `/api/v1` — the same interface
 the bundled Web UI uses, exposed for scripts, sibling containers, and anything
-else that manages alle programmatically. It is a 1:1 projection of the same
+else that manages anyhop programmatically. It is a 1:1 projection of the same
 service layer the CLI drives: everything the CLI can do to channels,
 providers, routing, and lifecycle, the API can do.
 
@@ -17,16 +17,16 @@ disagree.
 
 ## Reaching the API
 
-`alle status` prints the canonical REST base explicitly, and `alle status
+`anyhop status` prints the canonical REST base explicitly, and `anyhop status
 --json` exposes it as `rest_api`. It is the Web UI origin plus `/api/v1`: both
 surfaces share one listener, but REST requests use the separate Bearer contract
 below. Status never prints the secret.
 
 **Host installs (default):** the server binds `127.0.0.1` on a per-install
-port recorded in `~/.alle/control_api.json` (`{"address", "secret", "host"}`,
+port recorded in `~/.anyhop/control_api.json` (`{"address", "secret", "host"}`,
 mode 0600). The port is stable across restarts.
 
-**Network exposure (opt-in):** set `ALLE_API_LISTEN=<host>[:<port>]` — e.g.
+**Network exposure (opt-in):** set `ANYHOP_API_LISTEN=<host>[:<port>]` — e.g.
 `0.0.0.0:8080` in a compose file — and the server binds there instead. This
 is an explicit operator decision, like publishing a port; nothing (including
 the Docker image) sets it by default. A port-less value keeps the minted
@@ -44,8 +44,8 @@ Authorization: Bearer <secret>
 
 The secret comes from, in order:
 
-1. `ALLE_API_SECRET` — injected directly (compose `.env` interpolation).
-2. `ALLE_API_SECRET_FILE` — path to a file holding the secret (compose
+1. `ANYHOP_API_SECRET` — injected directly (compose `.env` interpolation).
+2. `ANYHOP_API_SECRET_FILE` — path to a file holding the secret (compose
    secrets, k8s mounts). Trailing whitespace is stripped.
 3. Otherwise: the minted per-install secret in `control_api.json`.
 
@@ -65,7 +65,7 @@ contract** for API clients.
 `GET /health?nonce=<string≤128>` is unauthenticated and answers
 `{"proof": <HMAC(secret, "health:"+nonce)>, "ok": <bool>, "sing_box":
 "running"|"stopped", "runtime": {…}|null}` — proof the process behind the
-port is alle, without transporting the secret, plus the data plane's state.
+port is anyhop, without transporting the secret, plus the data plane's state.
 An answering API only proves the *daemon* is alive; `ok` is true only while
 sing-box is also running — while it is `false`, every channel proxy port is
 down, so consumers should alert on it (`runtime` carries the daemon's
@@ -113,11 +113,11 @@ behavior for scripts, older clients, and the CLI.
 
 | Endpoint                                                 | Returns                                                                                                                                                                                                                     |
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/status`                                     | The `alle status --json` snapshot: `running`, `state`, `router` (port, rule count, killswitch, lan_direct, tun), `daemon` (versions, skew), `web_ui` URL, `channels` (per-channel port, location, health, enabled), counts. |
-| `GET /api/v1/providers`                                  | Added providers with channel counts (`alle providers ls --json`).                                                                                                                                                           |
+| `GET /api/v1/status`                                     | The `anyhop status --json` snapshot: `running`, `state`, `router` (port, rule count, killswitch, lan_direct, tun), `daemon` (versions, skew), `web_ui` URL, `channels` (per-channel port, location, health, enabled), counts. |
+| `GET /api/v1/providers`                                  | Added providers with channel counts (`anyhop providers ls --json`).                                                                                                                                                           |
 | `GET /api/v1/providers/catalog`                          | The known-provider registry: names, kinds (`token`/`config`), credential fields.                                                                                                                                            |
-| `GET /api/v1/channels`                                   | All channels with ports, locations, enabled state (`alle channels ls --json`).                                                                                                                                              |
-| `GET /api/v1/routes`                                     | Routing rules/rulesets, kill switch, LAN policy (`alle routes ls --json`). Includes the built-in LAN-direct block's fixed contents read-only (`lan.cidrs`, `lan.udp_ports`) — visible without toggling anything.            |
+| `GET /api/v1/channels`                                   | All channels with ports, locations, enabled state (`anyhop channels ls --json`).                                                                                                                                              |
+| `GET /api/v1/routes`                                     | Routing rules/rulesets, kill switch, LAN policy (`anyhop routes ls --json`). Includes the built-in LAN-direct block's fixed contents read-only (`lan.cidrs`, `lan.udp_ports`) — visible without toggling anything.            |
 | `GET /api/v1/locations?provider=<name>[&country=<name>]` | The provider's country/city catalog (API providers). `provider` is required.                                                                                                                                                |
 | `GET /api/v1/metrics[?channel=<ref>]`                    | Cumulative per-channel traffic totals (`sent`, `received`, `updated_at` per channel). A cheap read — probes nothing; unlike `POST /test` it touches no network.                                                             |
 | `GET /api/v1/logs[?lines=N]`                             | `{"text": "<last N log lines>"}`, N clamped to 1–1000, default 200.                                                                                                                                                         |
@@ -175,14 +175,14 @@ behavior for scripts, older clients, and the CLI.
 | `POST /api/v1/lifecycle/stop`    | `{}`                                            | Stop it (channels kept).                                                                                                                                                                                                                                                                                                                  |
 | `POST /api/v1/lifecycle/restart` | `{}`                                            | Restart.                                                                                                                                                                                                                                                                                                                                  |
 | `GET /api/v1/upgrade/check`      | —                                               | Ask the owning channel for the latest stable release: the Homebrew tap for brew, or PyPI for uv tool/pipx/pip. Returns `{"channel", "current", "latest", "update_available"}` and never checks in the background. Refuses a container, checkout, or unknown channel; prerelease opt-in is CLI-only.                                       |
-| `POST /api/v1/upgrade`           | `{}`                                            | Upgrade alle to a newer stable release via its owning manager (Homebrew/uv tool/pipx/pip). Returns the checked `latest`, the delegated `command` when one ran, before/after versions, and restart disposition. Refuses a container, checkout, or unknown channel with 400; 503 while another upgrade runs. Prerelease opt-in is CLI-only. |
+| `POST /api/v1/upgrade`           | `{}`                                            | Upgrade anyhop to a newer stable release via its owning manager (Homebrew/uv tool/pipx/pip). Returns the checked `latest`, the delegated `command` when one ran, before/after versions, and restart disposition. Refuses a container, checkout, or unknown channel with 400; 503 while another upgrade runs. Prerelease opt-in is CLI-only. |
 | `GET /api/v1/backup`             | —                                               | Scheduled-backup settings and on-disk rotation state.                                                                                                                                                                                                                                                                                     |
 | `POST /api/v1/backup`            | `{"enabled"?, "dir"?, "every_hours"?, "keep"?}` | Configure scheduled local backups. Omitted fields keep their value; an explicit `enabled: true` writes a first backup immediately. Strict types — a string never toggles the schedule. Backups are written by the daemon (local file I/O only), `0600` in a user-owned `0700` directory.                                                  |
 | `POST /api/v1/backup/now`        | `{}`                                            | Write one backup into the rotation directory immediately (works while the schedule is off).                                                                                                                                                                                                                                               |
 | `POST /api/v1/validate`          | `{"text"}`                                      | Validate a setup bundle; blockers come back in the 400 message.                                                                                                                                                                                                                                                                           |
 | `POST /api/v1/import`            | `{"text", "replace"}`                           | Apply a bundle: `replace: false` = idempotent merge, `true` = destructive whole-setup replace. 503 while another import runs.                                                                                                                                                                                                             |
 
-An upgrade response may contain `restart` when alle restarted or scheduled its
+An upgrade response may contain `restart` when anyhop restarted or scheduled its
 own service restart. A brew-supervised daemon instead reports
 `restart_pending: true` with `restart_owner: "homebrew"`; a running brew-owned
 daemon that is not supervised by Homebrew reports `restart_required: true` and
@@ -196,17 +196,17 @@ The full threat model lives in `docs/security.md`; the API-relevant parts:
 - **Auth is always required.** There is no unauthenticated mode, in Docker or
   anywhere else — this API can export your VPN credentials and disable your
   kill switch. Provision the secret instead (one `.env` line in compose).
-- **The network bind is a trust statement.** `ALLE_API_LISTEN=0.0.0.0` makes
+- **The network bind is a trust statement.** `ANYHOP_API_LISTEN=0.0.0.0` makes
   the API reachable by everything on the container network (and the LAN, if
   you also publish the port). Bearer-over-plain-HTTP is the accepted model
   *inside* a private compose network — the same trust you give a database
   password there. Crossing hosts or untrusted networks needs a
-  TLS-terminating reverse proxy in front; alle does not do TLS.
+  TLS-terminating reverse proxy in front; anyhop does not do TLS.
 - **The browser UI does not follow the API onto the network.** On a network
   bind, only Bearer-authenticated requests and `/health` accept a
   non-loopback `Host`; the login page, assets, and cookie sessions stay
   loopback-only.
-- **Never share alle's state volume** with another container to "read the
+- **Never share anyhop's state volume** with another container to "read the
   secret" — the volume also holds `credentials.yaml` (WireGuard private keys,
   provider tokens). Inject the secret instead.
 
@@ -214,45 +214,45 @@ The full threat model lives in `docs/security.md`; the API-relevant parts:
 
 ```yaml
 # .env
-ALLE_API_SECRET=change-me-openssl-rand-hex-32
+ANYHOP_API_SECRET=change-me-openssl-rand-hex-32
 ```
 
 ```yaml
 services:
-  alle:
-    image: ziyudo/alle:latest
+  anyhop:
+    image: ghcr.io/anyhop/anyhop:latest
     restart: unless-stopped
     environment:
-      ALLE_API_LISTEN: "0.0.0.0:8080"
-      ALLE_API_SECRET: ${ALLE_API_SECRET}
+      ANYHOP_API_LISTEN: "0.0.0.0:8080"
+      ANYHOP_API_SECRET: ${ANYHOP_API_SECRET}
     volumes:
-      - alle-state:/var/lib/alle
-      - ./bundle.yaml:/etc/alle/bundle.yaml:ro
+      - anyhop-state:/var/lib/anyhop
+      - ./bundle.yaml:/etc/anyhop/bundle.yaml:ro
 
   manager:
     image: alpine/curl
     depends_on:
-      alle:
+      anyhop:
         condition: service_healthy
     environment:
-      ALLE_API_SECRET: ${ALLE_API_SECRET}
+      ANYHOP_API_SECRET: ${ANYHOP_API_SECRET}
     command: >
-      sh -c 'curl -s -H "Authorization: Bearer $$ALLE_API_SECRET"
-      http://alle:8080/api/v1/status'
+      sh -c 'curl -s -H "Authorization: Bearer $$ANYHOP_API_SECRET"
+      http://anyhop:8080/api/v1/status'
 
 volumes:
-  alle-state:
+  anyhop-state:
 ```
 
 More calls, from any sibling:
 
 ```bash
-AUTH="Authorization: Bearer $ALLE_API_SECRET"
-curl -s -H "$AUTH" http://alle:8080/api/v1/channels
-curl -s -H "$AUTH" http://alle:8080/api/v1/metrics
+AUTH="Authorization: Bearer $ANYHOP_API_SECRET"
+curl -s -H "$AUTH" http://anyhop:8080/api/v1/channels
+curl -s -H "$AUTH" http://anyhop:8080/api/v1/metrics
 curl -s -H "$AUTH" -X POST -H 'Content-Type: application/json' \
   -d '{"refs":["us_*"],"enabled":false,"provider":"nordvpn"}' \
-  http://alle:8080/api/v1/channels/enabled
+  http://anyhop:8080/api/v1/channels/enabled
 curl -s -H "$AUTH" -X POST -H 'Content-Type: application/json' \
-  -d '{"enabled":true}' http://alle:8080/api/v1/routes/killswitch
+  -d '{"enabled":true}' http://anyhop:8080/api/v1/routes/killswitch
 ```

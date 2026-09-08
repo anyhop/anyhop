@@ -7,9 +7,9 @@ from typing import cast
 
 import pytest
 
-from alle import applog, routes, singbox
-from alle.engine import Engine
-from alle.state import Store
+from anyhop import applog, routes, singbox
+from anyhop.engine import Engine
+from anyhop.state import Store
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -92,7 +92,7 @@ def test_inbound_and_endpoint_shape():
 
 
 def test_wireguard_mtu_override(monkeypatch):
-    monkeypatch.setenv("ALLE_WG_MTU", "1380")
+    monkeypatch.setenv("ANYHOP_WG_MTU", "1380")
     config, _ = Engine(
         _store(("nordvpn", "us_1", 9000, "US", "", dict(WG)))
     )._build_config()
@@ -101,12 +101,12 @@ def test_wireguard_mtu_override(monkeypatch):
 
 def test_wireguard_mtu_invalid_override_falls_back(monkeypatch):
     for bad in ("nope", "100", "70000"):
-        monkeypatch.setenv("ALLE_WG_MTU", bad)
+        monkeypatch.setenv("ANYHOP_WG_MTU", bad)
         config, _ = Engine(
             _store(("nordvpn", "us_1", 9000, "US", "", dict(WG)))
         )._build_config()
         assert config["endpoints"][0]["mtu"] == 1280
-    assert "ALLE_WG_MTU" in applog.tail()
+    assert "ANYHOP_WG_MTU" in applog.tail()
 
 
 def test_preshared_key_passed_through_when_present():
@@ -282,7 +282,7 @@ def test_tun_joins_the_same_rule_table_without_duplicating_it():
         "outbound": "direct",
     }
     # DNS hijack is tun-only and precedes the CIDR LAN-direct block, so a
-    # port-53 query to a LAN resolver is answered by alle, not leaked
+    # port-53 query to a LAN resolver is answered by anyhop, not leaked
     assert rules[3] == {
         "inbound": ["in-tun"],
         "protocol": "dns",
@@ -329,7 +329,7 @@ def test_tun_without_router_port_still_gets_the_rule_table():
 
 
 def test_geosite_rule_compiles_to_a_local_rule_set(monkeypatch):
-    from alle import geodata
+    from anyhop import geodata
     from pathlib import Path
 
     fake_path = Path("/fake/cache/geosite-netflix.abc.srs")
@@ -359,7 +359,7 @@ def test_geosite_rule_compiles_to_a_local_rule_set(monkeypatch):
 
 
 def test_geo_rule_with_missing_cache_is_omitted_with_an_error(monkeypatch):
-    from alle import geodata
+    from anyhop import geodata
 
     monkeypatch.setattr(geodata, "cached_path", lambda *a: None)
     store = _store(router=_router(("geosite", "netflix", "direct")))
@@ -371,7 +371,7 @@ def test_geo_rule_with_missing_cache_is_omitted_with_an_error(monkeypatch):
 
 
 def test_multiple_geo_rules_dedup_rule_set_entries(monkeypatch):
-    from alle import geodata
+    from anyhop import geodata
     from pathlib import Path
 
     monkeypatch.setattr(
@@ -395,16 +395,16 @@ def test_multiple_geo_rules_dedup_rule_set_entries(monkeypatch):
 
 
 def test_tun_interface_name_is_platform_aware(monkeypatch):
-    import alle.engine as engine_mod
+    import anyhop.engine as engine_mod
 
     monkeypatch.setattr(engine_mod.sys, "platform", "darwin")
     assert Engine._tun_interface_name() == "utun225"  # Darwin only accepts utunN
     monkeypatch.setattr(engine_mod.sys, "platform", "linux")
-    assert Engine._tun_interface_name() == "alle-tun"
+    assert Engine._tun_interface_name() == "anyhop-tun"
 
 
 def test_tun_auto_redirect_is_linux_only(monkeypatch):
-    import alle.engine as engine_mod
+    import anyhop.engine as engine_mod
 
     engine = Engine(_store())
     monkeypatch.setattr(engine_mod.sys, "platform", "linux")
@@ -576,7 +576,7 @@ class _PortStealRunner:
 
 
 def test_reconcile_reallocates_a_stolen_channel_port(monkeypatch):
-    monkeypatch.setattr("alle.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
     store = Store.load()
     store.add_provider("nordvpn")
     ch = store.add_channel("nordvpn", "US", "", dict(WG))
@@ -593,7 +593,7 @@ def test_reconcile_reallocates_a_stolen_channel_port(monkeypatch):
 
 
 def test_reconcile_regenerates_a_stolen_clash_api_port(monkeypatch):
-    monkeypatch.setattr("alle.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
     before = singbox.clash_api()
     stolen = int(before["address"].rsplit(":", 1)[1])
     eng = Engine(Store.load())
@@ -607,12 +607,12 @@ def test_reconcile_regenerates_a_stolen_clash_api_port(monkeypatch):
 
 
 def test_reconcile_waits_out_a_transiently_held_port(monkeypatch):
-    """An address-in-use start failure right after a crash is usually alle's
+    """An address-in-use start failure right after a crash is usually anyhop's
     own previous sing-box not having released its sockets yet: the SAME config
     is retried and the port must NOT move — consumers wire themselves to the
     published ports, and reallocating per crash was seen assigning one channel
     two different ports across a single outage."""
-    monkeypatch.setattr("alle.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
     store = Store.load()
     store.add_provider("nordvpn")
     ch = store.add_channel("nordvpn", "US", "", dict(WG))
@@ -663,7 +663,7 @@ def test_probe_all_logs_channel_details(monkeypatch):
     runner._running = True
     eng.runner = cast(singbox.Runner, runner)
     monkeypatch.setattr(
-        "alle.engine.probe.probe_channel",
+        "anyhop.engine.probe.probe_channel",
         lambda port, **kw: {
             "ok": True,
             "at": 1,
@@ -719,7 +719,7 @@ def test_probe_all_runs_channels_concurrently(monkeypatch):
         barrier.wait()  # all three must reach here concurrently to pass
         return {"ok": True, "at": 1, "latency_ms": 5.0, "ip": "1.2.3.4", "error": None}
 
-    monkeypatch.setattr("alle.engine.probe.probe_channel", slow_probe)
+    monkeypatch.setattr("anyhop.engine.probe.probe_channel", slow_probe)
     eng.probe_all()
     assert active["peak"] == 3  # all three probed in parallel, not serially
     # every channel got a result persisted
@@ -747,7 +747,7 @@ def test_probe_pass_deadline_discards_results_that_arrive_late(monkeypatch):
     runner._running = True
     eng.runner = cast(singbox.Runner, runner)
 
-    monkeypatch.setattr("alle.engine.PROBE_PASS_DEADLINE", 0.05)
+    monkeypatch.setattr("anyhop.engine.PROBE_PASS_DEADLINE", 0.05)
     release = threading.Event()
     started = threading.Event()
 
@@ -756,7 +756,7 @@ def test_probe_pass_deadline_discards_results_that_arrive_late(monkeypatch):
         assert release.wait(timeout=5), "probe worker was never released"
         return {"ok": True, "at": 1, "latency_ms": 5.0, "ip": "1.2.3.4", "error": None}
 
-    monkeypatch.setattr("alle.engine.probe.probe_channel", overrunning_probe)
+    monkeypatch.setattr("anyhop.engine.probe.probe_channel", overrunning_probe)
     try:
         out = eng.probe_all()
         assert started.is_set()
@@ -784,7 +784,7 @@ def test_probe_result_is_discarded_after_channel_identity_changes(monkeypatch):
         Store.load().set_channels_enabled([("nordvpn", ch.id)], False)
         return {"ok": False, "at": 1, "error": "old tunnel failed"}
 
-    monkeypatch.setattr("alle.engine.probe.probe_channel", probe_then_disable)
+    monkeypatch.setattr("anyhop.engine.probe.probe_channel", probe_then_disable)
     eng.probe_all([ch])
     current = Store.load().get_channel("nordvpn", ch.id)
     assert current is not None and current.enabled is False

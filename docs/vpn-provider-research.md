@@ -1,19 +1,19 @@
 # VPN Provider Research
 
-Reference for which providers `alle` can support and how, given that the engine
+Reference for which providers `anyhop` can support and how, given that the engine
 is **sing-box**, verified against provider documentation.
 
-sing-box speaks **WireGuard** today (what `alle` uses for every implemented and
+sing-box speaks **WireGuard** today (what `anyhop` uses for every implemented and
 planned provider below) and, since **v1.14.0** (released 2026-08-30, the version
-`alle` now pins), also ships an [OpenVPN Client
+`anyhop` now pins), also ships an [OpenVPN Client
 endpoint](https://sing-box.sagernet.org/configuration/endpoint/openvpn-client/)
 compatible with standard OpenVPN servers (TLS mode, username/password or
 certificate auth, `tls-auth`/`tls-crypt` control-channel wrapping — the same
 fields a provider's `.ovpn` file carries), plus an OpenConnect client for
 enterprise VPNs. The upstream blocker is gone: the **OpenVPN-only providers**
-section below becomes buildable once `alle` integrates an OpenVPN provider
+section below becomes buildable once `anyhop` integrates an OpenVPN provider
 archetype (not yet started — new engine-integration work). This document is
-provider research — what `alle` *could* support and how — not a description of
+provider research — what `anyhop` *could* support and how — not a description of
 shipped features; non-WireGuard protocol support is not yet on the
 implementation track.
 
@@ -22,9 +22,9 @@ implementation track.
 1. **The provider bar is protocol-exportable, not protocol-specific.** A
    provider qualifies if either its WireGuard config/keys are self-service
    extractable today, or its OpenVPN username/password + config will be once
-   alle can speak OpenVPN. SOCKS5 is excluded outright (unencrypted); Shadowsocks
+   anyhop can speak OpenVPN. SOCKS5 is excluded outright (unencrypted); Shadowsocks
    is niche among commercial VPNs.
-2. **`alle` is encrypted-only.** No unencrypted SOCKS5, ever. Credentials come
+2. **`anyhop` is encrypted-only.** No unencrypted SOCKS5, ever. Credentials come
    from the provider API where one exists, else from importing the provider's
    config (WireGuard `.conf` today; OpenVPN `.ovpn`-equivalent planned).
 3. **"Supports \[protocol\]" is not the bar — exporting it is.** Several providers
@@ -35,7 +35,7 @@ implementation track.
    apps rather than allowing manual configuration options." The disqualifier is
    apps-only lockdown, not protocol absence — and it applies the same way to
    OpenVPN: a provider whose only OpenVPN path is inside their app doesn't
-   qualify either, even once alle can speak OpenVPN.
+   qualify either, even once anyhop can speak OpenVPN.
 
 ## Provider archetypes
 
@@ -89,7 +89,7 @@ offer standard WireGuard config download/generation from their portal:
 
 | Provider   | Caveat                                                                                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PureVPN    | Portal generates WireGuard configs, but they **expire** ("activate within 30 minutes… or redownload") — hostile to alle's stored-config model; expect frequent re-imports |
+| PureVPN    | Portal generates WireGuard configs, but they **expire** ("activate within 30 minutes… or redownload") — hostile to anyhop's stored-config model; expect frequent re-imports |
 | FastestVPN | WireGuard `.conf` provided **only via support email** — no self-service generator; provisioning is manual and slow                                                        |
 
 ## OpenVPN-only providers (planned)
@@ -99,7 +99,7 @@ which is why the "Excluded providers" section below used to rule them out
 entirely. Each does, however, publish a genuinely self-service OpenVPN
 username/password + config outside their own app — no app-only lockdown, the
 same disqualifier the WireGuard providers above are held to. sing-box 1.14.0
-ships the OpenVPN client, so the only thing left is `alle` adding an OpenVPN
+ships the OpenVPN client, so the only thing left is `anyhop` adding an OpenVPN
 provider archetype:
 
 | Provider        | Credential shape                                     | Config source                                                                                                  | Notes                                                                                                                                                         |
@@ -131,20 +131,20 @@ Private Internet Access, PrivateVPN, ProtonVPN, PureVPN, SlickVPN, Surfshark,
 TorGuard, VPNSecure.me, VPN Unlimited, VyprVPN, Windscribe.
 
 Combining every WireGuard-plannable provider above with the five OpenVPN-planned
-ones gives alle a **22-provider target list** — identical to gluetun's 23 minus
+ones gives anyhop a **22-provider target list** — identical to gluetun's 23 minus
 the two that aren't real, distinct, live providers: Perfect Privacy (defunct) and
 Giganews (a VyprVPN white-label, tracked under VyprVPN). Every provider gluetun
-supports that is still an operating, independent business is on alle's plan too
-— alle additionally plans VPN.ac, which gluetun does not support. Getting there
+supports that is still an operating, independent business is on anyhop's plan too
+— anyhop additionally plans VPN.ac, which gluetun does not support. Getting there
 still requires shipping the post-MVP WireGuard providers listed above and adding
-an OpenVPN provider archetype to `alle` (not started — sing-box 1.14.0 has
+an OpenVPN provider archetype to `anyhop` (not started — sing-box 1.14.0 has
 shipped the OpenVPN client this depended on).
 
 ## IPv6 support (planned providers)
 
 Checked against each provider's own support/knowledge-base articles. Scope is the
 post-MVP providers above (NordVPN and ProtonVPN are already implemented, not
-"planned", and are omitted). For `alle`, what matters is whether the
+"planned", and are omitted). For `anyhop`, what matters is whether the
 provider's **WireGuard config/API actually assigns a routable IPv6 address** — a
 generic "IPv6 leak protection" feature just blocks IPv6 outside the tunnel and is not
 IPv6 support.

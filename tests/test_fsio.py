@@ -8,7 +8,7 @@ import stat
 
 import pytest
 
-from alle import fsio
+from anyhop import fsio
 
 
 def test_locked_excludes_other_lockers(tmp_path):
@@ -65,7 +65,7 @@ def test_root_writer_preserves_the_previous_owner(tmp_path, monkeypatch):
     monkeypatch.setattr(
         fsio.os, "chown", lambda p, uid, gid: chowned.append((uid, gid))
     )
-    # report every path as alle-owned (uid 1000) without disturbing st_mode —
+    # report every path as anyhop-owned (uid 1000) without disturbing st_mode —
     # pathlib's mkdir/is_dir consult the same os.stat
     monkeypatch.setattr(fsio.os, "stat", _stat_as_uid_1000(os.stat))
 

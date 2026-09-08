@@ -7,7 +7,7 @@ import {
   enabledChannelKeys,
   parseSpeedStream,
   visibleTraffic,
-} from "../src/alle/assets/dashboard.js";
+} from "../src/anyhop/assets/dashboard.js";
 
 function stream(parts) {
   return new ReadableStream({

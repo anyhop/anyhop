@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from alle import metrics
+from anyhop import metrics
 
 
 def _conn(cid, tag, up, down):

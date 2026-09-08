@@ -109,7 +109,7 @@ jobs:
       - name: Run tests
         run: |
           if [ "${{ matrix.python-version }}" = "3.14" ]; then
-            uv run pytest -q --cov=alle --cov-branch --cov-fail-under=84
+            uv run pytest -q --cov=anyhop --cov-branch --cov-fail-under=84
           else
             uv run pytest -q
           fi
@@ -161,7 +161,7 @@ jobs:
       - run: uv run pytest -q
 
   # Build the container image and boot it against a synthetic no-credential
-  # bundle, gated on the same `alle health` check the image's HEALTHCHECK
+  # bundle, gated on the same `anyhop health` check the image's HEALTHCHECK
   # runs — so a PR can't silently break the Dockerfile, the entrypoint, or
   # the bundle-apply-at-start contract. The dummy WireGuard keys never pass
   # probes; everything under test (build, import, ports, health, the control
@@ -186,15 +186,15 @@ jobs:
       - name: Build image from the gated wheel
         run: |
           wheel_sha=$(sha256sum dist/*.whl | awk '{print $1}')
-          docker buildx build --load --build-arg ALLE_WHEEL_SHA256="$wheel_sha" \
+          docker buildx build --load --build-arg ANYHOP_WHEEL_SHA256="$wheel_sha" \
             --cache-from type=gha,scope=ci-docker \
             --cache-to type=gha,mode=max,scope=ci-docker \
-            -f packaging/docker/Dockerfile -t alle:ci .
+            -f packaging/docker/Dockerfile -t anyhop:ci .
       - name: Boot with a synthetic bundle
         run: |
           key=$(python3 -c 'import base64; print(base64.b64encode(bytes([7]*32)).decode())')
-          cat > /tmp/alle-bundle.yaml <<EOF
-          kind: alle-bundle
+          cat > /tmp/anyhop-bundle.yaml <<EOF
+          kind: anyhop-bundle
           bundle_version: 1
           providers:
             protonvpn:
@@ -214,57 +214,57 @@ jobs:
                 target: direct
                 matchers: [all]
           EOF
-          docker network create alle-ci-net
-          docker run -d --name alle-ci --network alle-ci-net \
-            -e ALLE_API_LISTEN=0.0.0.0:8080 \
-            -e ALLE_API_SECRET=ci-test-secret-0123456789 \
-            --mount type=volume,src=alle-ci-state,dst=/var/lib/alle \
-            --mount type=bind,src=/tmp/alle-bundle.yaml,dst=/etc/alle/bundle.yaml,readonly \
-            alle:ci
+          docker network create anyhop-ci-net
+          docker run -d --name anyhop-ci --network anyhop-ci-net \
+            -e ANYHOP_API_LISTEN=0.0.0.0:8080 \
+            -e ANYHOP_API_SECRET=ci-test-secret-0123456789 \
+            --mount type=volume,src=anyhop-ci-state,dst=/var/lib/anyhop \
+            --mount type=bind,src=/tmp/anyhop-bundle.yaml,dst=/etc/anyhop/bundle.yaml,readonly \
+            anyhop:ci
       - name: Wait for health
         run: |
           for _ in $(seq 1 30); do
-            if docker exec alle-ci alle health; then exit 0; fi
+            if docker exec anyhop-ci anyhop health; then exit 0; fi
             sleep 5
           done
           echo "::error::container never became healthy"
-          docker logs alle-ci
+          docker logs anyhop-ci
           exit 1
       - name: Assert the bundle applied
         run: |
-          docker exec alle-ci alle channels ls | tee /tmp/ls.out
+          docker exec anyhop-ci anyhop channels ls | tee /tmp/ls.out
           grep -q "us_test" /tmp/ls.out
           grep -q ":25000" /tmp/ls.out
           # the image profile widens binds to the container network
-          docker exec alle-ci sh -c 'grep -o "\"listen\": \"[^\"]*\"" /var/lib/alle/singbox.json | sort -u' \
+          docker exec anyhop-ci sh -c 'grep -o "\"listen\": \"[^\"]*\"" /var/lib/anyhop/singbox.json | sort -u' \
             | grep -q '0.0.0.0'
       # The OCI user contract: proxy mode is non-root in the image metadata
       # (numeric, so runAsNonRoot-style admission checks can verify it), PID 1
       # actually runs as uid 1000, and the named state volume is usable by it.
       - name: Assert the OCI user contract
         run: |
-          [ "$(docker inspect -f '{{.Config.User}}' alle:ci)" = "1000:1000" ]
-          [ "$(docker exec alle-ci id -u)" = "1000" ]
-          [ "$(docker exec alle-ci sh -c "awk '/^Uid:/{print \$2}' /proc/1/status")" = "1000" ]
-          docker exec alle-ci sh -c 'test -O /var/lib/alle/state.json'
+          [ "$(docker inspect -f '{{.Config.User}}' anyhop:ci)" = "1000:1000" ]
+          [ "$(docker exec anyhop-ci id -u)" = "1000" ]
+          [ "$(docker exec anyhop-ci sh -c "awk '/^Uid:/{print \$2}' /proc/1/status")" = "1000" ]
+          docker exec anyhop-ci sh -c 'test -O /var/lib/anyhop/state.json'
       # Startup sync must be idempotent: a restart re-syncs the same bundle
       # and must neither duplicate its ruleset nor change the managed setup.
       - name: Assert restart idempotency (startup sync)
         run: |
-          docker restart alle-ci
+          docker restart anyhop-ci
           for _ in $(seq 1 30); do
-            if docker exec alle-ci alle health; then break; fi
+            if docker exec anyhop-ci anyhop health; then break; fi
             sleep 5
           done
-          count=$(docker exec alle-ci alle export --out - | grep -c "ci-direct")
+          count=$(docker exec anyhop-ci anyhop export --out - | grep -c "ci-direct")
           [ "$count" = "1" ] || { echo "::error::ruleset duplicated on restart (count=$count)"; exit 1; }
       # The mount contract fails loud: a directory at the bundle path (what a
       # short -v mount creates from a missing host file) must refuse the boot.
       - name: Assert a directory bundle path is refused
         run: |
-          mkdir -p /tmp/alle-empty-dir
-          if docker run --rm --mount type=bind,src=/tmp/alle-empty-dir,dst=/etc/alle/bundle.yaml,readonly \
-              alle:ci alle run 2>/tmp/dir-bundle.log; then
+          mkdir -p /tmp/anyhop-empty-dir
+          if docker run --rm --mount type=bind,src=/tmp/anyhop-empty-dir,dst=/etc/anyhop/bundle.yaml,readonly \
+              anyhop:ci anyhop run 2>/tmp/dir-bundle.log; then
             echo "::error::entrypoint accepted a directory at the bundle path"
             exit 1
           fi
@@ -276,10 +276,10 @@ jobs:
       # network — the exact posture docs/api.md promises operators.
       - name: Assert the control API contract (network bind + Bearer)
         run: |
-          docker run -i --rm --network alle-ci-net --entrypoint python3 alle:ci - <<'EOF'
+          docker run -i --rm --network anyhop-ci-net --entrypoint python3 anyhop:ci - <<'EOF'
           import json, urllib.error, urllib.request
 
-          BASE = "http://alle-ci:8080"
+          BASE = "http://anyhop-ci:8080"
           AUTH = {"Authorization": "Bearer ci-test-secret-0123456789"}
 
           # Bearer passes the foreign-Host gate; the injected secret is live
@@ -305,19 +305,19 @@ jobs:
       # probe healthy) so Compose dependants would stay unstarted.
       - name: Assert the gateway profile declares fail-closed readiness
         run: |
-          docker run -d --name alle-ci-gw --network alle-ci-net \
+          docker run -d --name anyhop-ci-gw --network anyhop-ci-net \
             --user 0:0 --cap-add NET_ADMIN --device /dev/net/tun \
-            -e ALLE_RUN_AS_ROOT=1 -e ALLE_GATEWAY=1 \
-            --mount type=volume,src=alle-ci-gw-state,dst=/var/lib/alle \
-            alle:ci
+            -e ANYHOP_RUN_AS_ROOT=1 -e ANYHOP_GATEWAY=1 \
+            --mount type=volume,src=anyhop-ci-gw-state,dst=/var/lib/anyhop \
+            anyhop:ci
           # gateway health stays deliberately red here (no viable channel),
           # so wait only for process liveness before asserting the contract
           for _ in $(seq 1 30); do
-            docker exec alle-ci-gw alle health --json 2>/dev/null \
+            docker exec anyhop-ci-gw anyhop health --json 2>/dev/null \
               | grep -q '"singbox": true' && break
             sleep 5
           done
-          docker exec alle-ci-gw alle health --json | tee /tmp/gw-health.json || true
+          docker exec anyhop-ci-gw anyhop health --json | tee /tmp/gw-health.json || true
           python3 - <<'EOF'
           import json
           h = json.load(open("/tmp/gw-health.json"))
@@ -328,16 +328,16 @@ jobs:
           assert "privileges" not in gw["failing"], gw
           print("gateway readiness contract ok:", gw)
           EOF
-          docker logs alle-ci-gw 2>&1 | grep -q "gateway profile — declaring TUN"
+          docker logs anyhop-ci-gw 2>&1 | grep -q "gateway profile — declaring TUN"
       # Foreground ownership: docker stop's SIGTERM tears down sing-box (and
       # with it the TUN) inside the grace period and exits cleanly.
       - name: Assert clean SIGTERM teardown
         run: |
-          docker stop alle-ci
-          [ "$(docker inspect -f '{{.State.ExitCode}}' alle-ci)" = "0" ]
-          docker logs alle-ci 2>&1 | grep -q "data plane released"
+          docker stop anyhop-ci
+          [ "$(docker inspect -f '{{.State.ExitCode}}' anyhop-ci)" = "0" ]
+          docker logs anyhop-ci 2>&1 | grep -q "data plane released"
       - name: Container logs on failure
         if: failure()
         run: |
-          docker logs alle-ci || true
-          docker logs alle-ci-gw || true
+          docker logs anyhop-ci || true
+          docker logs anyhop-ci-gw || true

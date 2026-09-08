@@ -148,26 +148,23 @@ def test_publish_reuses_the_one_built_artifact():
         ), f"{name} must download the build artifact instead of rebuilding"
 
 
-def test_dockerhub_overview_publishes_the_readme():
+def test_release_image_publishes_to_ghcr_with_the_repo_token():
     wf = _load("publish.yml")
-    steps = [item for item in _steps(wf) if item[0] == "publish-docker"]
-    step = next(
-        s
-        for _job, s in steps
-        if s.get("uses", "").startswith("peter-evans/dockerhub-description")
+    job = wf["jobs"]["publish-docker"]
+    assert job["permissions"].get("packages") == "write"
+    steps = job["steps"]
+    login = next(
+        s for s in steps if s.get("uses", "").startswith("docker/login-action")
     )
-    image_push = next(
-        s
-        for _job, s in steps
-        if s.get("uses", "").startswith("docker/build-push-action")
+    assert login["with"]["registry"] == "ghcr.io"
+    assert login["with"]["password"] == "${{ secrets.GITHUB_TOKEN }}"
+    meta = next(
+        s for s in steps if s.get("uses", "").startswith("docker/metadata-action")
     )
-    assert steps.index(("publish-docker", image_push)) < steps.index(
-        ("publish-docker", step)
+    assert meta["with"]["images"] == "ghcr.io/${{ github.repository }}"
+    assert not any(
+        s.get("uses", "").startswith("peter-evans/dockerhub-description") for s in steps
     )
-    inputs = step["with"]
-    assert inputs["repository"] == "${{ vars.DOCKERHUB_USERNAME }}/alle"
-    assert inputs["readme-filepath"] == "./README.md"
-    assert inputs["enable-url-completion"] is True
 
 
 def test_supply_chain_scans_lockfile_and_secrets():
@@ -209,7 +206,7 @@ def test_pypi_trusted_publisher_job_is_in_tag_entrypoint():
 def test_pypi_publish_skips_an_existing_release():
     pypi = _load("publish.yml")["jobs"]["publish-pypi"]
     check = next(step for step in pypi["steps"] if step.get("id") == "pypi")
-    assert "pypi.org/pypi/alle-proxy/$version/json" in check["run"]
+    assert "pypi.org/pypi/anyhop/$version/json" in check["run"]
     publish = next(
         step
         for step in pypi["steps"]
@@ -236,7 +233,7 @@ def test_release_image_consumes_gated_wheel_and_gates_latest():
         for step in steps
         if step.get("uses", "").startswith("docker/build-push-action")
     )
-    assert "ALLE_WHEEL_SHA256" in build["with"]["build-args"]
+    assert "ANYHOP_WHEEL_SHA256" in build["with"]["build-args"]
     assert "type=gha" in build["with"]["cache-from"]
 
 
@@ -246,7 +243,7 @@ def test_container_release_smoke_fixture_is_readable_and_fails_fast():
     assert "{{.State.Running}}" in script
     assert 'docker logs "$name"' in script
     assert "api_ready" in script
-    assert "alle health" not in script
+    assert "anyhop health" not in script
 
 
 def test_ci_cancels_superseded_work_and_jobs_are_bounded():
@@ -263,7 +260,8 @@ def test_stable_release_stages_and_verifies_the_pinned_installer():
     steps = wf["jobs"]["github-release"]["steps"]
     runs = "\n".join(step.get("run", "") for step in steps)
     assert (
-        'grep -qx "ALLE_VERSION=\\"$version\\"" packaging/bootstrap/install.sh' in runs
+        'grep -qx "ANYHOP_VERSION=\\"$version\\"" packaging/bootstrap/install.sh'
+        in runs
     )
     assert "sha256sum install.sh > install.sh.sha256" in runs
     assert "gh release create" in runs and "--draft" in runs
@@ -346,7 +344,7 @@ def test_published_manifest_check_uses_the_normalized_pep440_tag():
     )
     run = manifest["run"]
     assert (
-        'image="${{ vars.DOCKERHUB_USERNAME }}/alle:'
+        'image="ghcr.io/${{ github.repository }}:'
         '${{ steps.meta.outputs.version }}"' in run
     )
     assert "${GITHUB_REF_NAME#v}" not in run

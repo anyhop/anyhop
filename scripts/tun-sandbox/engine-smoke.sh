@@ -5,7 +5,7 @@
 #     scripts/tun-sandbox/run.sh /repo/scripts/tun-sandbox/engine-smoke.sh
 #
 # smoke.sh proves the hand-written design assumptions; this proves what
-# alle.engine actually emits for TUN mode drives a live tun:
+# anyhop.engine actually emits for TUN mode drives a live tun:
 #
 #   1. the generated config passes sing-box check;
 #   2. tun + auto_route + strict_route seizes the namespace's routing and
@@ -26,20 +26,20 @@ set -euo pipefail
 # shellcheck source=/dev/null
 . "$(dirname "$0")/lib.sh"
 
-TUN_NAME="alle-tun" # engine's fixed non-darwin interface_name
+TUN_NAME="anyhop-tun" # engine's fixed non-darwin interface_name
 ROUTER_PORT=41080
 SB_LOG=/tmp/sing-box.log
-export ALLE_HOME=/tmp/alle-engine-smoke
+export ANYHOP_HOME=/tmp/anyhop-engine-smoke
 
 fetch_singbox
 
-# ---- generate the configs straight from alle.engine
+# ---- generate the configs straight from anyhop.engine
 say "engine-generated configs (tun on; killswitch off, then on)"
 python3 - <<EOF
 import json, sys
 sys.path.insert(0, "/repo/src")
-from alle.engine import Engine
-from alle.state import Store
+from anyhop.engine import Engine
+from anyhop.state import Store
 
 def build(killswitch):
     data = {

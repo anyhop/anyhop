@@ -1,8 +1,8 @@
-# alle and vopono
+# anyhop and vopono
 
 [vopono](https://github.com/jamesmcm/vopono) is a Rust CLI that runs individual
 applications through VPN tunnels using temporary Linux network namespaces. It
-solves a related but structurally different problem from alle: isolating
+solves a related but structurally different problem from anyhop: isolating
 **processes**, not routing **requests**.
 
 ## The shape of each
@@ -17,7 +17,7 @@ server lists and configs up front; a `--custom` flag accepts any raw WireGuard
 or OpenVPN config for providers vopono doesn't integrate directly, plus
 OpenConnect and OpenFortiVPN for enterprise VPNs.
 
-**alle** — one process, many WireGuard channels live at the same time, and a
+**anyhop** — one process, many WireGuard channels live at the same time, and a
 router entrypoint matches every request by domain, CIDR, or geosite/geoip
 category and sends it to a channel, straight out, or nowhere. The unit of
 control is the request, not the process that made it — a single already-running
@@ -26,7 +26,7 @@ different one, with no relaunch.
 
 ## Where they differ
 
-|                             | vopono                                                                                                                                         | alle                                                                           |
+|                             | vopono                                                                                                                                         | anyhop                                                                           |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Isolation unit              | A Linux network namespace per app/process tree                                                                                                 | One process; a rule table matched per request                                  |
 | Choosing the exit           | Which namespace you launch the app into                                                                                                        | A rule table matched per request                                               |
@@ -65,14 +65,14 @@ streaming and banking means two separate browser launches (and, in practice,
 separate profiles so cookies/sessions don't cross), not two rules against one
 already-running browser.
 
-### With alle
+### With anyhop
 
 One process, three channels, and a rule table — the same example as the
 gluetun comparison:
 
 ```bash
-API=http://alle:8080/api/v1
-AUTH="Authorization: Bearer $ALLE_API_SECRET"
+API=http://anyhop:8080/api/v1
+AUTH="Authorization: Bearer $ANYHOP_API_SECRET"
 
 for c in "United States" "Japan" "United Kingdom"; do
   curl -sS -X POST "$API/channels" -H "$AUTH" -H 'Content-Type: application/json' \
@@ -95,24 +95,24 @@ separate profile.
 
 - You're on Linux and process-level isolation (a real, kernel-enforced network
   namespace per app) is what you want, not request-level routing.
-- Your provider isn't one of alle's supported ones but exports a plain
+- Your provider isn't one of anyhop's supported ones but exports a plain
   WireGuard or OpenVPN config — vopono's `--custom` flag takes it directly, no
   per-provider integration work needed on either side.
-- You need OpenVPN, OpenConnect, or OpenFortiVPN today. alle speaks WireGuard
+- You need OpenVPN, OpenConnect, or OpenFortiVPN today. anyhop speaks WireGuard
   only; its engine (sing-box 1.14) can now do OpenVPN and OpenConnect, but
-  alle's provider path for them is [planned](vpn-provider-research.md), not
+  anyhop's provider path for them is [planned](vpn-provider-research.md), not
   shipped.
 - Launching each app fresh into its target VPN fits your workflow — a one-off
   job, a throwaway browser profile — rather than steering an app that's
   already running.
 
-## Choose alle when
+## Choose anyhop when
 
 - You want traffic split by **destination**, not by which app or process sent
   it — the same browser, different domains, different exits, with nothing to
   relaunch.
 - You're not on Linux. Network namespaces are Linux-only, so vopono has no
-  macOS or Windows story; alle runs on macOS, Linux, Docker, or as a host
+  macOS or Windows story; anyhop runs on macOS, Linux, Docker, or as a host
   service.
 - You want a REST API and Web UI to manage exits and rules programmatically,
   not just a CLI wrapper around namespace creation.

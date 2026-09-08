@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from alle import geodata, routes, service, tracer
-from alle.engine import Engine
-from alle.state import Store
+from anyhop import geodata, routes, service, tracer
+from anyhop.engine import Engine
+from anyhop.state import Store
 from conftest import wg_config
 from test_srs import _default_rule, _srs_file
 
@@ -377,7 +377,7 @@ def test_unmatched_v6_hits_trailing_catchall(no_dns):
 
 
 def test_aaaa_suppressed_forces_v4_flow(no_dns):
-    # dual-stack domain, tun on, v4-only fleet: alle's DNS answers ipv4_only,
+    # dual-stack domain, tun on, v4-only fleet: anyhop's DNS answers ipv4_only,
     # so the flow is v4 and the AAAA suppression is disclosed
     store = _store(
         ("nordvpn", "us_1", 9000, dict(WG)),

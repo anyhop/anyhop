@@ -3,7 +3,7 @@
 The encoder here is a test-side mirror of sing-box's writer
 (``common/srs/binary.go`` + sing ``common/domain``): the succinct-trie
 construction is the same queue algorithm, the item encodings byte-identical.
-The reader in :mod:`alle.srs` was additionally validated against real
+The reader in :mod:`anyhop.srs` was additionally validated against real
 published rule-sets using ``sing-box rule-set decompile`` as the oracle;
 these tests keep the coverage hermetic (no network, no binary).
 """
@@ -16,7 +16,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from alle import routes, srs
+from anyhop import routes, srs
 
 # ---- encoder (mirrors the Go writer) -----------------------------------------
 

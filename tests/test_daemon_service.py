@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from alle import cli, daemon, daemonctl, output, service
+from anyhop import cli, daemon, daemonctl, output, service
 
 
 def run_cli(args, capsys):
@@ -107,7 +107,7 @@ def test_status_output_warns_on_skew():
     }
     text = output.status(snap)
     assert "daemon running 0.1.0, CLI is 0.2.0" in text
-    assert "alle restart" in text
+    assert "anyhop restart" in text
 
 
 def test_status_output_no_warning_without_skew():
@@ -137,7 +137,7 @@ def test_cli_daemon_status_human_and_json(capsys, monkeypatch):
             "manager": "launchd",
             "installed": True,
             "active": True,
-            "unit_path": "/Users/x/Library/LaunchAgents/io.github.zydo.alle.plist",
+            "unit_path": "/Users/x/Library/LaunchAgents/io.github.anyhop.anyhop.plist",
         },
     )
     monkeypatch.setattr(daemon, "daemon_info", lambda: {"pid": 9, "version": "0.1.0"})
@@ -160,18 +160,18 @@ def test_cli_daemon_install_uninstall_messages(capsys, monkeypatch):
         "daemon_install",
         lambda linger=False: {
             "manager": "systemd",
-            "unit_path": "/home/x/.config/systemd/user/alle.service",
+            "unit_path": "/home/x/.config/systemd/user/anyhop.service",
             "reinstalled": False,
             "linger": linger,
         },
     )
     out = run_cli(["daemon", "install"], capsys)
-    assert "Installed the alle login service (systemd)." in out
+    assert "Installed the anyhop login service (systemd)." in out
     assert "auto-starts at login" in out
 
     monkeypatch.setattr(
         service, "daemon_uninstall", lambda: {"manager": "systemd", "removed": True}
     )
     out = run_cli(["daemon", "uninstall"], capsys)
-    assert "Removed the alle login service" in out
+    assert "Removed the anyhop login service" in out
     assert "untouched" in out

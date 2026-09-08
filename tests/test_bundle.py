@@ -13,11 +13,11 @@ import urllib.request
 import pytest
 import yaml
 
-from alle import bundle, cli, credentials, service
-from alle.providers import ProviderError
-from alle.state import Store
+from anyhop import bundle, cli, credentials, service
+from anyhop.providers import ProviderError
+from anyhop.state import Store
 from conftest import start_test_server, stop_test_server
-from alle.api import server
+from anyhop.api import server
 
 KEY_A = base64.b64encode(bytes([1] * 32)).decode()
 KEY_B = base64.b64encode(bytes([2] * 32)).decode()
@@ -89,7 +89,7 @@ def test_export_is_setup_only_and_explicit(monkeypatch):
     _, ch = seed()
     data = bundle.export_bundle()
 
-    assert data["kind"] == "alle-bundle" and data["bundle_version"] == 1
+    assert data["kind"] == "anyhop-bundle" and data["bundle_version"] == 1
     channel = data["providers"]["nordvpn"]["channels"][ch.id]
     # no port/probe/reconnect; enabled is explicit (unstated means keep-as-is
     # on a merge, so a faithful backup must always state it)
@@ -123,7 +123,7 @@ def test_validation_reports_every_problem_and_changes_nothing():
     seed()
     before = Store.load().data
     bad = """
-kind: alle-bundle
+kind: anyhop-bundle
 bundle_version: 1
 providers:
   nosuch: {}
@@ -158,9 +158,9 @@ router:
 @pytest.mark.parametrize(
     ("text", "needle"),
     [
-        ("just: yaml", "not an alle bundle"),
-        ("kind: alle-bundle", "bundle_version"),
-        ("kind: alle-bundle\nbundle_version: 99", "newer than this alle"),
+        ("just: yaml", "not an anyhop bundle"),
+        ("kind: anyhop-bundle", "bundle_version"),
+        ("kind: anyhop-bundle\nbundle_version: 99", "newer than this anyhop"),
         ("- a\n- b", "root is not a mapping"),
         ("kind: [unclosed", "not valid YAML"),
     ],
@@ -173,7 +173,7 @@ def test_header_and_shape_rejections(text, needle):
 
 def test_config_channel_requires_wg_snapshot():
     text = """
-kind: alle-bundle
+kind: anyhop-bundle
 bundle_version: 1
 providers:
   protonvpn:
@@ -188,7 +188,7 @@ providers:
 def test_restore_target_must_exist_in_bundle_but_import_may_use_existing():
     _, ch = seed()
     text = f"""
-kind: alle-bundle
+kind: anyhop-bundle
 bundle_version: 1
 router:
   rulesets:
@@ -244,7 +244,7 @@ def test_restore_removes_everything_not_in_the_bundle():
 
 
 def test_restore_prunes_metrics_of_channels_dropped_from_retained_providers():
-    from alle import metrics
+    from anyhop import metrics
 
     store, ch = seed()
     text = bundle.dumps(bundle.export_bundle())  # does NOT contain wg_jp_1
@@ -334,7 +334,7 @@ def test_import_reports_credential_replacement():
 def test_import_commits_state_in_one_transaction(monkeypatch):
     from contextlib import contextmanager
 
-    from alle import state
+    from anyhop import state
 
     seed()
     data = bundle.export_bundle()
@@ -402,7 +402,7 @@ def test_import_into_empty_state_creates_providers(monkeypatch):
     seed()
     text = bundle.dumps(bundle.export_bundle())
     bundle.apply_restore(
-        "kind: alle-bundle\nbundle_version: 1\n"
+        "kind: anyhop-bundle\nbundle_version: 1\n"
     )  # wipe to nothing first
     assert Store.load().provider_names() == []
 
@@ -428,7 +428,7 @@ def test_fresh_resolve_wins_over_snapshot_and_derives_once(monkeypatch):
         "wg": wg("2.2.2.2"),
     }
     text = bundle.dumps(data)
-    bundle.apply_restore("kind: alle-bundle\nbundle_version: 1\n")  # a new machine
+    bundle.apply_restore("kind: anyhop-bundle\nbundle_version: 1\n")  # a new machine
 
     factories = []
 
@@ -473,7 +473,7 @@ def test_existing_channel_same_location_keeps_live_params_without_api(monkeypatc
 def test_token_resolve_failure_falls_back_to_snapshot(monkeypatch):
     seed()
     text = bundle.dumps(bundle.export_bundle())
-    bundle.apply_restore("kind: alle-bundle\nbundle_version: 1\n")  # a new machine
+    bundle.apply_restore("kind: anyhop-bundle\nbundle_version: 1\n")  # a new machine
 
     monkeypatch.setattr(bundle, "provider_resolver", _factory_down)
     summary = bundle.apply_restore(text)
@@ -487,7 +487,7 @@ def test_token_resolve_failure_falls_back_to_snapshot(monkeypatch):
 def test_token_snapshot_with_credential_falls_back_when_api_down(monkeypatch):
     # token present (required) but the API is unreachable → keep the snapshot
     data = {
-        "kind": "alle-bundle",
+        "kind": "anyhop-bundle",
         "bundle_version": 1,
         "providers": {
             "nordvpn": {
@@ -508,7 +508,7 @@ def test_token_snapshot_with_credential_falls_back_when_api_down(monkeypatch):
 
 
 HANDWRITTEN = """
-kind: alle-bundle
+kind: anyhop-bundle
 bundle_version: 1
 providers:
   nordvpn:
@@ -586,7 +586,7 @@ def test_wgless_channel_keeps_existing_params_when_location_unchanged(monkeypatc
 
 def test_token_provider_without_a_token_is_rejected():
     text = """
-kind: alle-bundle
+kind: anyhop-bundle
 bundle_version: 1
 providers:
   nordvpn:
@@ -609,7 +609,7 @@ def test_resolve_failure_without_snapshot_mutates_nothing(monkeypatch):
     assert credentials.get("nordvpn") is None  # bundle credential not persisted
 
 
-# ---- dedicated validation (validate_file / alle validate) ------------------------
+# ---- dedicated validation (validate_file / anyhop validate) ------------------------
 
 VALID_LOCATIONS = {"united states": {"new york", "los angeles"}, "sweden": set()}
 
@@ -632,7 +632,7 @@ def test_validate_file_accepts_a_good_bundle():
 
 def test_validate_reports_every_problem_with_line_numbers():
     text = (
-        "kind: alle-bundle\n"  # 1
+        "kind: anyhop-bundle\n"  # 1
         "bundle_version: 1\n"  # 2
         "providers:\n"  # 3
         "  nordvpn:\n"  # 4
@@ -659,7 +659,7 @@ def test_validate_reports_every_problem_with_line_numbers():
 
 def test_duplicate_channel_id_is_flagged():
     text = (
-        "kind: alle-bundle\n"
+        "kind: anyhop-bundle\n"
         "bundle_version: 1\n"
         "providers:\n"
         "  nordvpn:\n"
@@ -679,7 +679,7 @@ def test_duplicate_channel_id_is_flagged():
 
 def test_router_toggles_required_when_strict_but_not_on_merge():
     text = (
-        "kind: alle-bundle\n"
+        "kind: anyhop-bundle\n"
         "bundle_version: 1\n"
         "router:\n"
         "  rulesets:\n"
@@ -697,7 +697,7 @@ def test_router_toggles_required_when_strict_but_not_on_merge():
 
 def test_country_and_city_checked_against_the_provider_list():
     text = (
-        "kind: alle-bundle\n"
+        "kind: anyhop-bundle\n"
         "bundle_version: 1\n"
         "providers:\n"
         "  nordvpn:\n"
@@ -722,7 +722,7 @@ def test_country_and_city_checked_against_the_provider_list():
 
 def test_unknown_matcher_type_is_rejected():
     text = (
-        "kind: alle-bundle\n"
+        "kind: anyhop-bundle\n"
         "bundle_version: 1\n"
         "router:\n"
         "  killswitch: false\n"
@@ -751,7 +751,7 @@ def test_cli_validate_reports_errors():
     import tempfile
 
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as fh:
-        fh.write("kind: alle-bundle\nbundle_version: 1\nproviders:\n  nosuch: {}\n")
+        fh.write("kind: anyhop-bundle\nbundle_version: 1\nproviders:\n  nosuch: {}\n")
         path = fh.name
     with pytest.raises(SystemExit) as e:
         cli.main(["validate", path])
@@ -770,7 +770,7 @@ def test_cli_export_writes_0600_with_default_name(capsys, tmp_path, monkeypatch)
     seed()
     monkeypatch.chdir(tmp_path)
     out = run_cli(["export"], capsys)
-    files = list(tmp_path.glob("alle-backup-*.yaml"))
+    files = list(tmp_path.glob("anyhop-backup-*.yaml"))
     assert len(files) == 1
     assert stat.S_IMODE(files[0].stat().st_mode) == 0o600
     assert "keep it private" in out
@@ -780,7 +780,7 @@ def test_cli_export_writes_0600_with_default_name(capsys, tmp_path, monkeypatch)
 def test_cli_export_stdout(capsys):
     seed()
     out = run_cli(["export", "--out", "-"], capsys)
-    assert "kind: alle-bundle" in out and "tok-123" in out
+    assert "kind: anyhop-bundle" in out and "tok-123" in out
 
 
 def test_cli_import_prints_summary(capsys, tmp_path):
@@ -841,9 +841,9 @@ def test_api_export_downloads_yaml(live):
     )
     assert status == 200
     assert "attachment" in headers.get("Content-Disposition", "")
-    assert "alle-backup-" in headers.get("Content-Disposition", "")
+    assert "anyhop-backup-" in headers.get("Content-Disposition", "")
     data = yaml.safe_load(body)
-    assert data["kind"] == "alle-bundle" and "redacted" not in data
+    assert data["kind"] == "anyhop-bundle" and "redacted" not in data
 
 
 def test_api_export_requires_auth(live):
@@ -891,7 +891,7 @@ def test_api_import_merge_and_replace(live):
         base + "/api/v1/import", method="POST", headers=headers, data={"text": "nope"}
     )
     assert status == 400
-    assert "not an alle bundle" in json.loads(body)["error"]
+    assert "not an anyhop bundle" in json.loads(body)["error"]
 
 
 def test_api_validate(live, monkeypatch):
@@ -919,7 +919,7 @@ def test_api_validate(live, monkeypatch):
         method="POST",
         headers=headers,
         data={
-            "text": "kind: alle-bundle\nbundle_version: 1\nproviders:\n  nosuch: {}\n"
+            "text": "kind: anyhop-bundle\nbundle_version: 1\nproviders:\n  nosuch: {}\n"
         },
     )
     assert status == 400

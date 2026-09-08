@@ -8,9 +8,9 @@ from typing import cast
 
 import pytest
 
-from alle import applog, reconnect, singbox
-from alle.providers import ProviderAuthError, ProviderError
-from alle.state import Store
+from anyhop import applog, reconnect, singbox
+from anyhop.providers import ProviderAuthError, ProviderError
+from anyhop.state import Store
 from conftest import wg_config
 
 WG = wg_config("us1.example.com")

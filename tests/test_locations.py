@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from alle import locations
+from anyhop import locations
 
 
 def test_write_sorts_and_records_metadata(tmp_path, monkeypatch):

@@ -7,7 +7,7 @@ import urllib.error
 
 import pytest
 
-from alle import credentials, providers
+from anyhop import credentials, providers
 
 
 def test_known_enumerates_every_provider():

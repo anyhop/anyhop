@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "packaging" / "bootstrap" / "install.sh"
 
 # The release version the installer pins (and verifies after install). The
-# fake `alle` fixture must report the same string, so read it from the script
+# fake `anyhop` fixture must report the same string, so read it from the script
 # itself rather than hardcoding a literal a version bump would break.
-_pin = re.search(r'^ALLE_VERSION="([^"]+)"', INSTALLER.read_text(), re.MULTILINE)
+_pin = re.search(r'^ANYHOP_VERSION="([^"]+)"', INSTALLER.read_text(), re.MULTILINE)
 assert _pin is not None
 PINNED_VERSION = _pin.group(1)
 
@@ -47,16 +47,16 @@ def _base_host(tmp_path: Path, *, system: str = "Linux", machine: str = "x86_64"
     )
     _write_executable(bin_dir / "systemctl", "exit 0\n")
     env = os.environ.copy()
-    # The repository test session sets an isolated ALLE_HOME globally. These
+    # The repository test session sets an isolated ANYHOP_HOME globally. These
     # installer subprocesses model a fresh user's login environment unless a
     # test opts into a custom state directory explicitly.
-    env.pop("ALLE_HOME", None)
+    env.pop("ANYHOP_HOME", None)
     env.pop("XDG_STATE_HOME", None)
     env.update(
         {
             "HOME": str(home),
             "PATH": f"{bin_dir}:/usr/bin:/bin",
-            "_ALLE_INSTALL_TEST_ROOT": str(root),
+            "_ANYHOP_INSTALL_TEST_ROOT": str(root),
             "MUTATION_LOG": str(tmp_path / "mutations"),
         }
     )
@@ -85,7 +85,7 @@ if [ "$1 $2 ${{3:-}}" = "tool install --help" ]; then [ "${{INSTALL_HELP_FAIL:-0
 if [ "$1 $2 ${{3:-}}" = "tool update-shell --help" ]; then exit "${{UPDATE_SHELL_HELP_FAIL:-0}}"; fi
 if [ "$1 $2" = "tool update-shell" ]; then exit "${{UPDATE_SHELL_FAIL:-0}}"; fi
 if [ "$1 $2" = "tool list" ]; then
-  [ "${{UV_LIST_EMPTY:-0}}" = 0 ] && [ -x "$tool_bin/alle" ] && echo "alle-proxy 0.1.8" || true
+  [ "${{UV_LIST_EMPTY:-0}}" = 0 ] && [ -x "$tool_bin/anyhop" ] && echo "anyhop 0.1.8" || true
   exit 0
 fi
 if [ "$1 $2 ${{3:-}}" = "tool dir --bin" ]; then echo "$tool_bin"; exit 0; fi
@@ -110,17 +110,17 @@ if [ "$1 $2" = "tool install" ]; then
   [ -z "${{UV_NO_BUILD_ISOLATION:-}}" ]
   echo package >> "$MUTATION_LOG"
   {fail}
-  mkdir -p "$tool_bin" "$tools_dir/alle-proxy/bin"
-  cp "{bin_dir}/alle-fixture" "$tool_bin/alle"
-  cp "{bin_dir}/python-fixture" "$tools_dir/alle-proxy/bin/python"
-  chmod +x "$tool_bin/alle" "$tools_dir/alle-proxy/bin/python"
+  mkdir -p "$tool_bin" "$tools_dir/anyhop/bin"
+  cp "{bin_dir}/anyhop-fixture" "$tool_bin/anyhop"
+  cp "{bin_dir}/python-fixture" "$tools_dir/anyhop/bin/python"
+  chmod +x "$tool_bin/anyhop" "$tools_dir/anyhop/bin/python"
   exit 0
 fi
 if [ "$1 $2" = "tool uninstall" ]; then
   echo tool-uninstall >> "$MUTATION_LOG"
   [ "${{UNINSTALL_TOOL_FAIL:-0}}" = 0 ] || exit 43
-  rm -f "$tool_bin/alle"
-  rm -rf "$tools_dir/alle-proxy"
+  rm -f "$tool_bin/anyhop"
+  rm -rf "$tools_dir/anyhop"
   if [ "${{INTERRUPT_AFTER_TOOL_REMOVE:-0}}" = 1 ]; then kill -TERM "$PPID"; fi
   exit 0
 fi
@@ -128,22 +128,22 @@ exit 93
 """,
     )
     _write_executable(
-        bin_dir / "alle-fixture",
+        bin_dir / "anyhop-fixture",
         """
 case "$1 ${2:-}" in
   "version ") echo @PINNED_VERSION@ ;;
   "daemon install")
-    mkdir -p "${ALLE_HOME:-$HOME/.alle}"
+    mkdir -p "${ANYHOP_HOME:-$HOME/.anyhop}"
     echo service >> "$MUTATION_LOG"
     printf '%s\n' "$PATH" > "${SERVICE_PATH_LOG:-/dev/null}"
-    printf '%s\n' "${ALLE_HOME:-$HOME/.alle}" > "${SERVICE_HOME_LOG:-/dev/null}"
+    printf '%s\n' "${ANYHOP_HOME:-$HOME/.anyhop}" > "${SERVICE_HOME_LOG:-/dev/null}"
     if [ "${3:-}" = --linger ] && { [ "${SERVICE_FAIL:-0}" = 0 ] || [ "${ENABLE_LINGER_BEFORE_FAIL:-0}" = 1 ]; }; then loginctl enable-linger; fi
     [ "${SERVICE_FAIL:-0}" = 0 ]
     ;;
   "stop ") echo stop >> "$MUTATION_LOG"; [ "${STOP_FAIL:-0}" = 0 ] ;;
   "daemon uninstall") echo service-uninstall >> "$MUTATION_LOG"; [ "${UNINSTALL_SERVICE_FAIL:-0}" = 0 ] ;;
   "daemon status") printf '%s\n' '{"service":{"installed":true,"active":true}}' ;;
-  "helper status") printf '%s\n' "${ALLE_HOME:-$HOME/.alle}" > "${HELPER_HOME_LOG:-/dev/null}"; if [ "${HELPER_STATUS_MALFORMED:-false}" = true ]; then printf '%s\n' '{}'; elif [ "${HELPER_INSTALLED:-false}" = true ]; then printf '%s\n' '{"supported":true,"installed":true}'; else printf '%s\n' '{"supported":true,"installed":false}'; fi ;;
+  "helper status") printf '%s\n' "${ANYHOP_HOME:-$HOME/.anyhop}" > "${HELPER_HOME_LOG:-/dev/null}"; if [ "${HELPER_STATUS_MALFORMED:-false}" = true ]; then printf '%s\n' '{}'; elif [ "${HELPER_INSTALLED:-false}" = true ]; then printf '%s\n' '{"supported":true,"installed":true}'; else printf '%s\n' '{"supported":true,"installed":false}'; fi ;;
   "health ") exit 0 ;;
   *) exit 94 ;;
 esac
@@ -175,13 +175,13 @@ def test_embedded_release_and_uv_pins_match_sources():
     match = re.search(r'^version = "([^"]+)"', project, re.MULTILINE)
     assert match is not None
     version = match.group(1)
-    assert f'ALLE_VERSION="{version}"' in text
+    assert f'ANYHOP_VERSION="{version}"' in text
     assert 'UV_VERSION="0.11.29"' in text
     assert (
         'UV_INSTALLER_SHA256="504a79fd2ed0dcd47e7f04f0792cfd0871f62e24a7fe40fa8ae0f563a369f2bd"'
         in text
     )
-    assert "alle-proxy==$ALLE_VERSION" in text
+    assert "anyhop==$ANYHOP_VERSION" in text
     assert "--default-index https://pypi.org/simple" in text
     assert "-u UV_FIND_LINKS" in text
     assert "-u UV_DOWNLOAD_URL" in text
@@ -268,7 +268,7 @@ cp "$MOCK_UV_INSTALLER" "$out"
     assert result.returncode == 0, result.stderr
     assert (home / ".local/bin/uv").exists()
     assert not override_root.exists()
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert f"uv_path={home}/.local/bin/uv" in receipt.read_text()
 
 
@@ -312,8 +312,8 @@ def test_preflight_refusals_happen_before_mutation(
     assert result.returncode != 0
     assert message in result.stderr
     assert not Path(env["MUTATION_LOG"]).exists()
-    assert not (home / ".alle").exists()
-    assert not (home / ".local/state/alle").exists()
+    assert not (home / ".anyhop").exists()
+    assert not (home / ".local/state/anyhop").exists()
 
 
 def test_macos_rejects_linger_before_mutation(tmp_path: Path):
@@ -326,11 +326,11 @@ def test_macos_rejects_linger_before_mutation(tmp_path: Path):
 @pytest.mark.parametrize(
     ("owner", "message"),
     [
-        ("homebrew", "brew upgrade alle"),
-        ("pipx", "pipx upgrade alle-proxy"),
+        ("homebrew", "brew upgrade anyhop"),
+        ("pipx", "pipx upgrade anyhop"),
         ("checkout", "checkout or virtual environment"),
         ("pip", "Python/pip owner"),
-        ("uv-conflict", "PATH resolves alle"),
+        ("uv-conflict", "PATH resolves anyhop"),
     ],
 )
 def test_existing_owner_handoffs_precede_mutation(
@@ -341,7 +341,7 @@ def test_existing_owner_handoffs_precede_mutation(
     if owner == "checkout":
         alle_dir = tmp_path / "checkout/.venv/bin"
         env["PATH"] = f"{alle_dir}:{env['PATH']}"
-    _write_executable(alle_dir / "alle", "exit 0\n")
+    _write_executable(alle_dir / "anyhop", "exit 0\n")
     if owner == "homebrew":
         _write_executable(
             bin_dir / "brew",
@@ -350,19 +350,19 @@ def test_existing_owner_handoffs_precede_mutation(
     elif owner == "pipx":
         _write_executable(
             bin_dir / "pipx",
-            'if [ "$1 $2" = "list --short" ]; then echo "alle-proxy 0.1.8"; fi\n',
+            'if [ "$1 $2" = "list --short" ]; then echo "anyhop 0.1.8"; fi\n',
         )
     elif owner == "uv-conflict":
         _mock_uv(bin_dir, home)
         # Make uv report ownership even though its expected bin dir differs.
         (home / ".local/bin").mkdir(parents=True)
-        _write_executable(home / ".local/bin/alle", "exit 0\n")
+        _write_executable(home / ".local/bin/anyhop", "exit 0\n")
     result = _run(env)
     assert result.returncode != 0
     assert message in result.stderr
     assert not Path(env["MUTATION_LOG"]).exists()
-    assert not (home / ".alle").exists()
-    assert not (home / ".local/state/alle").exists()
+    assert not (home / ".anyhop").exists()
+    assert not (home / ".local/state/anyhop").exists()
 
 
 def test_package_failure_never_registers_service(tmp_path: Path):
@@ -372,8 +372,8 @@ def test_package_failure_never_registers_service(tmp_path: Path):
     assert result.returncode != 0
     assert "no service was registered" in result.stderr
     assert Path(env["MUTATION_LOG"]).read_text().splitlines() == ["package"]
-    assert not (home / ".alle").exists()
-    assert not (home / ".local/state/alle").exists()
+    assert not (home / ".anyhop").exists()
+    assert not (home / ".local/state/anyhop").exists()
 
 
 def test_package_resolution_environment_cannot_override_the_exact_release(
@@ -386,19 +386,19 @@ def test_package_resolution_environment_cannot_override_the_exact_release(
             "UV_OVERRIDE": str(tmp_path / "override.txt"),
             "UV_CONSTRAINT": str(tmp_path / "constraint.txt"),
             "UV_BUILD_CONSTRAINT": str(tmp_path / "build-constraint.txt"),
-            "UV_EXCLUDE": "alle-proxy",
+            "UV_EXCLUDE": "anyhop",
             "UV_EXCLUDE_NEWER": "2000-01-01",
-            "UV_EXCLUDE_NEWER_PACKAGE": "alle-proxy=2000-01-01",
+            "UV_EXCLUDE_NEWER_PACKAGE": "anyhop=2000-01-01",
             "UV_PRERELEASE": "allow",
             "UV_INDEX_STRATEGY": "unsafe-best-match",
             "UV_RESOLUTION": "lowest",
             "UV_FORK_STRATEGY": "fewest",
             "UV_TORCH_BACKEND": "cpu",
             "UV_OFFLINE": "1",
-            "UV_NO_BINARY": "alle-proxy",
-            "UV_NO_BINARY_PACKAGE": "alle-proxy",
+            "UV_NO_BINARY": "anyhop",
+            "UV_NO_BINARY_PACKAGE": "anyhop",
             "UV_NO_BUILD": "1",
-            "UV_NO_BUILD_PACKAGE": "alle-proxy",
+            "UV_NO_BUILD_PACKAGE": "anyhop",
             "UV_NO_BUILD_ISOLATION": "1",
         }
     )
@@ -406,7 +406,7 @@ def test_package_resolution_environment_cannot_override_the_exact_release(
     result = _run(env)
 
     assert result.returncode == 0, result.stderr
-    assert (home / ".local/bin/alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
 
 
 def test_headless_verification_failure_keeps_a_reversible_receipt(tmp_path: Path):
@@ -418,14 +418,14 @@ def test_headless_verification_failure_keeps_a_reversible_receipt(tmp_path: Path
 
     assert result.returncode != 0
     assert "headless verification failed" in result.stderr
-    assert (home / ".local/state/alle/bootstrap-receipt").exists()
-    assert (home / ".alle/.alle-bootstrap-receipt").exists()
+    assert (home / ".local/state/anyhop/bootstrap-receipt").exists()
+    assert (home / ".anyhop/.anyhop-bootstrap-receipt").exists()
 
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
     removed = _run(env, "--uninstall")
     assert removed.returncode == 0, removed.stderr
-    assert not (home / ".local/bin/alle").exists()
-    assert not (home / ".alle").exists()
+    assert not (home / ".local/bin/anyhop").exists()
+    assert not (home / ".anyhop").exists()
 
 
 def test_service_failure_leaves_tool_and_prints_repair_handoff(tmp_path: Path):
@@ -434,13 +434,13 @@ def test_service_failure_leaves_tool_and_prints_repair_handoff(tmp_path: Path):
     env["SERVICE_FAIL"] = "1"
     result = _run(env)
     assert result.returncode != 0
-    assert (home / ".local/bin/alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
     assert "service registration failed" in result.stderr
-    assert "tool uninstall alle-proxy" in result.stderr
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    assert "tool uninstall anyhop" in result.stderr
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert receipt.exists(), "a failed service install must remain reversible"
     assert "receipt_version=1" in receipt.read_text()
-    assert (home / ".alle/.alle-bootstrap-receipt").exists()
+    assert (home / ".anyhop/.anyhop-bootstrap-receipt").exists()
     assert Path(env["MUTATION_LOG"]).read_text().splitlines() == ["package", "service"]
 
 
@@ -451,7 +451,7 @@ def test_success_and_same_release_rerun_are_package_idempotent(tmp_path: Path):
     assert first.returncode == 0, first.stderr
     assert "verified its healthy login service" in first.stdout
 
-    # The installed absolute uv/alle shims are now on PATH. The second run
+    # The installed absolute uv/anyhop shims are now on PATH. The second run
     # verifies/re-registers the idempotent service but does not mutate the tool.
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
     second = _run(env)
@@ -462,9 +462,9 @@ def test_success_and_same_release_rerun_are_package_idempotent(tmp_path: Path):
         "service",
         "service",
     ]
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert receipt.exists()
-    assert f"state_dir={home}/.alle" in receipt.read_text()
+    assert f"state_dir={home}/.anyhop" in receipt.read_text()
 
 
 def test_uninstall_removes_service_tool_state_and_receipt_but_keeps_uv(tmp_path: Path):
@@ -475,9 +475,9 @@ def test_uninstall_removes_service_tool_state_and_receipt_but_keeps_uv(tmp_path:
 
     result = _run(env, "--uninstall")
     assert result.returncode == 0, result.stderr
-    assert not (home / ".local/bin/alle").exists()
-    assert not (home / ".alle").exists()
-    assert not (home / ".local/state/alle/bootstrap-receipt").exists()
+    assert not (home / ".local/bin/anyhop").exists()
+    assert not (home / ".anyhop").exists()
+    assert not (home / ".local/state/anyhop/bootstrap-receipt").exists()
     assert (bin_dir / "uv").exists(), "uv itself must be retained"
     assert Path(env["MUTATION_LOG"]).read_text().splitlines() == [
         "package",
@@ -493,8 +493,8 @@ def test_uninstall_removes_service_tool_state_and_receipt_but_keeps_uv(tmp_path:
 def test_uninstall_purges_custom_recorded_state(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
-    custom = home / "private/alle-state"
-    env["ALLE_HOME"] = str(custom)
+    custom = home / "private/anyhop-state"
+    env["ANYHOP_HOME"] = str(custom)
     assert _run(env).returncode == 0
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
     assert _run(env, "--uninstall").returncode == 0
@@ -504,18 +504,18 @@ def test_uninstall_purges_custom_recorded_state(tmp_path: Path):
 def test_custom_state_rerun_uses_receipt_when_alle_home_is_unset(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
-    custom = home / "private/alle-state"
-    env["ALLE_HOME"] = str(custom)
+    custom = home / "private/anyhop-state"
+    env["ANYHOP_HOME"] = str(custom)
     assert _run(env).returncode == 0
 
-    env.pop("ALLE_HOME")
+    env.pop("ANYHOP_HOME")
     rerun = _run(env)
 
     assert rerun.returncode == 0, rerun.stderr
     assert "leaving the tool unchanged" in rerun.stdout
     assert custom.exists()
-    assert not (home / ".alle").exists()
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    assert not (home / ".anyhop").exists()
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert f"state_dir={custom}" in receipt.read_text()
     assert Path(env["MUTATION_LOG"]).read_text().splitlines().count("package") == 1
 
@@ -529,8 +529,8 @@ def test_uninstall_service_failure_preserves_tool_and_state(tmp_path: Path):
     result = _run(env, "--uninstall")
     assert result.returncode != 0
     assert "tool and state were left intact" in result.stderr
-    assert (home / ".local/bin/alle").exists()
-    assert (home / ".alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
+    assert (home / ".anyhop").exists()
     assert Path(env["MUTATION_LOG"]).read_text().splitlines()[-2:] == [
         "stop",
         "service-uninstall",
@@ -551,9 +551,9 @@ def test_uninstall_stop_failure_preserves_service_tool_and_state(tmp_path: Path)
         "login service, uv tool, state, and receipt were left intact" in result.stderr
     )
     assert Path(env["MUTATION_LOG"]).read_text().splitlines()[-1] == "stop"
-    assert (home / ".local/bin/alle").exists()
-    assert (home / ".alle").exists()
-    assert (home / ".local/state/alle/bootstrap-receipt").exists()
+    assert (home / ".local/bin/anyhop").exists()
+    assert (home / ".anyhop").exists()
+    assert (home / ".local/state/anyhop/bootstrap-receipt").exists()
 
 
 def test_uninstall_does_not_require_uv_install_or_shell_update_features(
@@ -569,18 +569,18 @@ def test_uninstall_does_not_require_uv_install_or_shell_update_features(
     result = _run(env, "--uninstall")
 
     assert result.returncode == 0, result.stderr
-    assert not (home / ".local/bin/alle").exists()
-    assert not (home / ".alle").exists()
+    assert not (home / ".local/bin/anyhop").exists()
+    assert not (home / ".anyhop").exists()
 
 
 def test_uninstall_refuses_non_uv_owned_alle(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
-    _write_executable(bin_dir / "alle", "exit 0\n")
-    (home / ".alle").mkdir()
+    _write_executable(bin_dir / "anyhop", "exit 0\n")
+    (home / ".anyhop").mkdir()
     result = _run(env, "--uninstall")
     assert result.returncode != 0
     assert "not owned by this uv bootstrap" in result.stderr
-    assert (home / ".alle").exists()
+    assert (home / ".anyhop").exists()
 
 
 def test_uninstall_rejects_unsafe_receipt_before_mutation(tmp_path: Path):
@@ -588,7 +588,7 @@ def test_uninstall_rejects_unsafe_receipt_before_mutation(tmp_path: Path):
     _mock_uv(bin_dir, home)
     assert _run(env).returncode == 0
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     receipt.write_text("receipt_version=1\nstate_dir=/\n")
 
     before = Path(env["MUTATION_LOG"]).read_text()
@@ -596,7 +596,7 @@ def test_uninstall_rejects_unsafe_receipt_before_mutation(tmp_path: Path):
     assert result.returncode != 0
     assert "refusing malformed bootstrap receipt" in result.stderr
     assert Path(env["MUTATION_LOG"]).read_text() == before
-    assert (home / ".local/bin/alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
 
 
 @pytest.mark.parametrize("unsafe", ["//", "/tmp/..", "/./"])
@@ -607,7 +607,7 @@ def test_uninstall_rejects_paths_that_canonicalize_to_root_before_mutation(
     _mock_uv(bin_dir, home)
     assert _run(env).returncode == 0
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     receipt.write_text(
         re.sub(
             r"^state_dir=.*$", f"state_dir={unsafe}", receipt.read_text(), flags=re.M
@@ -620,14 +620,14 @@ def test_uninstall_rejects_paths_that_canonicalize_to_root_before_mutation(
     assert result.returncode != 0
     assert "refusing" in result.stderr
     assert Path(env["MUTATION_LOG"]).read_text() == before
-    assert (home / ".local/bin/alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
 
 
 def test_uninstall_rejects_unknown_receipt_version_before_mutation(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
     assert _run(env).returncode == 0
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     receipt.write_text(
         receipt.read_text().replace("receipt_version=1", "receipt_version=2")
     )
@@ -650,15 +650,15 @@ def test_uninstall_tool_failure_preserves_and_resumes_from_phase(tmp_path: Path)
     result = _run(env, "--uninstall")
     assert result.returncode != 0
     assert "resumable receipt were left intact" in result.stderr
-    assert (home / ".alle").exists()
-    receipt_dir = home / ".local/state/alle"
+    assert (home / ".anyhop").exists()
+    receipt_dir = home / ".local/state/anyhop"
     assert (receipt_dir / "bootstrap-receipt").exists()
     assert "phase=tool_removing" in (receipt_dir / "uninstall-phase").read_text()
 
     env.pop("UNINSTALL_TOOL_FAIL")
     resumed = _run(env, "--uninstall")
     assert resumed.returncode == 0, resumed.stderr
-    assert not (home / ".alle").exists()
+    assert not (home / ".anyhop").exists()
     assert not receipt_dir.exists()
 
 
@@ -674,9 +674,9 @@ def test_uninstall_resumes_after_interruption_once_uv_removed_the_tool(
     interrupted = _run(env, "--uninstall")
 
     assert interrupted.returncode != 0
-    receipt_dir = home / ".local/state/alle"
-    assert not (home / ".local/bin/alle").exists()
-    assert (home / ".alle").exists()
+    receipt_dir = home / ".local/state/anyhop"
+    assert not (home / ".local/bin/anyhop").exists()
+    assert (home / ".anyhop").exists()
     assert (receipt_dir / "bootstrap-receipt").exists()
     assert "phase=tool_removing" in (receipt_dir / "uninstall-phase").read_text()
     before = Path(env["MUTATION_LOG"]).read_text()
@@ -690,7 +690,7 @@ def test_uninstall_resumes_after_interruption_once_uv_removed_the_tool(
     resumed = _run(env, "--uninstall")
     assert resumed.returncode == 0, resumed.stderr
     assert "resuming an interrupted bootstrap uninstall" in resumed.stdout
-    assert not (home / ".alle").exists()
+    assert not (home / ".anyhop").exists()
     assert not receipt_dir.exists()
 
 
@@ -700,14 +700,14 @@ def test_uninstall_resumes_after_state_purge_failure_removed_the_marker(
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
     assert _run(env).returncode == 0
-    state_dir = home / ".alle"
+    state_dir = home / ".anyhop"
     _write_executable(
         bin_dir / "rm",
         """
 last=
 for argument in "$@"; do last=$argument; done
 if [ "${FAIL_STATE_PURGE:-0}" = 1 ] && [ "$last" = "$FAIL_STATE_DIR" ]; then
-  /bin/rm -f -- "$last/.alle-bootstrap-receipt"
+  /bin/rm -f -- "$last/.anyhop-bootstrap-receipt"
   exit 88
 fi
 exec /bin/rm "$@"
@@ -720,12 +720,12 @@ exec /bin/rm "$@"
     failed = _run(env, "--uninstall")
 
     assert failed.returncode != 0
-    receipt_dir = home / ".local/state/alle"
+    receipt_dir = home / ".local/state/anyhop"
     assert state_dir.exists()
-    assert not (state_dir / ".alle-bootstrap-receipt").exists()
+    assert not (state_dir / ".anyhop-bootstrap-receipt").exists()
     assert (receipt_dir / "bootstrap-receipt").exists()
     assert (receipt_dir / "uninstall-phase").exists()
-    assert not (home / ".local/bin/alle").exists()
+    assert not (home / ".local/bin/anyhop").exists()
 
     env["FAIL_STATE_PURGE"] = "0"
     resumed = _run(env, "--uninstall")
@@ -741,7 +741,7 @@ def test_resumed_uninstall_refuses_a_foreign_replacement_shim(tmp_path: Path):
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
     env["INTERRUPT_AFTER_TOOL_REMOVE"] = "1"
     assert _run(env, "--uninstall").returncode != 0
-    foreign = home / ".local/bin/alle"
+    foreign = home / ".local/bin/anyhop"
     _write_executable(foreign, "exit 0\n")
     env.pop("INTERRUPT_AFTER_TOOL_REMOVE")
     env["UV_LIST_EMPTY"] = "1"
@@ -751,8 +751,8 @@ def test_resumed_uninstall_refuses_a_foreign_replacement_shim(tmp_path: Path):
     assert refused.returncode != 0
     assert "unowned shim remains" in refused.stderr
     assert foreign.exists()
-    assert (home / ".alle").exists()
-    assert (home / ".local/state/alle/bootstrap-receipt").exists()
+    assert (home / ".anyhop").exists()
+    assert (home / ".local/state/anyhop/bootstrap-receipt").exists()
 
     foreign.unlink()
     resumed = _run(env, "--uninstall")
@@ -763,7 +763,7 @@ def test_uninstall_rejects_tampered_phase_before_mutation(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
     assert _run(env).returncode == 0
-    receipt_dir = home / ".local/state/alle"
+    receipt_dir = home / ".local/state/anyhop"
     receipt = receipt_dir / "bootstrap-receipt"
     phase = receipt_dir / "uninstall-phase"
     phase.write_text(
@@ -776,8 +776,8 @@ def test_uninstall_rejects_tampered_phase_before_mutation(tmp_path: Path):
     assert result.returncode != 0
     assert "phase state does not match" in result.stderr
     assert Path(env["MUTATION_LOG"]).read_text() == before
-    assert (home / ".local/bin/alle").exists()
-    assert (home / ".alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
+    assert (home / ".anyhop").exists()
 
 
 def test_uninstall_is_idempotent_after_full_removal(tmp_path: Path):
@@ -804,7 +804,7 @@ def test_install_and_uninstall_support_paths_with_spaces(tmp_path: Path):
     removed = _run(env, "--uninstall")
 
     assert removed.returncode == 0, removed.stderr
-    assert not (home / ".alle").exists()
+    assert not (home / ".anyhop").exists()
 
 
 def test_off_path_standard_uv_is_reused_on_install_and_rerun(tmp_path: Path):
@@ -835,9 +835,9 @@ def test_custom_uv_dirs_are_recorded_and_uninstalled_after_environment_changes(
     env["UV_TOOL_DIR"] = str(custom_tools)
     env["XDG_STATE_HOME"] = str(home / "xdg-before")
     assert _run(env).returncode == 0
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert f"uv_bin_dir={custom_bin}" in receipt.read_text()
-    assert not (home / "xdg-before/alle/bootstrap-receipt").exists()
+    assert not (home / "xdg-before/anyhop/bootstrap-receipt").exists()
 
     env.pop("UV_TOOL_BIN_DIR")
     env.pop("UV_TOOL_DIR")
@@ -845,8 +845,8 @@ def test_custom_uv_dirs_are_recorded_and_uninstalled_after_environment_changes(
     result = _run(env, "--uninstall")
 
     assert result.returncode == 0, result.stderr
-    assert not (custom_bin / "alle").exists()
-    assert not (custom_tools / "alle-proxy").exists()
+    assert not (custom_bin / "anyhop").exists()
+    assert not (custom_tools / "anyhop").exists()
 
 
 def test_profile_fallback_is_idempotent_and_service_sees_uv_bin(tmp_path: Path):
@@ -859,7 +859,7 @@ def test_profile_fallback_is_idempotent_and_service_sees_uv_bin(tmp_path: Path):
     assert _run(env).returncode == 0
 
     profile = (home / ".profile").read_text()
-    assert profile.count("# alle bootstrap") == 1
+    assert profile.count("# anyhop bootstrap") == 1
     service_path = Path(env["SERVICE_PATH_LOG"]).read_text().strip()
     assert service_path.split(":", 1)[0] == str(home / ".local/bin")
 
@@ -870,19 +870,19 @@ def test_unsafe_alle_home_is_rejected_before_package_or_service(
 ):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
-    env["ALLE_HOME"] = unsafe
+    env["ANYHOP_HOME"] = unsafe
 
     result = _run(env)
 
     assert result.returncode != 0
-    assert "ALLE_HOME" in result.stderr
+    assert "ANYHOP_HOME" in result.stderr
     assert not Path(env["MUTATION_LOG"]).exists()
 
 
 def test_unwritable_receipt_location_fails_before_package_or_service(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
-    receipt_dir = home / ".local/state/alle"
+    receipt_dir = home / ".local/state/anyhop"
     receipt_dir.parent.mkdir(parents=True)
     receipt_dir.write_text("not a directory")
 
@@ -918,7 +918,7 @@ def test_linger_is_disabled_only_when_bootstrap_enabled_it(
     env["LINGER_STATE_FILE"] = str(state)
 
     assert _run(env, "--linger").returncode == 0
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert f"linger_changed={int(expect_disable)}" in receipt.read_text()
     env["PATH"] = f"{home}/.local/bin:{bin_dir}:/usr/bin:/bin"
     result = _run(env, "--uninstall")
@@ -945,7 +945,7 @@ def test_failed_linger_install_does_not_claim_preexisting_linger(tmp_path: Path)
     result = _run(env, "--linger")
 
     assert result.returncode != 0
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert "linger_changed=0" in receipt.read_text()
     assert state.read_text().strip() == "no"
 
@@ -970,7 +970,7 @@ def test_failed_linger_install_keeps_ownership_when_post_query_is_unknown(
     result = _run(env, "--linger")
 
     assert result.returncode != 0
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert "linger_changed=1" in receipt.read_text()
     assert state.read_text().strip() == "yes"
 
@@ -1008,27 +1008,27 @@ def test_macos_uninstall_fails_closed_on_unknown_helper_status(tmp_path: Path):
 def test_custom_state_is_canonical_for_service_and_macos_helper_guard(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path, system="Darwin", machine="arm64")
     _mock_uv(bin_dir, home)
-    real_state = home / "private/alle-state"
+    real_state = home / "private/anyhop-state"
     real_state.mkdir(parents=True)
-    linked_state = home / "alle-state-link"
+    linked_state = home / "anyhop-state-link"
     linked_state.symlink_to(real_state, target_is_directory=True)
-    env["ALLE_HOME"] = str(linked_state)
+    env["ANYHOP_HOME"] = str(linked_state)
     env["SERVICE_HOME_LOG"] = str(tmp_path / "service-home")
     env["HELPER_HOME_LOG"] = str(tmp_path / "helper-home")
 
     assert _run(env).returncode == 0
     assert Path(env["SERVICE_HOME_LOG"]).read_text().strip() == str(real_state)
-    receipt = home / ".local/state/alle/bootstrap-receipt"
+    receipt = home / ".local/state/anyhop/bootstrap-receipt"
     assert f"state_dir={real_state}" in receipt.read_text()
 
-    env.pop("ALLE_HOME")
+    env.pop("ANYHOP_HOME")
     env["HELPER_INSTALLED"] = "true"
     result = _run(env, "--uninstall")
 
     assert result.returncode != 0
     assert "helper uninstall" in result.stderr
     assert Path(env["HELPER_HOME_LOG"]).read_text().strip() == str(real_state)
-    assert (home / ".local/bin/alle").exists()
+    assert (home / ".local/bin/anyhop").exists()
     assert real_state.exists()
 
 
@@ -1037,7 +1037,7 @@ def test_hidden_pipx_and_foreign_uv_bin_owners_are_rejected(tmp_path: Path):
     _mock_uv(bin_dir, home)
     _write_executable(
         bin_dir / "pipx",
-        'if [ "$1 $2" = "list --short" ]; then echo "alle-proxy 0.1.8"; fi\n',
+        'if [ "$1 $2" = "list --short" ]; then echo "anyhop 0.1.8"; fi\n',
     )
     result = _run(env)
     assert result.returncode != 0
@@ -1045,12 +1045,12 @@ def test_hidden_pipx_and_foreign_uv_bin_owners_are_rejected(tmp_path: Path):
     assert not Path(env["MUTATION_LOG"]).exists()
 
     (bin_dir / "pipx").unlink()
-    foreign = home / ".local/bin/alle"
+    foreign = home / ".local/bin/anyhop"
     _write_executable(foreign, "exit 0\n")
     env["UV_LIST_EMPTY"] = "1"
     result = _run(env)
     assert result.returncode != 0
-    assert "foreign alle shim" in result.stderr
+    assert "foreign anyhop shim" in result.stderr
     assert not Path(env["MUTATION_LOG"]).exists()
 
 

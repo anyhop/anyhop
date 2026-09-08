@@ -7,9 +7,9 @@
 # engine-smoke.sh proves the engine's tun/killswitch mechanics; this proves
 # the container gateway *contract* end to end with the real service code:
 #
-#   1. `alle gateway init` verifies real privileges (root, /dev/net/tun,
+#   1. `anyhop gateway init` verifies real privileges (root, /dev/net/tun,
 #      CAP_NET_ADMIN) and declares tun + killswitch in state;
-#   2. readiness (`alle health`) is red before the daemon exists, and stays
+#   2. readiness (`anyhop health`) is red before the daemon exists, and stays
 #      red without a viable channel while a namespace process — the joined
 #      app's view — gets ZERO direct egress (fail-closed, not half-up);
 #   3. a daemon-style direct provider-API call is equally blocked: the
@@ -27,63 +27,63 @@ set -euo pipefail
 # shellcheck source=/dev/null
 . "$(dirname "$0")/lib.sh"
 
-TUN_NAME="alle-tun"
-export ALLE_HOME=/tmp/alle-gateway-smoke
-export ALLE_GATEWAY=1
-export ALLE_SERVICE=1 # exec'd CLI calls must not spawn a second daemon
+TUN_NAME="anyhop-tun"
+export ANYHOP_HOME=/tmp/anyhop-gateway-smoke
+export ANYHOP_GATEWAY=1
+export ANYHOP_SERVICE=1 # exec'd CLI calls must not spawn a second daemon
 export PYTHONPATH=/repo/src
 
-rm -rf "$ALLE_HOME"
+rm -rf "$ANYHOP_HOME"
 fetch_singbox
-export ALLE_SINGBOX="$SB"
-alle() { python3 -m alle "$@"; }
+export ANYHOP_SINGBOX="$SB"
+anyhop() { python3 -m anyhop "$@"; }
 
 say "gateway init verifies privileges and declares the contract"
-alle gateway init
+anyhop gateway init
 python3 - <<'EOF'
 import sys
 sys.path.insert(0, "/repo/src")
-from alle.state import Store
+from anyhop.state import Store
 router = Store.load().router
 assert router["tun"] is True and router["killswitch"] is True, router
 print("   PASS: tun + killswitch declared in state before any readiness")
 EOF
 
 say "readiness red before the daemon/data plane exists"
-if alle health >/dev/null 2>&1; then fail "health green with no daemon"; fi
+if anyhop health >/dev/null 2>&1; then fail "health green with no daemon"; fi
 pass "health exits nonzero (compose dependants stay unstarted)"
 
 say "foreground daemon (the container PID-1 shape)"
-# Invoke Python directly here instead of backgrounding the `alle` shell
+# Invoke Python directly here instead of backgrounding the `anyhop` shell
 # function: a background function has an intermediate subshell PID, so a
 # signal to $! would not exercise the foreground daemon's own handler.
-python3 -m alle run >/tmp/alle-run.log 2>&1 &
-ALLE_PID=$!
+python3 -m anyhop run >/tmp/anyhop-run.log 2>&1 &
+ANYHOP_PID=$!
 for _ in $(seq 1 60); do
 	ip link show "$TUN_NAME" >/dev/null 2>&1 && break
-	kill -0 "$ALLE_PID" 2>/dev/null || {
-		cat /tmp/alle-run.log >&2
-		fail "alle run exited before the tun came up"
+	kill -0 "$ANYHOP_PID" 2>/dev/null || {
+		cat /tmp/anyhop-run.log >&2
+		fail "anyhop run exited before the tun came up"
 	}
 	sleep 0.3
 done
 ip link show "$TUN_NAME" >/dev/null 2>&1 || {
-	cat /tmp/alle-run.log >&2
+	cat /tmp/anyhop-run.log >&2
 	fail "tun interface never appeared"
 }
-pass "alle run brought up $TUN_NAME with the declared killswitch"
+pass "anyhop run brought up $TUN_NAME with the declared killswitch"
 
 say "joined-app view: not ready => zero direct egress"
 # Interface creation precedes sing-box control readiness and the daemon's
 # accepted-generation publication by a few milliseconds. Wait until the only
 # remaining readiness failure is channel viability before testing egress.
 for _ in $(seq 1 30); do
-	health=$(alle health --json 2>/dev/null || true)
+	health=$(anyhop health --json 2>/dev/null || true)
 	echo "$health" | grep -q '"failing": \["viable_channel"\]' && break
 	sleep 0.2
 done
-if alle health >/dev/null 2>&1; then fail "health green without a viable channel"; fi
-health=$(alle health --json 2>/dev/null || true)
+if anyhop health >/dev/null 2>&1; then fail "health green without a viable channel"; fi
+health=$(anyhop health --json 2>/dev/null || true)
 echo "$health" | grep -q viable_channel || fail "viable_channel missing from the failing set"
 if curl -sf --max-time 5 https://1.1.1.1/cdn-cgi/trace >/dev/null; then
 	fail "direct egress possible while the gateway is not ready"
@@ -103,7 +103,7 @@ python3 - <<'EOF'
 # reconciles it in). A REAL handshaking provider is the Tier 3 live run.
 import sys
 sys.path.insert(0, "/repo/src")
-from alle.state import Store
+from anyhop.state import Store
 store = Store.load()
 store.add_provider("protonvpn")
 wg = {
@@ -126,34 +126,34 @@ ok=0
 for _ in $( # the reconcile restarts sing-box; give it a moment
 	seq 1 20
 ); do
-	if alle health >/dev/null 2>&1; then
+	if anyhop health >/dev/null 2>&1; then
 		ok=1
 		break
 	fi
 	sleep 1
 done
 [ "$ok" = "1" ] || {
-	alle health --json >&2 || true
-	cat /tmp/alle-run.log >&2
+	anyhop health --json >&2 || true
+	cat /tmp/anyhop-run.log >&2
 	fail "health never went green with a viable channel"
 }
 pass "gateway ready: privileges + policy + interface + control + viable channel"
 
 say "SIGTERM teardown within the stop grace period"
-kill -TERM "$ALLE_PID"
+kill -TERM "$ANYHOP_PID"
 for _ in $(seq 1 20); do
-	kill -0 "$ALLE_PID" 2>/dev/null || break
+	kill -0 "$ANYHOP_PID" 2>/dev/null || break
 	sleep 0.5
 done
-kill -0 "$ALLE_PID" 2>/dev/null && fail "daemon still alive 10s after SIGTERM"
-wait "$ALLE_PID" 2>/dev/null || true
+kill -0 "$ANYHOP_PID" 2>/dev/null && fail "daemon still alive 10s after SIGTERM"
+wait "$ANYHOP_PID" 2>/dev/null || true
 pgrep -x sing-box >/dev/null 2>&1 && fail "sing-box was not reaped"
 if ip link show "$TUN_NAME" >/dev/null 2>&1; then
-	cat /tmp/alle-run.log >&2
+	cat /tmp/anyhop-run.log >&2
 	ip -details link show "$TUN_NAME" >&2 || true
 	fail "$TUN_NAME still exists after teardown"
 fi
-grep -q "data plane released" /tmp/alle-run.log || fail "teardown log line missing"
+grep -q "data plane released" /tmp/anyhop-run.log || fail "teardown log line missing"
 pass "sing-box reaped, tun removed, clean foreground exit"
 
 say "ALL GATEWAY SMOKE CHECKS PASSED"

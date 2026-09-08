@@ -70,10 +70,10 @@ pass "$baseline packet(s) escaped without sing-box: a later zero means something
 say "compile a mixed v6-capable / v4-only fleet with the real engine"
 python3 - <<PY || fail "engine could not compile the fleet"
 import copy, json, os, sys, tempfile
-os.environ["ALLE_HOME"] = tempfile.mkdtemp(prefix="v6-smoke-")
+os.environ["ANYHOP_HOME"] = tempfile.mkdtemp(prefix="v6-smoke-")
 sys.path.insert(0, "/repo/src")
-from alle.engine import Engine
-from alle.state import Store
+from anyhop.engine import Engine
+from anyhop.state import Store
 
 def wg(v6):
     return {

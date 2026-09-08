@@ -4,8 +4,8 @@
 echo "--- guest ---"
 sw_vers -productVersion | sed 's/^/macOS /'
 uname -m
-echo "--- alle ---"
-alle version 2>&1 | head -1
+echo "--- anyhop ---"
+anyhop version 2>&1 | head -1
 echo "--- sudo without password? ---"
 sudo -n true 2>&1 && echo "  yes" || echo "  NO"
 echo "--- IPv6 upstream? ---"

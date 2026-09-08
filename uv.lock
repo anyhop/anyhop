@@ -7,8 +7,8 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "alle-proxy"
-version = "0.1.17"
+name = "anyhop"
+version = "0.1.18"
 source = { editable = "." }
 dependencies = [
     { name = "packaging" },

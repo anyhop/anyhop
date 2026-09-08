@@ -1,7 +1,7 @@
 """The browser harness's fixture daemon: the real control server, synthetic state.
 
 Runs the exact stdlib API/Web-UI server the daemon runs (`build_server()` —
-same handlers, same auth, same CSP headers) inside a hermetic temp ALLE_HOME
+same handlers, same auth, same CSP headers) inside a hermetic temp ANYHOP_HOME
 seeded with deterministic providers/channels/rulesets. Nothing touches the
 network or real credentials:
 
@@ -29,7 +29,7 @@ lifetime test navigates away (a 15s server-side timeout backstops a test that
 dies without releasing).
 
 On start, prints exactly one JSON line on stdout:
-  {"app": "http://alle-<rand>.localhost:<port>", "control": "http://127.0.0.1:<port>"}
+  {"app": "http://anyhop-<rand>.localhost:<port>", "control": "http://127.0.0.1:<port>"}
 """
 
 from __future__ import annotations
@@ -43,17 +43,17 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-HOME = Path(tempfile.mkdtemp(prefix="alle-browser-fixture-"))
+HOME = Path(tempfile.mkdtemp(prefix="anyhop-browser-fixture-"))
 import os  # noqa: E402
 
-os.environ["ALLE_HOME"] = str(HOME)
-os.environ.pop("ALLE_API_LISTEN", None)
-os.environ.pop("ALLE_API_SECRET", None)
-os.environ.pop("ALLE_API_SECRET_FILE", None)
+os.environ["ANYHOP_HOME"] = str(HOME)
+os.environ.pop("ANYHOP_API_LISTEN", None)
+os.environ.pop("ANYHOP_API_SECRET", None)
+os.environ.pop("ANYHOP_API_SECRET_FILE", None)
 
-from alle import credentials, daemon, geodata, service  # noqa: E402
-from alle.api import server as api_server  # noqa: E402
-from alle.state import Store  # noqa: E402
+from anyhop import credentials, daemon, geodata, service  # noqa: E402
+from anyhop.api import server as api_server  # noqa: E402
+from anyhop.state import Store  # noqa: E402
 
 daemon.ensure_running = lambda: None  # the fixture never spawns a runtime
 # Bundle validation may consult a provider's location list; that is a network

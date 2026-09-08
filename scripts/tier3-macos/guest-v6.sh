@@ -2,7 +2,7 @@
 # Tier 3 (Darwin, system-wide) IPv6 tun verification — runs INSIDE the guest.
 #
 # Tier 2 proved the guards against a hand-assembled config in a Linux netns.
-# This drives the real CLI on real macOS: `alle tun on` creates a real utun,
+# This drives the real CLI on real macOS: `anyhop tun on` creates a real utun,
 # seizes the system's routes, and the fleet is two imported WireGuard .conf
 # files — one with a global v6 interface address (v6-capable) and one without
 # (the same provider's v4-only servers).
@@ -35,15 +35,15 @@ CAP_LOG=/tmp/tier3-v6.pcap.txt
 # A tun left up by an earlier run routes ::/0 into a dead sing-box, which would
 # make the baseline below silently measure nothing. Note the binary is
 # version-suffixed (sing-box@1.14.0), so `pkill -x sing-box` does not match it.
-sudo ALLE_HOME="$HOME/.alle" alle tun off >/dev/null 2>&1 || true
-alle stop >/dev/null 2>&1 || true
+sudo ANYHOP_HOME="$HOME/.anyhop" anyhop tun off >/dev/null 2>&1 || true
+anyhop stop >/dev/null 2>&1 || true
 # Root writes preserve file owners (fsio._preserve_owner) but cannot restore an
-# ~/.alle that root itself created; keep the state dir owned by the user.
-[ -d "$HOME/.alle" ] && sudo chown -R "$(id -un):$(id -gn)" "$HOME/.alle" 2>/dev/null || true
+# ~/.anyhop that root itself created; keep the state dir owned by the user.
+[ -d "$HOME/.anyhop" ] && sudo chown -R "$(id -un):$(id -gn)" "$HOME/.anyhop" 2>/dev/null || true
 # Kill orphaned appliers BEFORE sing-box: supervision in a stray applier
 # restarts sing-box within a second, so killing sing-box alone never sticks.
-pkill -f "alle applier" 2>/dev/null || true
-sudo pkill -f "alle applier" 2>/dev/null || true
+pkill -f "anyhop applier" 2>/dev/null || true
+sudo pkill -f "anyhop applier" 2>/dev/null || true
 sudo pkill -f "sing-box@" 2>/dev/null || true
 for _ in $(seq 1 20); do
 	ifconfig utun225 >/dev/null 2>&1 || break
@@ -56,7 +56,7 @@ ifconfig utun225 >/dev/null 2>&1 && {
 
 say "guest facts"
 echo "   macOS $(sw_vers -productVersion) / $(uname -m); physical iface $PHYS"
-alle version
+anyhop version
 
 # ---- make an IPv6 leak observable -------------------------------------------
 say "confirm a v6 leak would be visible on $PHYS"
@@ -85,12 +85,12 @@ pass "$baseline packet(s) escaped with no tun: a later zero means something"
 
 # ---- build the fleet through the real CLI ------------------------------------
 say "import a v6-capable and a v4-only channel from .conf files"
-alle stop >/dev/null 2>&1 || true
-alle providers add protonvpn >/dev/null 2>&1 || true
-alle channels add protonvpn --config /tmp/wg-JP-01.conf >/dev/null
-alle channels add protonvpn --config /tmp/wg-US-02.conf >/dev/null
-alle channels ls | sed 's/^/   /'
-alle channels ls --json | python3 -c '
+anyhop stop >/dev/null 2>&1 || true
+anyhop providers add protonvpn >/dev/null 2>&1 || true
+anyhop channels add protonvpn --config /tmp/wg-JP-01.conf >/dev/null
+anyhop channels add protonvpn --config /tmp/wg-US-02.conf >/dev/null
+anyhop channels ls | sed 's/^/   /'
+anyhop channels ls --json | python3 -c '
 import json,sys
 chans={c["name"]: c["ipv6"] for c in json.load(sys.stdin)["channels"]}
 assert chans.get("wg_jp_01") is True, f"wg_jp_01 not v6-capable: {chans}"
@@ -100,17 +100,17 @@ print("   capability: wg_jp_01 v6=True, wg_us_02 v6=False")
 pass "per-channel v6 capability resolved from the .conf addresses"
 
 say "route the two v6 test prefixes at the two channels"
-alle routes ruleset create V6ok --via protonvpn/wg_jp_01 --cidr 2001:db8:a::/48 >/dev/null
-alle routes ruleset create V4only --via protonvpn/wg_us_02 --cidr 2001:db8:b::/48 >/dev/null
+anyhop routes ruleset create V6ok --via protonvpn/wg_jp_01 --cidr 2001:db8:a::/48 >/dev/null
+anyhop routes ruleset create V4only --via protonvpn/wg_us_02 --cidr 2001:db8:b::/48 >/dev/null
 pass "rulesets created"
 
 # ---- activate the real tun, system-wide --------------------------------------
-say "sudo alle tun on --trial 180 (real utun, real route seizure)"
+say "sudo anyhop tun on --trial 180 (real utun, real route seizure)"
 # CLI mutations auto-start the daemon, and the privilege gate correctly
 # refuses tun activation while an admin-owned daemon is running (runbook).
-alle stop >/dev/null 2>&1 || true
-sudo ALLE_HOME="$HOME/.alle" alle tun on --trial 180 || fail "tun activation refused"
-trap 'sudo ALLE_HOME="$HOME/.alle" alle tun off >/dev/null 2>&1 || true' EXIT
+anyhop stop >/dev/null 2>&1 || true
+sudo ANYHOP_HOME="$HOME/.anyhop" anyhop tun on --trial 180 || fail "tun activation refused"
+trap 'sudo ANYHOP_HOME="$HOME/.anyhop" anyhop tun off >/dev/null 2>&1 || true' EXIT
 
 # The engine emits utun225 on Darwin (engine._tun_interface_name). Note the
 # `|| true`: under `set -e` a grep miss inside a command substitution fails
@@ -122,10 +122,10 @@ for _ in $(seq 1 60); do
 done
 ifconfig "$UTUN" >/dev/null 2>&1 || {
 	ifconfig -l >&2
-	tail -20 ~/.alle/alle.log >&2
-	fail "alle's $UTUN never appeared"
+	tail -20 ~/.anyhop/anyhop.log >&2
+	fail "anyhop's $UTUN never appeared"
 }
-pass "alle created $UTUN"
+pass "anyhop created $UTUN"
 
 route -n get -inet6 "$V6_GUARDED" 2>/dev/null | grep -q "$UTUN" ||
 	route -n get -inet6 default 2>/dev/null | grep -q "$UTUN" ||
@@ -177,8 +177,8 @@ done
 pass "all three destinations captured by the tun (baseline with tun down: $baseline)"
 
 # ---- teardown ----------------------------------------------------------------
-say "alle tun off restores the system"
-sudo ALLE_HOME="$HOME/.alle" alle tun off || fail "tun off failed"
+say "anyhop tun off restores the system"
+sudo ANYHOP_HOME="$HOME/.anyhop" anyhop tun off || fail "tun off failed"
 trap - EXIT
 # Teardown is a reconcile, not a synchronous unplug: the daemon rewrites the
 # config and restarts sing-box without the tun, which takes a beat. Poll.

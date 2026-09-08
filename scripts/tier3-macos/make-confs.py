@@ -1,6 +1,6 @@
 """Write two WireGuard .conf files for the Tier 3 fleet.
 
-Keys are generated here, never committed: alle validates them as real 32-byte
+Keys are generated here, never committed: anyhop validates them as real 32-byte
 base64, so anything embedded in a repo file would read as a live secret to the
 secret scan.
 

@@ -4,15 +4,15 @@
 # so response objects deliberately allow additional properties.
 openapi: 3.1.0
 info:
-  title: alle REST API
+  title: anyhop REST API
   version: "1"
   description: |
-    The control API of the alle daemon (`alle run`) — a 1:1 projection of the
+    The control API of the anyhop daemon (`anyhop run`) — a 1:1 projection of the
     same service layer the CLI drives. Everything the CLI can do to
     providers, channels, routing, and lifecycle, this API can do.
 
-    Authentication, reachability (`ALLE_API_LISTEN`), secret provisioning
-    (`ALLE_API_SECRET[_FILE]`), and the security model are documented in
+    Authentication, reachability (`ANYHOP_API_LISTEN`), secret provisioning
+    (`ANYHOP_API_SECRET[_FILE]`), and the security model are documented in
     `docs/api.md` and `docs/security.md`. Browser-only endpoints (login,
     logout, the `/` page and assets) are internal and not part of this
     contract.
@@ -24,7 +24,7 @@ servers:
   - url: http://{host}:{port}
     description: >
       Loopback by default (the minted port in control_api.json); a compose
-      service name and fixed port when the operator sets ALLE_API_LISTEN.
+      service name and fixed port when the operator sets ANYHOP_API_LISTEN.
     variables:
       host:
         default: 127.0.0.1
@@ -51,7 +51,7 @@ paths:
       summary: Unauthenticated readiness challenge
       description: >
         Answers an HMAC proof over the caller's nonce — proves the process
-        behind the port is alle without transporting the secret. Use it to
+        behind the port is anyhop without transporting the secret. Use it to
         gate dependents; a plain HEAD works as a liveness probe. The response
         also reflects the data plane (`ok`/`sing_box`): an answering API only
         proves the daemon is alive, so consumers should alert on `ok: false`
@@ -96,7 +96,7 @@ paths:
   /api/v1/status:
     get:
       tags: [system]
-      summary: The full status snapshot (alle status --json)
+      summary: The full status snapshot (anyhop status --json)
       operationId: getStatus
       responses:
         "200":
@@ -171,7 +171,7 @@ paths:
       summary: Tail of the daemon log
       description: >
         Single-shot only, by design — log *following* is a debugging
-        activity served by `alle logs -f` / `docker logs -f`, not the API.
+        activity served by `anyhop logs -f` / `docker logs -f`, not the API.
       operationId: getLogs
       parameters:
         - name: lines
@@ -272,7 +272,7 @@ paths:
       summary: Check the owning channel for the latest stable release
       description: >-
         Contacts the Homebrew tap for a brew-owned install, or PyPI for uv,
-        pipx, and pip, only when this endpoint is called. Alle never checks for
+        pipx, and pip, only when this endpoint is called. Anyhop never checks for
         updates in the background. Container, checkout, and unknown channels
         refuse; explicit prerelease opt-in is CLI-only.
       operationId: upgradeCheck
@@ -295,10 +295,10 @@ paths:
   /api/v1/upgrade:
     post:
       tags: [system]
-      summary: Upgrade alle via its install channel and report restart disposition
+      summary: Upgrade anyhop via its install channel and report restart disposition
       description: >-
-        Delegates a newer stable release to the tool that installed alle
-        (Homebrew / uv tool / pipx / pip) — alle never replaces its own files.
+        Delegates a newer stable release to the tool that installed anyhop
+        (Homebrew / uv tool / pipx / pip) — anyhop never replaces its own files.
         Refuses (400) in a container image (pull a new tag instead), a git
         checkout, or an unknown channel; 503 while another upgrade is running.
         Explicit prerelease opt-in is CLI-only.
@@ -329,7 +329,7 @@ paths:
                   restart:
                     type: object
                     description: >-
-                      Present when alle restarted the daemon or scheduled its
+                      Present when anyhop restarted the daemon or scheduled its
                       native service restart.
                     properties:
                       reconnect_cleared:
@@ -1133,7 +1133,7 @@ components:
       scheme: bearer
       description: >
         The per-install secret (control_api.json) or the injected
-        ALLE_API_SECRET[_FILE] value. Compared constant-time.
+        ANYHOP_API_SECRET[_FILE] value. Compared constant-time.
 
   parameters:
     providerName:

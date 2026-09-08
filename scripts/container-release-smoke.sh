@@ -3,21 +3,21 @@
 set -euo pipefail
 image=${1:?usage: container-release-smoke.sh IMAGE [PLATFORM]}
 platform=${2:-linux/amd64}
-name="alle-release-smoke-${platform##*/}"
+name="anyhop-release-smoke-${platform##*/}"
 bundle=$(mktemp)
 cleanup() {
 	docker rm -f "$name" >/dev/null 2>&1 || true
 	rm -f "$bundle"
 }
 trap cleanup EXIT
-printf '%s\n' 'kind: alle-bundle' 'bundle_version: 1' 'router:' '  killswitch: false' >"$bundle"
+printf '%s\n' 'kind: anyhop-bundle' 'bundle_version: 1' 'router:' '  killswitch: false' >"$bundle"
 # mktemp creates mode 0600, but the release image runs as the unprivileged
-# alle user and must be able to read this bind-mounted fixture.
+# anyhop user and must be able to read this bind-mounted fixture.
 chmod 0644 "$bundle"
 docker run -d --platform "$platform" --name "$name" \
-	-e ALLE_API_LISTEN=127.0.0.1:18080 \
-	-e ALLE_API_SECRET=release-container-smoke-secret \
-	--mount type=bind,src="$bundle",dst=/etc/alle/bundle.yaml,readonly \
+	-e ANYHOP_API_LISTEN=127.0.0.1:18080 \
+	-e ANYHOP_API_SECRET=release-container-smoke-secret \
+	--mount type=bind,src="$bundle",dst=/etc/anyhop/bundle.yaml,readonly \
 	"$image" >/dev/null
 
 # The CLI validates daemon identity through /proc. QEMU's binfmt wrapper changes

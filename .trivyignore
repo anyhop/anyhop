@@ -8,7 +8,7 @@
 # the source, so Trivy counts it three times. Fixed in Debian trixie as
 # 3.5.7-1~deb13u2, but no python:3.14-slim rebuild carries the fix yet
 # and the digest is pinned. The container never terminates QUIC inbound:
-# PID 1 is `alle run` as uid 1000, the listeners are the HTTP+SOCKS
+# PID 1 is `anyhop run` as uid 1000, the listeners are the HTTP+SOCKS
 # router and the opt-in REST API, and QUIC only ever appears as an
 # outbound client protocol for some VPN providers.
 # Added: 2026-08-26. Drop when: the base ships openssl >= 3.5.7-1~deb13u2
@@ -29,7 +29,7 @@ GHSA-6v7p-g79w-8964
 # image's embedded SBOM ("AnalyzedBy: sbom", no file), not in the image
 # filesystem — no layer, pip/_vendor, or ensurepip entry carries it, so
 # filesystem checks cannot see this finding; only the scan can. setuptools
-# is never invoked at runtime anyway — PID 1 is `alle run`, and pip itself
+# is never invoked at runtime anyway — PID 1 is `anyhop run`, and pip itself
 # only runs at build time against the hash-pinned lock.
 # Added: 2026-08-17; re-added 2026-08-26 after removal on a filesystem
 # check that could not see SBOM attributions (see above). Drop when: the

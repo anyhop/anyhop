@@ -3,8 +3,8 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-image=alle-install-systemd-smoke
-name="alle-install-systemd-smoke-$$"
+image=anyhop-install-systemd-smoke
+name="anyhop-install-systemd-smoke-$$"
 work=$(mktemp -d)
 cleanup() {
 	docker rm -f "$name" >/dev/null 2>&1 || true
@@ -40,7 +40,7 @@ run_as_tester() {
 		PATH=/home/tester/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 		XDG_RUNTIME_DIR=/run/user/1001 \
 		DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1001/bus \
-		_ALLE_INSTALL_TEST_ROOT=/host-view \
+		_ANYHOP_INSTALL_TEST_ROOT=/host-view \
 		"$@"
 }
 
@@ -48,14 +48,14 @@ test "$(run_as_tester id -u)" = 1001
 run_as_tester sh /src/packaging/bootstrap/install.sh | tee "$work/first.log"
 run_as_tester sh /src/packaging/bootstrap/install.sh | tee "$work/second.log"
 grep -q "leaving the tool unchanged" "$work/second.log"
-run_as_tester /home/tester/.local/bin/alle daemon status --json |
+run_as_tester /home/tester/.local/bin/anyhop daemon status --json |
 	grep -q '"active"[[:space:]]*:[[:space:]]*true'
-run_as_tester /home/tester/.local/bin/alle health
+run_as_tester /home/tester/.local/bin/anyhop health
 run_as_tester sh /src/packaging/bootstrap/install.sh --uninstall
-run_as_tester test ! -e /home/tester/.alle
-run_as_tester test ! -e /home/tester/.local/bin/alle
-run_as_tester test ! -e /home/tester/.local/state/alle/bootstrap-receipt
-run_as_tester test ! -e /home/tester/.local/state/alle/uninstall-phase
+run_as_tester test ! -e /home/tester/.anyhop
+run_as_tester test ! -e /home/tester/.local/bin/anyhop
+run_as_tester test ! -e /home/tester/.local/state/anyhop/bootstrap-receipt
+run_as_tester test ! -e /home/tester/.local/state/anyhop/uninstall-phase
 run_as_tester test -x /home/tester/.local/bin/uv
 
 # Linger existed before the bootstrap, so uninstall must not claim or undo it.
@@ -71,7 +71,7 @@ docker exec "$name" sh -eu -c '
     proc=${status%/status}
     command=$(tr "\000" " " < "$proc/cmdline" 2>/dev/null || true)
     case "$command" in
-      *"alle applier"*|*"alle run"*|*"sing-box@"*)
+      *"anyhop applier"*|*"anyhop run"*|*"sing-box@"*)
         echo "tester runtime survived bootstrap uninstall: $command" >&2
         exit 1
         ;;

@@ -1,5 +1,5 @@
-"""The 7B env knobs: ALLE_API_LISTEN (opt-in non-loopback bind) and
-ALLE_API_SECRET[_FILE] (injected Bearer secret), plus the network-bind Host
+"""The 7B env knobs: ANYHOP_API_LISTEN (opt-in non-loopback bind) and
+ANYHOP_API_SECRET[_FILE] (injected Bearer secret), plus the network-bind Host
 carve-outs — Bearer and /health pass a foreign Host, the cookie path never
 does. Config parsing is unit-tested; the gate behavior runs against a real
 server on a loopback port with the handler flipped to net mode."""
@@ -12,8 +12,8 @@ import urllib.request
 
 import pytest
 
-from alle.api import server
-from alle.state import Store
+from anyhop.api import server
+from anyhop.state import Store
 from conftest import start_test_server, stop_test_server
 
 
@@ -30,7 +30,7 @@ def _req(url, *, method="GET", headers=None, data=None):
         return e.code, e.read()
 
 
-# ---- ALLE_API_LISTEN parsing -----------------------------------------------
+# ---- ANYHOP_API_LISTEN parsing -----------------------------------------------
 
 
 def test_parse_listen_accepts_host_and_host_port():
@@ -58,7 +58,7 @@ def test_parse_listen_rejects_malformed(raw):
 
 
 def test_listen_config_unset_is_the_loopback_contract(monkeypatch):
-    monkeypatch.delenv("ALLE_API_LISTEN", raising=False)
+    monkeypatch.delenv("ANYHOP_API_LISTEN", raising=False)
     api = server.control_api()
     lc = server._listen_config(api)
     assert lc == {"bind": api["address"], "client": api["address"], "net": False}
@@ -66,20 +66,20 @@ def test_listen_config_unset_is_the_loopback_contract(monkeypatch):
 
 def test_listen_config_invalid_falls_back_to_loopback(monkeypatch):
     # a typo must narrow, never widen
-    monkeypatch.setenv("ALLE_API_LISTEN", "0.0.0.0:notaport")
+    monkeypatch.setenv("ANYHOP_API_LISTEN", "0.0.0.0:notaport")
     api = server.control_api()
     assert server._listen_config(api)["bind"] == api["address"]
     assert server._listen_config(api)["net"] is False
 
 
 def test_listen_config_wildcard_is_net_and_client_is_loopback(monkeypatch):
-    monkeypatch.setenv("ALLE_API_LISTEN", "0.0.0.0:8080")
+    monkeypatch.setenv("ANYHOP_API_LISTEN", "0.0.0.0:8080")
     lc = server._listen_config(server.control_api())
     assert lc == {"bind": "0.0.0.0:8080", "client": "127.0.0.1:8080", "net": True}
 
 
 def test_listen_config_portless_keeps_the_contract_port(monkeypatch):
-    monkeypatch.setenv("ALLE_API_LISTEN", "0.0.0.0")
+    monkeypatch.setenv("ANYHOP_API_LISTEN", "0.0.0.0")
     api = server.control_api()
     port = api["address"].rsplit(":", 1)[1]
     lc = server._listen_config(api)
@@ -87,24 +87,24 @@ def test_listen_config_portless_keeps_the_contract_port(monkeypatch):
 
 
 def test_listen_config_loopback_values_are_not_net(monkeypatch):
-    monkeypatch.setenv("ALLE_API_LISTEN", "127.0.0.1:9999")
+    monkeypatch.setenv("ANYHOP_API_LISTEN", "127.0.0.1:9999")
     assert server._listen_config(server.control_api())["net"] is False
-    monkeypatch.setenv("ALLE_API_LISTEN", "localhost:9999")
+    monkeypatch.setenv("ANYHOP_API_LISTEN", "localhost:9999")
     assert server._listen_config(server.control_api())["net"] is False
 
 
-# ---- ALLE_API_SECRET[_FILE] ---------------------------------------------------
+# ---- ANYHOP_API_SECRET[_FILE] ---------------------------------------------------
 
 
 def test_secret_unset_is_the_minted_one(monkeypatch):
-    monkeypatch.delenv("ALLE_API_SECRET", raising=False)
-    monkeypatch.delenv("ALLE_API_SECRET_FILE", raising=False)
+    monkeypatch.delenv("ANYHOP_API_SECRET", raising=False)
+    monkeypatch.delenv("ANYHOP_API_SECRET_FILE", raising=False)
     api = server.control_api()
     assert server._api_secret(api) == api["secret"]
 
 
 def test_secret_env_overrides_the_minted_one(monkeypatch):
-    monkeypatch.setenv("ALLE_API_SECRET", "an-injected-secret-value")
+    monkeypatch.setenv("ANYHOP_API_SECRET", "an-injected-secret-value")
     api = server.control_api()
     assert server._api_secret(api) == "an-injected-secret-value"
 
@@ -112,28 +112,28 @@ def test_secret_env_overrides_the_minted_one(monkeypatch):
 def test_secret_file_overrides_the_minted_one(monkeypatch, tmp_path):
     p = tmp_path / "secret"
     p.write_text("a-file-injected-secret\n")  # trailing newline is stripped
-    monkeypatch.setenv("ALLE_API_SECRET_FILE", str(p))
+    monkeypatch.setenv("ANYHOP_API_SECRET_FILE", str(p))
     assert server._api_secret(server.control_api()) == "a-file-injected-secret"
 
 
 def test_secret_both_sources_refuse(monkeypatch, tmp_path):
     p = tmp_path / "secret"
     p.write_text("a-file-injected-secret")
-    monkeypatch.setenv("ALLE_API_SECRET", "an-injected-secret-value")
-    monkeypatch.setenv("ALLE_API_SECRET_FILE", str(p))
+    monkeypatch.setenv("ANYHOP_API_SECRET", "an-injected-secret-value")
+    monkeypatch.setenv("ANYHOP_API_SECRET_FILE", str(p))
     with pytest.raises(server.ApiConfigError, match="exactly one"):
         server._api_secret(server.control_api())
 
 
 def test_secret_unreadable_file_refuses(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALLE_API_SECRET_FILE", str(tmp_path / "absent"))
+    monkeypatch.setenv("ANYHOP_API_SECRET_FILE", str(tmp_path / "absent"))
     with pytest.raises(server.ApiConfigError, match="unreadable"):
         server._api_secret(server.control_api())
 
 
 @pytest.mark.parametrize("weak", ["", "short", "fifteen-chars-x"])
 def test_secret_weak_values_refuse(monkeypatch, weak):
-    monkeypatch.setenv("ALLE_API_SECRET", weak)
+    monkeypatch.setenv("ANYHOP_API_SECRET", weak)
     with pytest.raises(server.ApiConfigError, match="too short"):
         server._api_secret(server.control_api())
 
@@ -142,15 +142,15 @@ def test_build_server_refuses_on_secret_conflict(monkeypatch, tmp_path):
     # the server must serve NOTHING on a config the operator didn't intend
     p = tmp_path / "secret"
     p.write_text("a-file-injected-secret")
-    monkeypatch.setenv("ALLE_API_SECRET", "an-injected-secret-value")
-    monkeypatch.setenv("ALLE_API_SECRET_FILE", str(p))
+    monkeypatch.setenv("ANYHOP_API_SECRET", "an-injected-secret-value")
+    monkeypatch.setenv("ANYHOP_API_SECRET_FILE", str(p))
     with pytest.raises(server.ApiConfigError):
         server.build_server()
 
 
 def test_wait_until_serving_is_false_not_a_crash_on_bad_config(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALLE_API_SECRET", "an-injected-secret-value")
-    monkeypatch.setenv("ALLE_API_SECRET_FILE", str(tmp_path / "also"))
+    monkeypatch.setenv("ANYHOP_API_SECRET", "an-injected-secret-value")
+    monkeypatch.setenv("ANYHOP_API_SECRET_FILE", str(tmp_path / "also"))
     assert server.wait_until_serving(timeout=0.1) is False
 
 
@@ -189,7 +189,7 @@ def live(monkeypatch):
         stop_test_server(httpd, thread)
 
 
-FOREIGN = {"Host": "alle:8080"}  # what a compose sibling's request carries
+FOREIGN = {"Host": "anyhop:8080"}  # what a compose sibling's request carries
 
 
 def test_net_bind_bearer_passes_a_foreign_host(live_net):
@@ -255,7 +255,7 @@ def test_default_bind_keeps_the_strict_host_pin(live):
 
 
 def test_injected_secret_is_the_live_credential(monkeypatch):
-    monkeypatch.setenv("ALLE_API_SECRET", "an-injected-secret-value")
+    monkeypatch.setenv("ANYHOP_API_SECRET", "an-injected-secret-value")
     httpd = server.build_server()
     thread = start_test_server(httpd)
     api = server.control_api()

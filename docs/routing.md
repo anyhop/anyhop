@@ -1,18 +1,18 @@
 # Rule-based routing
 
-Besides the per-channel ports, `alle` runs one **router entrypoint** — a single
+Besides the per-channel ports, `anyhop` runs one **router entrypoint** — a single
 local HTTP+SOCKS proxy that dispatches each connection by rule to a channel, to
 `direct` (no VPN), or to `block`. The entrypoint is always on: with no rules it
 is a transparent pass-through, and traffic only uses a VPN exit once you wire a
-rule to one. Its port is assigned once and stays stable (`alle status` shows it),
+rule to one. Its port is assigned once and stays stable (`anyhop status` shows it),
 so apps and future OS-level profiles can point at it permanently.
 
 ```bash
-alle routes ruleset create Streaming --via nordvpn/wg_us_1 --domain netflix.com --domain hulu.com
-alle routes ruleset create LocalDirect --via direct --cidr 192.168.0.0/16
-alle routes ruleset create BlockTrackers --via block --domain tracker.example.com
-alle routes ruleset create DefaultVPN --via nordvpn/wg_jp_1 --all
-alle routes ls
+anyhop routes ruleset create Streaming --via nordvpn/wg_us_1 --domain netflix.com --domain hulu.com
+anyhop routes ruleset create LocalDirect --via direct --cidr 192.168.0.0/16
+anyhop routes ruleset create BlockTrackers --via block --domain tracker.example.com
+anyhop routes ruleset create DefaultVPN --via nordvpn/wg_jp_1 --all
+anyhop routes ls
 ```
 
 ## How rules work
@@ -20,7 +20,7 @@ alle routes ls
 - **Rulesets** are the authoring model: a named, ordered block of matchers that
   all share one exit (`<provider>/<channel>`, `direct`, or `block`). Block order
   is priority: **first matching ruleset wins**. Reorder blocks with
-  `alle routes reorder rs3 rs1 rs2`.
+  `anyhop routes reorder rs3 rs1 rs2`.
 - **Matchers** inside a ruleset are unordered because same-target matchers
   commute. Use `--domain` for a destination domain — it matches the domain
   *and all of its subdomains* (dot-boundary) — `--cidr` for destination
@@ -30,7 +30,7 @@ alle routes ls
   as *shadowed* in `routes ls`.
 - **Unmatched traffic goes direct** — without a VPN — like other modern VPN
   clients. To block unmatched traffic instead (a kill-switch for the router
-  entrypoint), turn it on explicitly: `alle routes killswitch on`. Per-channel
+  entrypoint), turn it on explicitly: `anyhop routes killswitch on`. Per-channel
   ports are never affected by the kill-switch.
 - **LAN/local traffic stays direct by default.** Built-in rules for private,
   link-local, and multicast ranges — plus the well-known UDP ports of LAN
@@ -38,10 +38,10 @@ alle routes ls
   unicast legs — are compiled ahead of every user rule, so a catch-all VPN rule
   never cuts off printers, NAS boxes, router admin pages, or LAN discovery —
   the same protection mainstream VPN clients ship. Inspect or disable with
-  `alle routes lan [on|off]` (leaving it on is recommended).
-- **Channels referenced by rules cannot be removed.** `alle channels rm` (and
-  `alle providers rm`, for any of its channels) refuses while a rule targets the
-  channel, listing every referencing rule and the exact `alle routes rm …` to
+  `anyhop routes lan [on|off]` (leaving it on is recommended).
+- **Channels referenced by rules cannot be removed.** `anyhop channels rm` (and
+  `anyhop providers rm`, for any of its channels) refuses while a rule targets the
+  channel, listing every referencing rule and the exact `anyhop routes rm …` to
   run first. Remove the rules, then the channel — routing config never changes
   as a side effect of something else.
 - Per-channel ports keep working exactly as before, with or without rules — the
@@ -50,8 +50,8 @@ alle routes ls
 ## The built-in LAN block: one toggle, fixed contents
 
 The LAN-direct block is deliberately **not configurable**: one toggle
-(`alle routes lan on|off`), a fixed list of ranges and UDP ports, and full
-transparency (`alle routes lan -v`; the `lan.cidrs`/`lan.udp_ports` fields of
+(`anyhop routes lan on|off`), a fixed list of ranges and UDP ports, and full
+transparency (`anyhop routes lan -v`; the `lan.cidrs`/`lan.udp_ports` fields of
 `GET /api/v1/routes`). The contents encode protocol facts — private/link-local/
 multicast ranges, DHCP/SSDP/mDNS ports — not preferences, and the block sits in
 the most privileged position in the rule table: ahead of every user rule and
@@ -68,16 +68,16 @@ the shadow lint watches your back:
   list rightly doesn't cover, such as Tailscale's `100.64.0.0/10`:
 
   ```bash
-  alle routes ruleset create Tailscale --via direct --cidr 100.64.0.0/10
-  alle routes ls                        # note the ids — new rulesets append last
-  alle routes reorder rs4 rs1 rs2 rs3   # put Tailscale ahead of the catch-all
+  anyhop routes ruleset create Tailscale --via direct --cidr 100.64.0.0/10
+  anyhop routes ls                        # note the ids — new rulesets append last
+  anyhop routes reorder rs4 rs1 rs2 rs3   # put Tailscale ahead of the catch-all
   ```
 
   If you skip the reorder while a catch-all covers it, `routes ls` flags the
   Tailscale matcher as shadowed — nothing fails silently.
 
 - **Need *less* excluded than the built-in block?** Turn it off
-  (`alle routes lan off`) and recreate just the ranges you want as your own
+  (`anyhop routes lan off`) and recreate just the ranges you want as your own
   `direct` ruleset — user rules can express the whole CIDR list.
 
 If you hit a network where the fixed list is genuinely wrong and user rules
@@ -92,7 +92,7 @@ user-added entries.
   reordering — see [web-ui.md](web-ui.md).
 - Rules round-trip through the declarative bundle
   ([declarative-config.md](declarative-config.md)).
-- Command syntax: [`alle routes`](cli-reference.md) in the CLI reference.
+- Command syntax: [`anyhop routes`](cli-reference.md) in the CLI reference.
 - Fail-closed semantics (what happens when a rule's channel is missing) are
   in [security.md](security.md).
 
@@ -111,18 +111,18 @@ user-added entries.
 
 ```bash
 # Route Netflix through a US channel
-alle routes ruleset create Streaming --via nordvpn/wg_us_1 --geosite netflix
+anyhop routes ruleset create Streaming --via nordvpn/wg_us_1 --geosite netflix
 
 # Block known ad/tracker domains
-alle routes ruleset create "Ad block" --via block --geosite category-ads-all
+anyhop routes ruleset create "Ad block" --via block --geosite category-ads-all
 
 # Route all Chinese IPs direct (no VPN)
-alle routes ruleset create "CN direct" --via direct --geoip cn
+anyhop routes ruleset create "CN direct" --via direct --geoip cn
 ```
 
 ### Looking up categories and their contents (plaintext)
 
-The `.srs` files alle downloads are binary, but everything in them is
+The `.srs` files anyhop downloads are binary, but everything in them is
 browsable as plaintext at the source:
 
 - **geosite** — category names and their full domain lists live in
@@ -138,31 +138,31 @@ browsable as plaintext at the source:
   ranges come from GeoLite2 and change with its updates; there is no
   stable per-country plaintext to link, but the code *is* the category name.
 
-Offline, after at least one `alle routes geo refresh`, the recorded manifest
+Offline, after at least one `anyhop routes geo refresh`, the recorded manifest
 answers "what names exist" without any network:
 
 ```bash
-alle routes geo ls netflix           # search categories matching "netflix"
-alle routes geo ls --kind geosite    # list geosite categories (first 50)
-alle routes geo ls cn --json         # scripting form
+anyhop routes geo ls netflix           # search categories matching "netflix"
+anyhop routes geo ls --kind geosite    # list geosite categories (first 50)
+anyhop routes geo ls cn --json         # scripting form
 ```
 
 The same list backs `GET /api/v1/routes/geo/categories?q=…`, typo
 suggestions on failed adds ("did you mean: …"), and the upstream links shown
-in the Web UI's rule editor and in `alle routes geo` status output.
+in the Web UI's rule editor and in `anyhop routes geo` status output.
 
 ### Data fetching and updates
 
-Geo data is **fetched on demand, never auto-updated** — consistent with alle's
+Geo data is **fetched on demand, never auto-updated** — consistent with anyhop's
 no-background-traffic posture:
 
-- The first time you add a rule referencing a category, alle downloads the
+- The first time you add a rule referencing a category, anyhop downloads the
   matching `.srs` file from the upstream and caches it locally
   (`<state>/rulesets/`). Each file is a few KB; only referenced categories are
   fetched, not a monolithic database.
 - Bundle imports that reference uncached categories also fetch them at apply
   time — this is the second networked step (besides token provider resolution).
-- To update: `alle routes geo refresh` re-pins both databases to the current
+- To update: `anyhop routes geo refresh` re-pins both databases to the current
   upstream and re-downloads every referenced category. Run this when you want
   fresh ad-block lists or newer IP data.
 
@@ -171,7 +171,7 @@ every use. The upstream publishes no signatures, so the model is commit-pinning
 — the branch head commit is resolved at fetch time, and the immutable
 commit-pinned raw URL is used for the download.
 
-Switching the upstream: `alle routes geo source metacubex` (alternative:
+Switching the upstream: `anyhop routes geo source metacubex` (alternative:
 [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat), which
 includes `-lite` variants). Categories will be re-fetched on the next
 `refresh`.
@@ -184,10 +184,10 @@ actually go?" stops being obvious. The tracer answers it without sending any
 traffic:
 
 ```bash
-alle routes trace netflix.com
-alle routes trace 192.168.1.1
-alle routes trace https://cache3.example.com/path   # URLs reduce to their host
-alle routes trace 2606:4700::1111 --json            # scripting form
+anyhop routes trace netflix.com
+anyhop routes trace 192.168.1.1
+anyhop routes trace https://cache3.example.com/path   # URLs reduce to their host
+anyhop routes trace 2606:4700::1111 --json            # scripting form
 ```
 
 It walks the **same rule table the engine compiles into sing-box** — the
@@ -206,12 +206,12 @@ in place.
 What to know about its answers:
 
 - **It is a table evaluation, not a probe.** Nothing is sent through any
-  tunnel (use `alle test` for that). No daemon or running sing-box is needed.
+  tunnel (use `anyhop test` for that). No daemon or running sing-box is needed.
 - **DNS is the one disclosed lookup.** A domain destination is resolved
   against the same upstream the tun DNS uses (`1.1.1.1`), never the system
   resolver, and the answers are shown in the result. Tracing a literal IP
   does no network I/O at all.
-- **The flow family follows alle's DNS strategy**: IPv4 when any A record
+- **The flow family follows anyhop's DNS strategy**: IPv4 when any A record
   exists, IPv6 only for v6-only destinations. With no IPv6-capable channel,
   the tun DNS suppresses AAAA answers entirely — the trace discloses those
   answers but does not pretend an IPv6 flow could exist.

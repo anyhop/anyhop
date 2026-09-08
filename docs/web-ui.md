@@ -1,10 +1,10 @@
 # The Web UI
 
-`alle` serves a local dashboard from the background daemon — nothing extra to
+`anyhop` serves a local dashboard from the background daemon — nothing extra to
 install. Open it with:
 
 ```bash
-alle ui
+anyhop ui
 ```
 
 This opens your browser to a **Dashboard**, a **Bundle** page, and a **Logs**
@@ -34,36 +34,36 @@ page:
   (domain, IP, or URL) through the rule table offline — it renders the verdict
   and **highlights the winning rule's row** in place, so you can see at a glance
   why traffic to a site goes where it goes. Same evaluation as
-  `alle routes trace`; nothing is sent through the tunnel.
+  `anyhop routes trace`; nothing is sent through the tunnel.
 - **Bundle** — download the whole setup as a bundle file (it contains
   credentials — the UI warns first), and upload one to **merge** it in or
   **replace** the whole setup (with a confirmation dialog).
-- Start / stop / restart are host/CLI controls (`alle start|stop|restart`); the
+- Start / stop / restart are host/CLI controls (`anyhop start|stop|restart`); the
   masthead links to the project on GitHub.
 
 ## Access model
 
 The browser UI binds to `127.0.0.1` only and is never exposed to the network.
-The browser URL uses a per-installation `alle-<random>.localhost` hostname
+The browser URL uses a per-installation `anyhop-<random>.localhost` hostname
 (which browsers resolve to loopback on their own) so the session cookie is
-scoped to alle alone, never shared with other local web apps. To reach the UI
+scoped to anyhop alone, never shared with other local web apps. To reach the UI
 from another machine, forward the **same** port over SSH rather than exposing
 it:
 
 ```bash
-alle status                              # on the remote host: note the Web UI port
+anyhop status                              # on the remote host: note the Web UI port
 ssh -L <port>:127.0.0.1:<port> user@host
-# then open the `alle ui` sign-in link locally — it resolves to your tunnel
+# then open the `anyhop ui` sign-in link locally — it resolves to your tunnel
 ```
 
-SSH provides the encryption and access control; the browser still reaches alle
-on loopback. Do not open or reverse-proxy the alle Web UI port directly to a
+SSH provides the encryption and access control; the browser still reaches anyhop
+on loopback. Do not open or reverse-proxy the anyhop Web UI port directly to a
 network. (Programmatic access is different: the Bearer-authenticated
 [REST API](api.md) has a sanctioned opt-in network mode for containers; the
 browser cookie path never rides along.)
 
-`alle ui` signs you in automatically. To sign in by hand, paste the `secret`
-from `~/.alle/control_api.json` into the login page. Sessions idle out after
+`anyhop ui` signs you in automatically. To sign in by hand, paste the `secret`
+from `~/.anyhop/control_api.json` into the login page. Sessions idle out after
 30 minutes without an open tab (capped at 12 hours); the masthead's **Sign
 out** button revokes every session immediately.
 

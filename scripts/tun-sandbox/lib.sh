@@ -10,14 +10,14 @@ fail() {
 }
 
 # Fetch + checksum-verify the pinned sing-box into the /cache mount (mirrors
-# alle.singbox.ensure_binary). Sets SB_VERSION, ARCH, and SB (binary path).
+# anyhop.singbox.ensure_binary). Sets SB_VERSION, ARCH, and SB (binary path).
 fetch_singbox() {
 	say "pinned sing-box"
 	read -r SB_VERSION SB_SHA < <(
 		python3 - <<'EOF'
 import platform, sys
 sys.path.insert(0, "/repo/src")
-from alle.constants import SINGBOX_SHA256, SINGBOX_VERSION
+from anyhop.constants import SINGBOX_SHA256, SINGBOX_VERSION
 arch = {"aarch64": "arm64", "x86_64": "amd64"}[platform.machine()]
 print(SINGBOX_VERSION, SINGBOX_SHA256[f"linux-{arch}"])
 EOF

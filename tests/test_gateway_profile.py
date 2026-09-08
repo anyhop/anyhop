@@ -1,4 +1,4 @@
-"""The container gateway profile (ALLE_GATEWAY=1): fail-closed declaration at
+"""The container gateway profile (ANYHOP_GATEWAY=1): fail-closed declaration at
 start, data-plane readiness gating, and the kill-switch recovery diagnostic.
 
 Everything here is opt-in via the env knob — the first tests pin that a host
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from alle import reconnect, service
-from alle.state import Store
+from anyhop import reconnect, service
+from anyhop.state import Store
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -18,7 +18,7 @@ WG = wg_config("1.2.3.4")
 
 @pytest.fixture(autouse=True)
 def reset_gateway_profile(monkeypatch):
-    monkeypatch.delenv("ALLE_GATEWAY", raising=False)
+    monkeypatch.delenv("ANYHOP_GATEWAY", raising=False)
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def test_gateway_init_fails_closed_listing_every_missing_privilege(monkeypatch):
     with pytest.raises(service.ServiceError) as e:
         service.gateway_init()
     msg = str(e.value)
-    assert "ALLE_RUN_AS_ROOT" in msg
+    assert "ANYHOP_RUN_AS_ROOT" in msg
     assert "/dev/net/tun" in msg
     assert "NET_ADMIN" in msg
     router = Store.load().router  # blocked before any state was touched
@@ -82,7 +82,7 @@ def test_gateway_init_supersedes_a_pending_tun_trial(privileged, monkeypatch):
 
 @pytest.fixture
 def gateway_env(monkeypatch, privileged):
-    monkeypatch.setenv("ALLE_GATEWAY", "1")
+    monkeypatch.setenv("ANYHOP_GATEWAY", "1")
     # daemon + sing-box process liveness held green so the tests isolate the
     # gateway conditions
     monkeypatch.setattr(service.daemon, "running_pid", lambda: 4242)
@@ -175,7 +175,7 @@ def test_gateway_readiness_red_when_only_disabled_channels_pass(gateway_env):
 
 
 def test_cli_health_shows_gateway_state(gateway_env, capsys):
-    from alle import cli
+    from anyhop import cli
 
     service.gateway_init()
     with pytest.raises(SystemExit):
@@ -200,4 +200,4 @@ def test_killswitch_diagnostic_only_under_tun_plus_killswitch():
     Store.load().set_tun(True)
     note = reconnect._killswitch_diagnostic(Store.load())
     assert "fail-closed by design" in note
-    assert "alle routes killswitch off" in note
+    assert "anyhop routes killswitch off" in note

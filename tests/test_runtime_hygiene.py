@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from alle import daemon, proc, singbox
+from anyhop import daemon, proc, singbox
 from _runtime_hygiene import RuntimeSession, record_is_live, recover_stale_sessions
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,7 +89,7 @@ def test_runtime_timeout_reports_sanitized_process_and_log_state(runtime_guard):
     assert "applier.pid=absent" in diagnostic
     assert "singbox.pid=absent" in diagnostic
     assert "applier.info=absent" in diagnostic
-    assert "alle.log=absent" in diagnostic
+    assert "anyhop.log=absent" in diagnostic
     assert "startup failed below <test-home>" in diagnostic
     assert str(home) not in diagnostic
     assert runtime_guard.session.token not in diagnostic
@@ -99,21 +99,21 @@ def test_recovery_stops_a_hard_killed_session_and_preserves_unmarked_paths(
     tmp_path,
 ):
     base = tmp_path / "sessions"
-    unrelated = base / "not-owned-by-alle"
+    unrelated = base / "not-owned-by-anyhop"
     unrelated.mkdir(parents=True)
     script = """
 import json, os, subprocess, sys
 from pathlib import Path
-from alle import proc
+from anyhop import proc
 from _runtime_hygiene import RuntimeSession
 
 session = RuntimeSession(Path(sys.argv[1]))
 home = session.new_home()
 child_env = dict(os.environ)
 child_env.update(
-    ALLE_HOME=str(home),
-    ALLE_TEST_HOME=str(home),
-    ALLE_TEST_SESSION=session.token,
+    ANYHOP_HOME=str(home),
+    ANYHOP_TEST_HOME=str(home),
+    ANYHOP_TEST_SESSION=session.token,
 )
 child = subprocess.Popen(
     [
@@ -196,10 +196,10 @@ def test_cleanup_never_signals_an_alle_shaped_process_without_session_token(
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in {"ALLE_HOME", "ALLE_TEST_HOME", "ALLE_TEST_SESSION"}
+        if key not in {"ANYHOP_HOME", "ANYHOP_TEST_HOME", "ANYHOP_TEST_SESSION"}
     }
     child = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(60)", "alle applier"],
+        [sys.executable, "-c", "import time; time.sleep(60)", "anyhop applier"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -210,7 +210,7 @@ def test_cleanup_never_signals_an_alle_shaped_process_without_session_token(
         record = proc.record(child.pid)
         (home / "applier.pid").write_text(json.dumps(record))
         session.cleanup_home(home)
-        assert record_is_live(record), "cleanup claimed an unrelated alle process"
+        assert record_is_live(record), "cleanup claimed an unrelated anyhop process"
     finally:
         child.terminate()
         child.wait(timeout=5)

@@ -9,8 +9,8 @@ import threading
 
 import pytest
 
-from alle import fsio, paths, state
-from alle.state import ReferencedError, Store, StoreReadError, config_signature
+from anyhop import fsio, paths, state
+from anyhop.state import ReferencedError, Store, StoreReadError, config_signature
 from conftest import wg_config
 
 
@@ -269,7 +269,7 @@ def test_set_label_sets_and_clears():
 
 
 def test_label_is_not_part_of_the_id_or_signature():
-    from alle.state import _read_raw, config_signature
+    from anyhop.state import _read_raw, config_signature
 
     store = Store.load()
     store.add_provider("nordvpn")
@@ -325,7 +325,7 @@ def test_tags_are_globally_unique_and_parseable():
     ch = store.add_channel("nordvpn", "United States", "", dict(WG))
     assert ch.inbound_tag == "in-nordvpn-wg_us_1"
     assert ch.outbound_tag == "out-nordvpn-wg_us_1"
-    from alle.state import tag_to_ref
+    from anyhop.state import tag_to_ref
 
     assert tag_to_ref(ch.inbound_tag) == ("nordvpn", "wg_us_1")
     assert tag_to_ref("direct") is None
@@ -480,16 +480,16 @@ def test_newer_state_version_aborts_instead_of_quarantining():
     store = Store.load()
     store.add_provider("nordvpn")
     data = json.loads(_state_file().read_text())
-    data["version"] = 99  # written by a newer alle
+    data["version"] = 99  # written by a newer anyhop
     _state_file().write_text(json.dumps(data))
 
-    with pytest.raises(StoreReadError, match="upgrade alle"):
+    with pytest.raises(StoreReadError, match="upgrade anyhop"):
         Store.load()
     # a mutation aborts before writing anything…
-    with pytest.raises(StoreReadError, match="upgrade alle"):
+    with pytest.raises(StoreReadError, match="upgrade anyhop"):
         Store().add_provider("protonvpn")
     # …and the file is neither quarantined nor rewritten — the data is fine,
-    # this alle just must not touch it.
+    # this anyhop just must not touch it.
     assert list(paths.state_dir().glob("state.json.corrupt-*")) == []
     assert json.loads(_state_file().read_text())["version"] == 99
 
@@ -680,8 +680,8 @@ def test_rules_get_stable_sequential_ids():
 
 def test_legacy_exact_domain_rule_reads_as_suffix():
     # Old state files may carry the removed exact "domain" type: it reads as
-    # domain_suffix (alle's one domain semantic) and compiles/lints that way.
-    from alle.state import transaction
+    # domain_suffix (anyhop's one domain semantic) and compiles/lints that way.
+    from anyhop.state import transaction
 
     store = Store.load()
     store.add_provider("nordvpn")
@@ -764,7 +764,7 @@ def test_reallocate_covers_the_router_port():
 
 
 def test_config_signature_tracks_router_changes():
-    from alle.state import _read_raw
+    from anyhop.state import _read_raw
 
     store = Store.load()
     empty = config_signature(_read_raw())
@@ -790,7 +790,7 @@ def test_config_signature_tracks_router_changes():
 def test_config_signature_tracks_tun_alone():
     # tun can flip before the router port or any rule exists; the signature
     # must still move so the daemon reconciles the tun inbound in/out.
-    from alle.state import _read_raw
+    from anyhop.state import _read_raw
 
     empty = config_signature(_read_raw())
     Store.load().set_tun(True)
@@ -801,7 +801,7 @@ def test_config_signature_ignores_probe_results():
     store = Store.load()
     store.add_provider("nordvpn")
     ch = store.add_channel("nordvpn", "US", "", dict(WG))
-    from alle.state import _read_raw
+    from anyhop.state import _read_raw
 
     before = config_signature(_read_raw())
     store.set_probe("nordvpn", ch.id, {"ok": True, "ip": "9.9.9.9", "at": 1})
@@ -816,7 +816,7 @@ def test_config_signature_ignores_probe_results():
 def test_channel_id_standard_protocol_country_code_shape():
     """The channel-id standard: wg_<alpha2>[_<city>]_<n>, ISO-coded country,
     full-name fallback when no code resolves, config imports untouched."""
-    from alle.state import _next_id
+    from anyhop.state import _next_id
 
     assert _next_id(set(), "United States", "San Francisco") == "wg_us_san_francisco_1"
     assert _next_id(set(), "Switzerland", "") == "wg_ch_1"

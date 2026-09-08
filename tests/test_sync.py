@@ -1,4 +1,4 @@
-"""Startup sync (`alle sync`): the managed, idempotent boot-apply mode.
+"""Startup sync (`anyhop sync`): the managed, idempotent boot-apply mode.
 
 The Docker entrypoint runs it on every container start. Provenance rules under
 test: repeat syncs of the same bundle are byte-idempotent, edits update each
@@ -13,9 +13,9 @@ import base64
 
 import pytest
 
-from alle import bundle, cli, credentials, paths
-from alle.providers import ProviderError
-from alle.state import Store
+from anyhop import bundle, cli, credentials, paths
+from anyhop.providers import ProviderError
+from anyhop.state import Store
 
 KEY_A = base64.b64encode(bytes([1] * 32)).decode()
 KEY_B = base64.b64encode(bytes([2] * 32)).decode()
@@ -39,7 +39,7 @@ def wg(host="1.2.3.4"):
 def bundle_text(channels=None, rulesets=None, router_extra=None):
     """A config-provider bundle (no token resolution, so syncs are offline)."""
     data = {
-        "kind": "alle-bundle",
+        "kind": "anyhop-bundle",
         "bundle_version": 1,
         "providers": {"protonvpn": {"channels": channels or {}}},
     }
@@ -190,7 +190,7 @@ def test_sync_prunes_managed_channels_and_empty_provider_with_credential(monkeyp
     )
     token_bundle = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {
@@ -403,7 +403,7 @@ def test_sync_credential_rotation_is_written_once(monkeypatch):
     def token_bundle(token):
         return bundle.dumps(
             {
-                "kind": "alle-bundle",
+                "kind": "anyhop-bundle",
                 "bundle_version": 1,
                 "providers": {
                     "nordvpn": {
@@ -495,7 +495,7 @@ def test_sync_wg_fallback_keeps_snapshot(monkeypatch):
     monkeypatch.setattr(bundle, "provider_resolver", down)
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {

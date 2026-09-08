@@ -25,7 +25,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSETS = ROOT / "src" / "alle" / "assets"
+ASSETS = ROOT / "src" / "anyhop" / "assets"
 UV = shutil.which("uv") or ""
 
 pytestmark = pytest.mark.skipif(not UV, reason="uv not installed")
@@ -36,7 +36,7 @@ def built():
     """Build sdist + wheel once into a throwaway dir; return their paths."""
     import tempfile
 
-    tmp = Path(tempfile.mkdtemp(prefix="alle-dist-"))
+    tmp = Path(tempfile.mkdtemp(prefix="anyhop-dist-"))
     subprocess.run(
         [UV, "build", "--out-dir", str(tmp)], cwd=ROOT, check=True, capture_output=True
     )
@@ -117,7 +117,7 @@ def test_only_safe_daemon_entrypoint_is_shipped(built):
             name for name in archive.namelist() if name.endswith("entry_points.txt")
         )
         text = archive.read(entry_points).decode()
-    assert "alle = alle.cli:main" in text
+    assert "anyhop = anyhop.cli:main" in text
     assert "alled" not in text
 
 

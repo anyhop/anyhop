@@ -11,13 +11,13 @@
 #
 # The pinned sing-box (linux, container arch) is downloaded once into
 # .tun-sandbox-cache/ (git-ignored) and checksum-verified against
-# src/alle/constants.py on every run.
+# src/anyhop/constants.py on every run.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 
-docker build -q -t alle-tun-sandbox "$here" >/dev/null
+docker build -q -t anyhop-tun-sandbox "$here" >/dev/null
 
 # --user 0:0: the image defaults to an unprivileged user; the sandbox flows
 # need root for CAP_NET_ADMIN (tun creation, route-table rewrites), so root
@@ -29,5 +29,5 @@ exec docker run --rm -i \
 	-v "$repo:/repo:ro" \
 	-v "$repo/.tun-sandbox-cache:/cache" \
 	--tmpfs /tmp:rw,nosuid,nodev \
-	alle-tun-sandbox \
+	anyhop-tun-sandbox \
 	"${@:-/repo/scripts/tun-sandbox/smoke.sh}"

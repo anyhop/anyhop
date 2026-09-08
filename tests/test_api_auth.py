@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import threading
 
-from alle import paths
-from alle.api import auth
+from anyhop import paths
+from anyhop.api import auth
 
 SECRET = "s3cr3t-abc"
 

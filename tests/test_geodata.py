@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from alle import geodata, routes
-from alle.state import Store
+from anyhop import geodata, routes
+from anyhop.state import Store
 
 # A minimal valid binary rule-set: the 4-byte header (magic + version) plus
 # zlib-compressed empty content. Real files carry category data; this is
@@ -328,7 +328,7 @@ def _geo_store(*matchers):
 
 def test_compile_digests_each_category_once_however_often_it_is_used(store, digests):
     """Three rules naming one category is one digest check, not three."""
-    from alle.engine import Engine
+    from anyhop.engine import Engine
 
     store = _geo_store((("geosite", "netflix"), 3), (("geoip", "us"), 2))
     digests.digests = 0
@@ -344,7 +344,7 @@ def test_compile_digests_each_category_once_however_often_it_is_used(store, dige
 def test_compile_rejects_every_rule_naming_a_broken_category(store, digests):
     """A remembered failure still has to decorate each affected rule — the
     deduplication must not let later duplicates through unmarked."""
-    from alle.engine import Engine
+    from anyhop.engine import Engine
 
     store = _geo_store((("geosite", "netflix"), 3))
     path = geodata.cached_path(store, "geosite", "netflix")
@@ -362,7 +362,7 @@ def test_compile_rejects_every_rule_naming_a_broken_category(store, digests):
 def test_trace_verifies_and_parses_each_category_once(store, digests, monkeypatch):
     """Duplicates cost nothing a second time — including duplicates of a
     category that is missing, which used to retry the whole verification."""
-    from alle import srs, tracer
+    from anyhop import srs, tracer
 
     store = _geo_store((("geosite", "netflix"), 3), (("geoip", "us"), 2))
     # A category referenced twice that was never cached: the failure has to be
@@ -405,7 +405,7 @@ def test_a_file_swapped_between_two_operations_is_caught(store, digests):
     The replacement keeps the same content-addressed path and the same length,
     so passing this cannot be explained by a pathname- or size-keyed cache.
     """
-    from alle.engine import Engine
+    from anyhop.engine import Engine
 
     store = _geo_store((("geosite", "netflix"), 2))
 

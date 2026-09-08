@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from alle import backup, service
-from alle.state import Store
+from anyhop import backup, service
+from anyhop.state import Store
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -39,7 +39,7 @@ def test_run_force_writes_a_secret_bundle_into_a_private_dir(channel):
     assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     text = path.read_text()
-    assert text.startswith("# alle setup bundle")
+    assert text.startswith("# anyhop setup bundle")
     assert "nordvpn" in text
 
 
@@ -51,7 +51,7 @@ def test_run_skips_when_disabled_and_when_not_due(channel):
     assert backup.run() is None  # fresh backup -> not due
     # age the backup past the 24h default (rename too: within one wall-clock
     # second a rerun would collide with the just-written timestamped name)
-    aged = Path(first["path"]).parent / "alle-backup-20260101-000000.yaml"
+    aged = Path(first["path"]).parent / "anyhop-backup-20260101-000000.yaml"
     Path(first["path"]).rename(aged)
     _age(aged, hours=25)
     second = backup.run()
@@ -74,7 +74,7 @@ def test_retention_prunes_only_our_files(channel):
     stranger.write_text("mine")
     old = []
     for i in range(3):
-        p = directory / f"alle-backup-2026010{i + 1}-000000.yaml"
+        p = directory / f"anyhop-backup-2026010{i + 1}-000000.yaml"
         p.write_text("old")
         _age(p, hours=100 + i)
         old.append(p)

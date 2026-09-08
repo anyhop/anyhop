@@ -1,4 +1,4 @@
-"""Unit tests for alle's operation log helpers."""
+"""Unit tests for anyhop's operation log helpers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import builtins
 
 import pytest
 
-from alle import applog
+from anyhop import applog
 
 
 def test_log_writes_timestamped_line(monkeypatch):
@@ -119,11 +119,11 @@ def test_follow_prints_existing_tail_and_closes(monkeypatch, capsys):
 
 def test_log_lines_are_sanitized(tmp_path, monkeypatch):
     """A hostile provider/user string must not smuggle ANSI into the log —
-    `alle logs -f` replays the file raw into a terminal."""
-    from alle import applog
+    `anyhop logs -f` replays the file raw into a terminal."""
+    from anyhop import applog
 
-    monkeypatch.setenv("ALLE_HOME", str(tmp_path))
+    monkeypatch.setenv("ANYHOP_HOME", str(tmp_path))
     applog.log("channel \x1b[2J\x9bHed label\x07 added")
-    text = (tmp_path / "alle.log").read_text()
+    text = (tmp_path / "anyhop.log").read_text()
     assert "\x1b" not in text and "\x9b" not in text and "\x07" not in text
     assert "label" in text

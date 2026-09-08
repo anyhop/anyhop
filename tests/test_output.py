@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from alle import output
+from anyhop import output
 
 
 def test_json_text_serializes_objects_by_dict():
@@ -100,11 +100,11 @@ def test_status_inactive_with_channels_and_active_empty():
             "provider_count": 1,
         }
     )
-    assert "Alle - Inactive" in inactive
-    assert "run `alle start`" in inactive
+    assert "Anyhop - Inactive" in inactive
+    assert "run `anyhop start`" in inactive
 
     active = output.status({"running": True, "channels": []})
-    assert "Alle - Active" in active
+    assert "Anyhop - Active" in active
     assert "no channels yet" in active
 
 
@@ -123,7 +123,7 @@ def test_status_surfaces_a_degraded_singbox_runtime():
 
 def test_status_active_is_a_summary_without_a_table():
     # status is the system view: per-provider channel counts, never the
-    # per-channel table (that is `alle test`) — so no LABEL header, no AGO.
+    # per-channel table (that is `anyhop test`) — so no LABEL header, no AGO.
     text = output.status(
         {
             "running": True,
@@ -138,7 +138,7 @@ def test_status_active_is_a_summary_without_a_table():
     )
 
     assert "Channels  NordVPN: 2 channels, Proton VPN: 1 channel" in text
-    assert "(details: alle channels ls)" in text
+    assert "(details: anyhop channels ls)" in text
     assert "LABEL" not in text and "ago" not in text
 
 
@@ -158,14 +158,14 @@ def test_status_router_line_points_at_routes_ls():
     )
     assert (
         "Router    127.0.0.1:54585 — 8 rule(s), LAN bypasses VPN, "
-        "unmatched → direct  (details: alle routes ls)" in text
+        "unmatched → direct  (details: anyhop routes ls)" in text
     )
 
 
 def test_test_result_empty_filter_and_default_failure_state():
     assert (
         output.test_result({"channels": [], "filter": "missing"})
-        == "No channel named 'missing'. See: alle channels ls"
+        == "No channel named 'missing'. See: anyhop channels ls"
     )
 
     text = output.test_result(
@@ -267,7 +267,7 @@ def test_router_mode_always_shows_the_lan_state():
 
 
 def test_sanitize_text_strips_ansi_and_control_characters():
-    from alle import output
+    from anyhop import output
 
     s = output.sanitize_text("ok\x1b[31mred\x1b[0m \x07bell \x9b2Jcsi")
     assert "\x1b" not in s and "\x07" not in s and "\x9b" not in s
@@ -275,13 +275,13 @@ def test_sanitize_text_strips_ansi_and_control_characters():
 
 
 def test_sanitize_text_keeps_plain_unicode():
-    from alle import output
+    from anyhop import output
 
     assert output.sanitize_text("Zürich ✓ 東京") == "Zürich ✓ 東京"
 
 
 def test_channel_table_sanitizes_hostile_labels():
-    from alle import output
+    from anyhop import output
 
     data = {
         "providers": {"nordvpn": {}},

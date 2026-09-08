@@ -21,7 +21,7 @@ five Web-UI status polls         5 shims       1 shim
 ===============================  ============  =========
 
 The BSD/no-procfs identity path is forced on every platform: Linux reads
-``/proc`` and spawns nothing, so alle's primary macOS target would otherwise go
+``/proc`` and spawns nothing, so anyhop's primary macOS target would otherwise go
 unmeasured on CI.
 """
 
@@ -35,13 +35,13 @@ from pathlib import Path
 
 import pytest
 
-from alle import daemon, proc, service, singbox
+from anyhop import daemon, proc, service, singbox
 
 # The `ps` counts below assume the no-procfs path (macOS/BSD), which
 # `bsd_identity` forces everywhere. `verify` counts are platform-independent.
 PS_PER_VERIFICATION = 1  # one `ps -o state=,lstart=` snapshot
 
-METRICS_THREAD = "alle-metrics"  # the daemon names its metrics worker thread
+METRICS_THREAD = "anyhop-metrics"  # the daemon names its metrics worker thread
 
 
 # ---- instrumentation ---------------------------------------------------------
@@ -63,13 +63,13 @@ class _ModuleSpy:
         return getattr(self._module, name)
 
 
-# What a real `ps` prints for each field alle asks for. Values are arbitrary
+# What a real `ps` prints for each field anyhop asks for. Values are arbitrary
 # but must be stable: identity comparison only needs the same process to answer
 # the same way twice.
 _PS_FIELD_OUTPUT = {
     "state": "S",
     "lstart": "Mon Jul 28 04:00:00 2026",
-    "command": "/opt/alle/bin/sing-box run -c /home/u/.alle/singbox.json",
+    "command": "/opt/anyhop/bin/sing-box run -c /home/u/.anyhop/singbox.json",
 }
 
 
@@ -162,16 +162,16 @@ def live_singbox_pidfile(bsd_identity):
 
 @pytest.fixture
 def homebrew_version_shim(monkeypatch, tmp_path):
-    """A Homebrew-shaped install, counting every ``opt/bin/alle version`` spawn.
+    """A Homebrew-shaped install, counting every ``opt/bin/anyhop version`` spawn.
 
     This is the 100+ ms outlier in the audit: the stable opt prefix is the only
     reliable view of a moved keg, so status discovery pays a whole interpreter
     start-up per call.
     """
-    prefix = tmp_path / "opt" / "alle"
+    prefix = tmp_path / "opt" / "anyhop"
     (prefix / "bin").mkdir(parents=True)
-    monkeypatch.setenv("ALLE_SERVICE_OWNER", "homebrew")
-    monkeypatch.setenv("ALLE_SERVICE_PREFIX", str(prefix))
+    monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "homebrew")
+    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", str(prefix))
 
     spawns: list[list[str]] = []
 
@@ -271,7 +271,7 @@ def measure_metrics_sample(
         def sleep(self, _seconds) -> None:
             raise KeyboardInterrupt  # end the loop after one iteration
 
-    monkeypatch.setattr("alle.engine.Engine", _NoopEngine)
+    monkeypatch.setattr("anyhop.engine.Engine", _NoopEngine)
     monkeypatch.setattr(daemon, "time", _Clock())
     ps.reset()
     verify.reset()

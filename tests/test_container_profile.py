@@ -11,9 +11,9 @@ from typing import Any
 
 import pytest
 
-from alle import applog, bundle, daemonctl, runtime, service, singbox
-from alle.engine import Engine, _listen_addr, _ports_in_use
-from alle.state import PortInUseError, Store
+from anyhop import applog, bundle, daemonctl, runtime, service, singbox
+from anyhop.engine import Engine, _listen_addr, _ports_in_use
+from anyhop.state import PortInUseError, Store
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -64,7 +64,7 @@ def test_router_port_conflicts_with_explicit_channel_port():
 
 
 def test_port_base_allocates_sequentially(monkeypatch):
-    monkeypatch.setenv("ALLE_PORT_BASE", "21000")
+    monkeypatch.setenv("ANYHOP_PORT_BASE", "21000")
     store = Store.load()
     store.add_provider("nordvpn")
     a = store.add_channel("nordvpn", "US", "", dict(WG))
@@ -74,7 +74,7 @@ def test_port_base_allocates_sequentially(monkeypatch):
 
 
 def test_port_base_skips_explicitly_claimed_ports(monkeypatch):
-    monkeypatch.setenv("ALLE_PORT_BASE", "21000")
+    monkeypatch.setenv("ANYHOP_PORT_BASE", "21000")
     store = Store.load()
     store.add_provider("nordvpn")
     store.add_channel("nordvpn", "US", "", dict(WG), port=21001)
@@ -94,7 +94,7 @@ def test_port_base_skips_ports_the_os_reports_busy(monkeypatch):
         held.bind(("127.0.0.1", 0))
         held.listen(1)
         busy = held.getsockname()[1]
-        monkeypatch.setenv("ALLE_PORT_BASE", str(busy))
+        monkeypatch.setenv("ANYHOP_PORT_BASE", str(busy))
         store = Store.load()
         store.add_provider("nordvpn")
         ch = store.add_channel("nordvpn", "US", "", dict(WG))
@@ -103,10 +103,10 @@ def test_port_base_skips_ports_the_os_reports_busy(monkeypatch):
 
 
 def test_port_base_invalid_value_errors(monkeypatch):
-    monkeypatch.setenv("ALLE_PORT_BASE", "not-a-port")
+    monkeypatch.setenv("ANYHOP_PORT_BASE", "not-a-port")
     store = Store.load()
     store.add_provider("nordvpn")
-    with pytest.raises(RuntimeError, match="ALLE_PORT_BASE"):
+    with pytest.raises(RuntimeError, match="ANYHOP_PORT_BASE"):
         store.add_channel("nordvpn", "US", "", dict(WG))
 
 
@@ -170,13 +170,13 @@ def test_listen_defaults_to_loopback():
 
 
 def test_alle_listen_widens_every_proxy_inbound(monkeypatch):
-    monkeypatch.setenv("ALLE_LISTEN", "0.0.0.0")
+    monkeypatch.setenv("ANYHOP_LISTEN", "0.0.0.0")
     config, _ = Engine(_engine_store())._build_config()
     assert {i["listen"] for i in config["inbounds"]} == {"0.0.0.0"}
 
 
 def test_alle_listen_invalid_value_falls_back_to_loopback(monkeypatch):
-    monkeypatch.setenv("ALLE_LISTEN", "everywhere")
+    monkeypatch.setenv("ANYHOP_LISTEN", "everywhere")
     assert _listen_addr() == "127.0.0.1"
     assert "not an IP address" in applog.tail()
 
@@ -200,7 +200,7 @@ def _proton_bundle(**channel_extra):
     ch = {"country": "", "city": "", "wg": dict(BUNDLE_WG)}
     ch.update(channel_extra)
     return {
-        "kind": "alle-bundle",
+        "kind": "anyhop-bundle",
         "bundle_version": 1,
         "providers": {"protonvpn": {"channels": {"wg_us_1": ch}}},
     }
@@ -367,7 +367,7 @@ def test_sync_converges_port_provenance():
 
 def _nord_bundle(credential: dict) -> dict:
     return {
-        "kind": "alle-bundle",
+        "kind": "anyhop-bundle",
         "bundle_version": 1,
         "providers": {"nordvpn": {"credential": credential, "channels": {}}},
     }
@@ -408,11 +408,11 @@ def test_credential_inline_keeps_working():
     assert parsed["providers"]["nordvpn"]["credential"] == {"token": "tok-inline"}
 
 
-# ---- ALLE_SINGBOX override -----------------------------------------------------
+# ---- ANYHOP_SINGBOX override -----------------------------------------------------
 
 
 def test_singbox_override_missing_path_errors(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALLE_SINGBOX", str(tmp_path / "missing"))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(tmp_path / "missing"))
     with pytest.raises(singbox.SingBoxError, match="does not exist"):
         singbox.ensure_binary()
 
@@ -420,7 +420,7 @@ def test_singbox_override_missing_path_errors(monkeypatch, tmp_path):
 def test_singbox_override_wrong_bytes_error_never_downloads(monkeypatch, tmp_path):
     fake = tmp_path / "sing-box"
     fake.write_bytes(b"not sing-box")
-    monkeypatch.setenv("ALLE_SINGBOX", str(fake))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(fake))
     with pytest.raises(singbox.SingBoxError, match="not the pinned sing-box"):
         singbox.ensure_binary()
     assert fake.read_bytes() == b"not sing-box"  # untouched, no download over it
@@ -429,7 +429,7 @@ def test_singbox_override_wrong_bytes_error_never_downloads(monkeypatch, tmp_pat
 def test_singbox_override_verified_bytes_are_accepted(monkeypatch, tmp_path):
     fake = tmp_path / "sing-box"
     fake.write_bytes(b"pretend binary")
-    monkeypatch.setenv("ALLE_SINGBOX", str(fake))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(fake))
     key = singbox.host_platform()
     monkeypatch.setitem(
         singbox.SINGBOX_SHA256, key, hashlib.sha256(b"pretend binary").hexdigest()
@@ -447,14 +447,14 @@ def test_in_container_defaults_off(monkeypatch):
 
 
 def test_in_container_env_flag(monkeypatch):
-    monkeypatch.setenv("ALLE_CONTAINER", "1")
+    monkeypatch.setenv("ANYHOP_CONTAINER", "1")
     assert runtime.in_container()
 
 
 def test_in_container_marker_file(monkeypatch, tmp_path):
     (tmp_path / ".dockerenv").touch()
     monkeypatch.setattr(runtime, "_MARKER_FILES", ("/.dockerenv",))
-    monkeypatch.setenv("_ALLE_INSTALL_TEST_ROOT", str(tmp_path))
+    monkeypatch.setenv("_ANYHOP_INSTALL_TEST_ROOT", str(tmp_path))
     assert runtime.in_container()
 
 
@@ -462,12 +462,12 @@ def test_in_container_test_root_masks_real_markers(monkeypatch, tmp_path):
     """The installer smoke seam lets the login-service path run inside the
     Docker harness: with a marker-free fake root, /.dockerenv is not seen."""
     monkeypatch.setattr(runtime, "_MARKER_FILES", ("/.dockerenv",))
-    monkeypatch.setenv("_ALLE_INSTALL_TEST_ROOT", str(tmp_path))
+    monkeypatch.setenv("_ANYHOP_INSTALL_TEST_ROOT", str(tmp_path))
     assert not runtime.in_container()
 
 
 def test_daemon_install_refuses_in_container(monkeypatch):
-    monkeypatch.setenv("ALLE_CONTAINER", "1")
+    monkeypatch.setenv("ANYHOP_CONTAINER", "1")
     with pytest.raises(daemonctl.DaemonCtlError, match="container"):
         daemonctl.install()
     with pytest.raises(daemonctl.DaemonCtlError, match="container"):
@@ -475,12 +475,12 @@ def test_daemon_install_refuses_in_container(monkeypatch):
 
 
 def test_doomed_daemon_install_never_stops_the_running_daemon(monkeypatch):
-    # Found live in the container smoke test: `alle daemon install` used to
+    # Found live in the container smoke test: `anyhop daemon install` used to
     # stop the daemon (PID 1 in a container — the whole container) on its way
     # to the "no backend" error. The refusal must come first.
-    from alle import daemon
+    from anyhop import daemon
 
-    monkeypatch.setenv("ALLE_CONTAINER", "1")
+    monkeypatch.setenv("ANYHOP_CONTAINER", "1")
     stopped = {}
     monkeypatch.setattr(daemon, "stop", lambda: stopped.setdefault("hit", True))
     with pytest.raises(service.ServiceError, match="container"):
@@ -489,11 +489,11 @@ def test_doomed_daemon_install_never_stops_the_running_daemon(monkeypatch):
 
 
 def test_tun_hint_names_the_container_recipe(monkeypatch):
-    monkeypatch.setenv("ALLE_CONTAINER", "1")
+    monkeypatch.setenv("ANYHOP_CONTAINER", "1")
     hint = service._tun_privilege_hint()
     assert "--cap-add NET_ADMIN" in hint
     assert "/dev/net/tun" in hint
-    assert "sudo alle helper install" not in hint
+    assert "sudo anyhop helper install" not in hint
     assert "setcap cap_net_admin" not in hint
 
 
@@ -526,7 +526,7 @@ def test_health_reports_down_on_a_fresh_state():
 
 
 def test_health_cli_exit_code_and_json(capsys):
-    from alle import cli
+    from anyhop import cli
 
     with pytest.raises(SystemExit) as exc:
         cli.main(["health", "--json"])
@@ -541,9 +541,9 @@ def test_health_cli_exit_code_and_json(capsys):
 def test_cmd_run_marks_the_process_and_echoes_logs(monkeypatch):
     import os
 
-    from alle import cli, daemon
+    from anyhop import cli, daemon
 
-    monkeypatch.delenv("ALLE_APPLIER", raising=False)
+    monkeypatch.delenv("ANYHOP_APPLIER", raising=False)
     monkeypatch.setattr(applog, "echo_stderr", False)
     called = {}
     monkeypatch.setattr(
@@ -556,11 +556,11 @@ def test_cmd_run_marks_the_process_and_echoes_logs(monkeypatch):
         cli.main(["run"])
         assert called["own"] is True
         assert applog.echo_stderr is True
-        assert os.environ.get("ALLE_APPLIER") == "1"
+        assert os.environ.get("ANYHOP_APPLIER") == "1"
     finally:
         # cmd_run writes the marker straight into os.environ (that is its job);
         # monkeypatch never saw it, so drop it here or it leaks into later tests.
-        os.environ.pop("ALLE_APPLIER", None)
+        os.environ.pop("ANYHOP_APPLIER", None)
 
 
 def test_applog_echo_stderr_tees_lines(monkeypatch, capsys):

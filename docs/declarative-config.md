@@ -1,14 +1,14 @@
-# Writing an alle setup as declarative config
+# Writing an anyhop setup as declarative config
 
-alle is normally driven imperatively — `alle providers add`, `alle channels
+anyhop is normally driven imperatively — `anyhop providers add`, `anyhop channels
 add`, the Web UI. But the **same setup can be written as one YAML file** and
 applied in a single step:
 
 ```bash
-alle import my-setup.yaml     # merge the file into the current setup
+anyhop import my-setup.yaml     # merge the file into the current setup
 ```
 
-That file is a *bundle* (the same format `alle export` produces). This guide
+That file is a *bundle* (the same format `anyhop export` produces). This guide
 is about **authoring one by hand, provider by provider** — for provisioning a
 new machine, version-controlling a setup, sharing a template, or bulk-creating
 channels. For the complete field reference, the apply semantics (`import`
@@ -17,7 +17,7 @@ merge vs `--replace`), backup/migration, and caveats, see
 
 ## Contents
 
-- [Writing an alle setup as declarative config](#writing-an-alle-setup-as-declarative-config)
+- [Writing an anyhop setup as declarative config](#writing-an-anyhop-setup-as-declarative-config)
   - [Contents](#contents)
   - [The skeleton](#the-skeleton)
   - [NordVPN (token / API providers)](#nordvpn-token--api-providers)
@@ -32,7 +32,7 @@ Every bundle has a two-line header and, optionally, `providers` and a
 `router`:
 
 ```yaml
-kind: alle-bundle      # required — identifies the file
+kind: anyhop-bundle      # required — identifies the file
 bundle_version: 1      # required
 providers:
   # per-provider entries — see below
@@ -44,19 +44,19 @@ router:
 ```
 
 `port` keys (here and per channel) are **declarations** for setups where
-something outside alle — a firewall rule, a compose file — must know a port
+something outside anyhop — a firewall rule, a compose file — must know a port
 ahead of time. Omit them (the default) and ports are allocated locally,
 exactly as before; exports never carry them.
 
 The two archetypes fill their `providers` entry differently: **token
-providers** carry a credential and let alle derive WireGuard material;
+providers** carry a credential and let anyhop derive WireGuard material;
 **config providers** carry no credential and you paste WireGuard material from
 a downloaded `.conf`.
 
 ## NordVPN (token / API providers)
 
 A token provider **requires** a `credential` block with its access token —
-alle needs it to resolve WireGuard servers and to add channels, so a NordVPN
+anyhop needs it to resolve WireGuard servers and to add channels, so a NordVPN
 section without a token is rejected. Its channels are just a location you
 pick, resolved from the token at apply time. **The recommended entry fills
 only four things** — the token, each channel's country, an optional city, and
@@ -69,7 +69,7 @@ providers:
     credential:
       token: "nordvpn-access-token"        # from https://my.nordaccount.com/dashboard/nordvpn/access-tokens (see below)
     channels:
-      wg_us_new_york_1:                    # id — follow alle's convention (below)
+      wg_us_new_york_1:                    # id — follow anyhop's convention (below)
         country: United States             # required — the resolver needs it
         city: New York                     # optional — omit for "any city"
         label: Work                        # optional but recommended
@@ -104,7 +104,7 @@ Give exactly one of `token`, `token_env`, `token_file`. A missing variable or
 unreadable file is reported as a validation blocker before anything is
 changed. This works for any credential field of any provider (`<field>_env` /
 `<field>_file`), and it is what lets a bundle live in version control or a
-compose repo without carrying the secret. (`alle export` still writes the
+compose repo without carrying the secret. (`anyhop export` still writes the
 stored token inline — an export is a backup, not a template.)
 
 **A stable of servers under a connection cap.** Providers that cap
@@ -113,7 +113,7 @@ declare every server you want on hand, enable only the ones that should be
 live. A disabled channel costs nothing at apply time — validation checks its
 `country`/`city` against the provider's location catalog (instead of proving
 them by resolution), no server is resolved, nothing is probed, and no
-connection slot is occupied. `alle channels enable <id>` later resolves the
+connection slot is occupied. `anyhop channels enable <id>` later resolves the
 server at that moment (the one networked step) and materialises it. The same
 key works for config channels (their `wg` is still required). One constraint,
 enforced at validation: a ruleset in the bundle cannot target a channel the
@@ -129,27 +129,27 @@ channels:
     enabled: false          # held, not dialled — enable it when needed
 ```
 
-**Channel id convention.** Use the same scheme alle applies when it names
+**Channel id convention.** Use the same scheme anyhop applies when it names
 channels itself: **`<protocol>_<country-code>_<n>`**, or
 **`<protocol>_<country-code>_<city>_<n>`** when you pin a city — `wg` (the
-only protocol alle speaks), the lowercase ISO 3166-1 alpha-2 country code,
+only protocol anyhop speaks), the lowercase ISO 3166-1 alpha-2 country code,
 the slugged city, and `_<n>` distinguishing multiple channels in the same
 location. So `United States` → `wg_us_1`, `United States` + `New York` →
 `wg_us_new_york_1`, a second Sweden channel → `wg_se_2`. Config imports
 follow the same shape via their filenames (ProtonVPN's `wg-JP-351.conf` →
 `wg_jp_351`). Any valid slug works, but matching the convention keeps
-hand-written and alle-created channels consistent.
+hand-written and anyhop-created channels consistent.
 
 **Finding valid countries and cities.** The `country` and `city` you write
 must match what NordVPN's API knows, so look them up rather than guessing —
 two ways:
 
-1. **With the alle CLI (authoritative — it reads the exact list alle resolves
+1. **With the anyhop CLI (authoritative — it reads the exact list anyhop resolves
    against):**
 
    ```bash
-   alle locations nordvpn                             # every country + its city count
-   alle locations nordvpn --country "United States"   # the cities in one country
+   anyhop locations nordvpn                             # every country + its city count
+   anyhop locations nordvpn --country "United States"   # the cities in one country
    ```
 
    This reads NordVPN's *public* location list, so it works even before you
@@ -161,7 +161,7 @@ two ways:
    <https://nordvpn.com/servers/> for a human overview of what's available.
    The console spelling can differ slightly from the API's, so if a name you
    copied from the site doesn't resolve, cross-check it with
-   `alle locations nordvpn` — the CLI is authoritative.
+   `anyhop locations nordvpn` — the CLI is authoritative.
 
 Getting the token: https://my.nordaccount.com/dashboard/nordvpn/access-tokens →
 generate an access token. It is a secret — see
@@ -195,7 +195,7 @@ come from outside the file:
 
 | Bundle field                              | Comes from                               | Notes                                                                                                                                                                                                |
 | ----------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| channel id (`wg_us_ca_842`)               | the **filename**, slugged                | `wg-US-CA-842.conf` → drop `.conf`, lowercase, non-alnum → `_`. This is alle's own convention when it imports a `.conf`; matching it keeps a later re-import of a refreshed file an in-place update. |
+| channel id (`wg_us_ca_842`)               | the **filename**, slugged                | `wg-US-CA-842.conf` → drop `.conf`, lowercase, non-alnum → `_`. This is anyhop's own convention when it imports a `.conf`; matching it keeps a later re-import of a refreshed file an in-place update. |
 | `wg.private_key`                          | `[Interface] PrivateKey`                 | required                                                                                                                                                                                             |
 | `wg.address`                              | `[Interface] Address`                    | a YAML list                                                                                                                                                                                          |
 | `wg.peer.public_key`                      | `[Peer] PublicKey`                       | required                                                                                                                                                                                             |
@@ -207,10 +207,10 @@ come from outside the file:
 | `label`                                   | **you choose it**                        | optional but recommended                                                                                                                                                                             |
 | `enabled`                                 | **you choose it**                        | optional, tri-state. `false` holds the channel without dialling it (no provider connection slot used); omitted = keep an existing channel's state on `import`, enabled for a new one.                |
 
-`[Interface] DNS` and the `# …` comment lines are ignored (alle reads only the
+`[Interface] DNS` and the `# …` comment lines are ignored (anyhop reads only the
 fields sing-box acts on), so they have no bundle equivalent.
 
-The resulting entry — the same shape `alle export` produces:
+The resulting entry — the same shape `anyhop export` produces:
 
 ```yaml
 providers:
@@ -242,7 +242,7 @@ providers:
 
 Rulesets point matched traffic at a channel, `direct`, or `block`. **List
 order is priority — the first matching ruleset wins.** Matchers can be bare
-strings (inferred exactly like `alle routes ruleset create`) or explicit
+strings (inferred exactly like `anyhop routes ruleset create`) or explicit
 `{type, value}` mappings.
 
 ```yaml
@@ -271,8 +271,8 @@ A `target` must name a channel that exists — one defined in this bundle, or
 Both archetypes plus routing, in one applyable file:
 
 ```yaml
-# my-setup.yaml — apply with: alle import my-setup.yaml
-kind: alle-bundle
+# my-setup.yaml — apply with: anyhop import my-setup.yaml
+kind: anyhop-bundle
 bundle_version: 1
 providers:
   nordvpn:
@@ -313,19 +313,19 @@ router:
 ## Applying it
 
 ```bash
-alle validate my-setup.yaml             # check it first — every problem with line numbers
-alle import my-setup.yaml               # merge into the current setup
-alle import my-setup.yaml --replace     # or REPLACE the whole setup (confirms first)
-alle sync my-setup.yaml                 # or converge on it as the managed desired state
+anyhop validate my-setup.yaml             # check it first — every problem with line numbers
+anyhop import my-setup.yaml               # merge into the current setup
+anyhop import my-setup.yaml --replace     # or REPLACE the whole setup (confirms first)
+anyhop sync my-setup.yaml                 # or converge on it as the managed desired state
 ```
 
 `sync` is the mode for a file you keep applying (the Docker entrypoint uses
 it on every container start): repeat syncs are idempotent, edits update in
 place, and entries removed from the file are pruned — but only entries sync
 itself created; hand-made channels/rulesets are never touched. See
-[`alle sync`](cli-reference.md#alle-sync-file).
+[`anyhop sync`](cli-reference.md#anyhop-sync-file).
 
-Run `alle validate` while authoring: it checks the whole file at once (kind,
+Run `anyhop validate` while authoring: it checks the whole file at once (kind,
 supported providers, token presence, unique channel ids, country/city against
 the provider's real list, WireGuard fields, explicit router toggles, ruleset
 targets and matcher types) and points at the line of each problem.
@@ -333,13 +333,13 @@ targets and matcher types) and points at the line of each problem.
 A few things to know — all covered in full in [bundle.md](bundle.md):
 
 - **The file is a secret.** It holds WireGuard private keys and provider
-  tokens. Keep it private; alle writes exported files `0600`.
+  tokens. Keep it private; anyhop writes exported files `0600`.
 - **The whole file is validated first** and rejected as a whole (per-entry
   errors) on any problem — an apply never half-applies.
 - **Token channels resolve a fresh server** via the token at apply time;
   config channels apply exactly as written.
 - **Ports are not set from the file** — they are allocated locally. After
-  applying on a new machine, point apps at the ports from `alle status`.
+  applying on a new machine, point apps at the ports from `anyhop status`.
 - **Don't run one setup on two machines at once** without care — token
   channels share one account-scoped WireGuard key and can conflict
   ([details](bundle.md#cloning-a-setup-to-a-second-machine)).

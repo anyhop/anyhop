@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import stat
 
-from alle import paths
+from anyhop import paths
 
 
 def test_state_dir_is_owner_only():

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from alle import daemon, singbox
+from anyhop import daemon, singbox
 from _runtime_hygiene import RuntimeHandle, RuntimeSession
 
 
@@ -31,26 +31,26 @@ def runtime_guard(monkeypatch, runtime_session, shared_singbox):
     its detached applier or adopted sing-box behind in a deleted temp home.
     """
     home = runtime_session.new_home()
-    monkeypatch.setenv("ALLE_HOME", str(home))
-    monkeypatch.setenv("ALLE_TEST_HOME", str(home))
-    monkeypatch.setenv("ALLE_TEST_SESSION", runtime_session.token)
+    monkeypatch.setenv("ANYHOP_HOME", str(home))
+    monkeypatch.setenv("ANYHOP_TEST_HOME", str(home))
+    monkeypatch.setenv("ANYHOP_TEST_SESSION", runtime_session.token)
     # Point the privileged-helper socket at a path nothing binds, so no test
     # ever sees or signals the developer's real helper/runtime.
-    monkeypatch.setenv("ALLE_HELPER_SOCKET", str(home.parent / "no-helper.sock"))
+    monkeypatch.setenv("ANYHOP_HELPER_SOCKET", str(home.parent / "no-helper.sock"))
     # Opt-in profile knobs must never leak from the invoking shell into a test.
     for var in (
-        "ALLE_LISTEN",
-        "ALLE_PORT_BASE",
-        "ALLE_CONTAINER",
-        "ALLE_APPLIER",
-        "ALLE_SERVICE",
-        "ALLE_GATEWAY",
-        "_ALLE_INSTALL_TEST_ROOT",
+        "ANYHOP_LISTEN",
+        "ANYHOP_PORT_BASE",
+        "ANYHOP_CONTAINER",
+        "ANYHOP_APPLIER",
+        "ANYHOP_SERVICE",
+        "ANYHOP_GATEWAY",
+        "_ANYHOP_INSTALL_TEST_ROOT",
     ):
         monkeypatch.delenv(var, raising=False)
-    monkeypatch.setenv("ALLE_SINGBOX", str(shared_singbox))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(shared_singbox))
     # Installed-version discovery is cached per *process*, not per home, so a
-    # value discovered under one test's ALLE_SERVICE_OWNER/PREFIX would
+    # value discovered under one test's ANYHOP_SERVICE_OWNER/PREFIX would
     # otherwise be served to the next test's status call.
     daemon.forget_installed_version()
     handle = RuntimeHandle(runtime_session, home, daemon.ensure_running)
@@ -78,10 +78,10 @@ def shared_singbox(runtime_session):
     target = shared / f"sing-box@{singbox.SINGBOX_VERSION}"
 
     candidates = []
-    if configured := os.environ.get("ALLE_TEST_SINGBOX"):
+    if configured := os.environ.get("ANYHOP_TEST_SINGBOX"):
         candidates.append(Path(configured))
     candidates.append(
-        Path.home() / ".alle" / "bin" / f"sing-box@{singbox.SINGBOX_VERSION}"
+        Path.home() / ".anyhop" / "bin" / f"sing-box@{singbox.SINGBOX_VERSION}"
     )
     source = next(
         (
@@ -100,18 +100,18 @@ def shared_singbox(runtime_session):
             ) from error
     else:
         provision = runtime_session.root / "provision"
-        old_home = os.environ.get("ALLE_HOME")
-        old_override = os.environ.pop("ALLE_SINGBOX", None)
-        os.environ["ALLE_HOME"] = str(provision)
+        old_home = os.environ.get("ANYHOP_HOME")
+        old_override = os.environ.pop("ANYHOP_SINGBOX", None)
+        os.environ["ANYHOP_HOME"] = str(provision)
         try:
             target = singbox.ensure_binary()
         finally:
             if old_home is None:
-                os.environ.pop("ALLE_HOME", None)
+                os.environ.pop("ANYHOP_HOME", None)
             else:
-                os.environ["ALLE_HOME"] = old_home
+                os.environ["ANYHOP_HOME"] = old_home
             if old_override is not None:
-                os.environ["ALLE_SINGBOX"] = old_override
+                os.environ["ANYHOP_SINGBOX"] = old_override
     assert singbox._sha256_file(target) == expected
     return target
 
@@ -119,13 +119,13 @@ def shared_singbox(runtime_session):
 @pytest.fixture
 def real_background_runtime(monkeypatch, background_runtime, shared_singbox):
     """A tracked real applier + shared sing-box capability for lifecycle tests."""
-    from alle import daemonctl
+    from anyhop import daemonctl
 
-    # A developer may run alle under a real login service. The explicit test
+    # A developer may run anyhop under a real login service. The explicit test
     # capability always owns its detached child; it must never address that
     # user-level service manager or the developer's daemon.
     monkeypatch.setattr(daemonctl, "is_installed", lambda: False)
-    monkeypatch.setenv("ALLE_SINGBOX", str(shared_singbox))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(shared_singbox))
     return background_runtime
 
 
@@ -133,7 +133,7 @@ def start_test_server(httpd, *, poll_interval: float = 0.02):
     """Start a test HTTP server and return the thread its owner must reap."""
     thread = threading.Thread(
         target=lambda: httpd.serve_forever(poll_interval=poll_interval),
-        name="alle-test-http",
+        name="anyhop-test-http",
         daemon=True,
     )
     thread.start()

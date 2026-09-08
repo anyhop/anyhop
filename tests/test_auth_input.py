@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-import alle.cli as cli
+import anyhop.cli as cli
 
 
 def _drive(keystrokes: str):

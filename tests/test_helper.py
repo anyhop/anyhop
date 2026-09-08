@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from alle import helper, helperctl, paths
+from anyhop import helper, helperctl, paths
 
 
 # ---- protocol: a real socket, a faked sing-box runner ----------------------
@@ -66,10 +66,10 @@ def live_helper(monkeypatch, tmp_path, fake_runner):
     SERVED_HOME, in a thread."""
     # macOS caps AF_UNIX paths at ~104 chars; pytest's tmp_path is far longer,
     # so bind under /tmp with a short unique name.
-    sock_path = f"/tmp/alle-test-{os.getpid()}.sock"
+    sock_path = f"/tmp/anyhop-test-{os.getpid()}.sock"
     env = {
-        "ALLE_HELPER_ALLOWED_UID": "1000",
-        "ALLE_HELPER_SOCKET": sock_path,
+        "ANYHOP_HELPER_ALLOWED_UID": "1000",
+        "ANYHOP_HELPER_SOCKET": sock_path,
     }
     monkeypatch.setattr(os, "environ", {**os.environ, **env})
 
@@ -180,7 +180,7 @@ def test_unknown_command_is_an_error(live_helper):
 
 def test_request_downgrades_cleanly_when_no_socket(tmp_path, monkeypatch):
     # No helper listening at this path → ok=False, no exception.
-    monkeypatch.setenv("ALLE_HELPER_SOCKET", str(tmp_path / "nope.sock"))
+    monkeypatch.setenv("ANYHOP_HELPER_SOCKET", str(tmp_path / "nope.sock"))
     res = helper.request("ping")
     assert res["ok"] is False
     assert "unreachable" in res["error"]
@@ -198,7 +198,7 @@ def test_authorization_rejects_non_installing_uid(monkeypatch, fake_runner):
     assert not (uid == 0 or uid == allowed)
 
 
-# ---- home scoping: the helper serves exactly one ALLE_HOME ------------------
+# ---- home scoping: the helper serves exactly one ANYHOP_HOME ------------------
 
 
 def test_ping_reports_served_home(live_helper):
@@ -213,7 +213,7 @@ def test_foreign_home_is_refused_for_every_state_command(live_helper, fake_runne
         assert res["ok"] is False, cmd
         assert res.get("foreign_home") is True, cmd
         assert SERVED_HOME in res["error"], cmd
-        assert "sudo alle helper install" in res["error"], cmd
+        assert "sudo anyhop helper install" in res["error"], cmd
     # and none of the refused commands touched the runner
     assert fake_runner.calls == []
 
@@ -234,10 +234,10 @@ def test_matching_home_responses_carry_the_served_home(live_helper, fake_runner)
 
 
 def test_client_request_injects_caller_home(live_helper, monkeypatch):
-    from alle import paths
+    from anyhop import paths
 
     monkeypatch.setattr(paths, "state_dir", lambda: SERVED_HOME)
-    monkeypatch.setenv("ALLE_HELPER_SOCKET", live_helper)
+    monkeypatch.setenv("ANYHOP_HELPER_SOCKET", live_helper)
     res = helper.request("status")
     assert res["ok"] is True  # served: the client sent the matching home
     monkeypatch.setattr(paths, "state_dir", lambda: FOREIGN_HOME)
@@ -246,9 +246,9 @@ def test_client_request_injects_caller_home(live_helper, monkeypatch):
 
 
 def test_probe_classifies_absent_stale_foreign_and_ok(live_helper, monkeypatch):
-    from alle import paths
+    from anyhop import paths
 
-    monkeypatch.setenv("ALLE_HELPER_SOCKET", live_helper)
+    monkeypatch.setenv("ANYHOP_HELPER_SOCKET", live_helper)
     monkeypatch.setattr(paths, "state_dir", lambda: SERVED_HOME)
     assert helper.probe()["state"] == "ok"
     monkeypatch.setattr(paths, "state_dir", lambda: FOREIGN_HOME)
@@ -268,7 +268,7 @@ def test_runner_never_adopts_without_a_matching_home(monkeypatch, tmp_path):
     """The regression at the heart of the bug: a status response that does not
     prove the served home (pre-v2 helper, or any foreign response) must not be
     adopted as our own sing-box."""
-    from alle import paths, singbox
+    from anyhop import paths, singbox
 
     monkeypatch.setattr(paths, "state_dir", lambda: tmp_path)
     r = singbox.Runner()
@@ -309,7 +309,7 @@ def test_runner_never_adopts_without_a_matching_home(monkeypatch, tmp_path):
 
 
 def test_tun_privilege_gate_names_foreign_and_stale_helpers(monkeypatch):
-    from alle import service
+    from anyhop import service
 
     monkeypatch.setattr(service, "_singbox_has_net_admin", lambda: False)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
@@ -319,10 +319,10 @@ def test_tun_privilege_gate_names_foreign_and_stale_helpers(monkeypatch):
         "probe",
         lambda: {"state": "foreign", "home": FOREIGN_HOME, "version": 2},
     )
-    with pytest.raises(service.ServiceError, match="different ALLE_HOME"):
+    with pytest.raises(service.ServiceError, match="different ANYHOP_HOME"):
         service._require_tun_privileges()
     monkeypatch.setattr(helper, "probe", lambda: {"state": "stale", "version": 1})
-    with pytest.raises(service.ServiceError, match="sudo alle helper install"):
+    with pytest.raises(service.ServiceError, match="sudo anyhop helper install"):
         service._require_tun_privileges()
 
 
@@ -336,58 +336,60 @@ def test_plist_carries_allowed_uid_socket_and_home(tmp_path):
     assert pl["UserName"] == "root"
     assert pl["RunAtLoad"] is True and pl["KeepAlive"] is True
     env = pl["EnvironmentVariables"]
-    assert env["ALLE_HELPER_ALLOWED_UID"] == "4242"
-    assert env["ALLE_HELPER_SOCKET"] == helperctl.HELPER_SOCKET_DEFAULT
-    assert env["ALLE_HOME"] == str(tmp_path)
-    # execs the stable `alle helper-run` shim, not a versioned venv path
+    assert env["ANYHOP_HELPER_ALLOWED_UID"] == "4242"
+    assert env["ANYHOP_HELPER_SOCKET"] == helperctl.HELPER_SOCKET_DEFAULT
+    assert env["ANYHOP_HOME"] == str(tmp_path)
+    # execs the stable `anyhop helper-run` shim, not a versioned venv path
     assert pl["ProgramArguments"][-1] == "helper-run"
 
 
 def test_plist_carries_bundled_singbox_when_present(tmp_path, monkeypatch):
-    bundled = tmp_path / "Alle.app" / "Contents" / "Resources" / "sing-box" / "sing-box"
-    monkeypatch.setenv("ALLE_SINGBOX", str(bundled))
+    bundled = (
+        tmp_path / "Anyhop.app" / "Contents" / "Resources" / "sing-box" / "sing-box"
+    )
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(bundled))
     raw = helperctl._plist_bytes(4242, str(tmp_path))
     env = plistlib.loads(raw)["EnvironmentVariables"]
 
-    assert env["ALLE_SINGBOX"] == str(bundled)
+    assert env["ANYHOP_SINGBOX"] == str(bundled)
 
 
 def test_plist_omits_relative_bundled_singbox(tmp_path, monkeypatch):
-    monkeypatch.setenv("ALLE_SINGBOX", "relative/sing-box")
+    monkeypatch.setenv("ANYHOP_SINGBOX", "relative/sing-box")
     raw = helperctl._plist_bytes(4242, str(tmp_path))
     env = plistlib.loads(raw)["EnvironmentVariables"]
 
-    assert "ALLE_SINGBOX" not in env
+    assert "ANYHOP_SINGBOX" not in env
 
 
 def test_service_exec_prefers_the_bundled_executable(monkeypatch, tmp_path):
     """An app-installed helper must exec the bundled core, not a PATH shim.
 
     `sudo` replaces PATH with secure_path, so without this the root helper
-    would exec a brew/uv `alle` against the app's ALLE_HOME.
+    would exec a brew/uv `anyhop` against the app's ANYHOP_HOME.
     """
-    bundled = tmp_path / "Alle.app" / "Contents" / "Resources" / "bin" / "alle"
-    monkeypatch.setenv("ALLE_EXECUTABLE", str(bundled))
+    bundled = tmp_path / "Anyhop.app" / "Contents" / "Resources" / "bin" / "anyhop"
+    monkeypatch.setenv("ANYHOP_EXECUTABLE", str(bundled))
     monkeypatch.setattr(
-        helperctl.shutil, "which", lambda name: "/opt/homebrew/bin/alle"
+        helperctl.shutil, "which", lambda name: "/opt/homebrew/bin/anyhop"
     )
 
     assert helperctl._service_exec() == [str(bundled), "helper-run"]
 
 
 def test_service_exec_ignores_a_relative_executable(monkeypatch):
-    monkeypatch.setenv("ALLE_EXECUTABLE", "relative/alle")
-    monkeypatch.setattr(helperctl.shutil, "which", lambda name: "/usr/local/bin/alle")
+    monkeypatch.setenv("ANYHOP_EXECUTABLE", "relative/anyhop")
+    monkeypatch.setattr(helperctl.shutil, "which", lambda name: "/usr/local/bin/anyhop")
 
-    assert helperctl._service_exec() == ["/usr/local/bin/alle", "helper-run"]
+    assert helperctl._service_exec() == ["/usr/local/bin/anyhop", "helper-run"]
 
 
 def test_plist_execs_the_bundled_core_under_sudo_path(monkeypatch, tmp_path):
-    bundled = tmp_path / "Alle.app" / "Contents" / "Resources" / "bin" / "alle"
-    monkeypatch.setenv("ALLE_EXECUTABLE", str(bundled))
+    bundled = tmp_path / "Anyhop.app" / "Contents" / "Resources" / "bin" / "anyhop"
+    monkeypatch.setenv("ANYHOP_EXECUTABLE", str(bundled))
     # a decoy CLI install, first on sudo's secure_path
     monkeypatch.setattr(
-        helperctl.shutil, "which", lambda name: "/opt/homebrew/bin/alle"
+        helperctl.shutil, "which", lambda name: "/opt/homebrew/bin/anyhop"
     )
 
     pl = plistlib.loads(helperctl._plist_bytes(4242, str(tmp_path)))
@@ -433,7 +435,7 @@ def rooted_install(monkeypatch, tmp_path):
     monkeypatch.setattr(helperctl, "_supported", lambda: True)
     monkeypatch.setattr(os, "geteuid", lambda: 0)
     monkeypatch.setenv("SUDO_UID", "501")
-    monkeypatch.setenv("ALLE_HOME", str(tmp_path))
+    monkeypatch.setenv("ANYHOP_HOME", str(tmp_path))
     monkeypatch.setattr(helperctl, "is_installed", lambda: True)
     ran: list[list[str]] = []
     monkeypatch.setattr(helperctl, "_run", lambda cmd: ran.append(cmd) or _Ok())

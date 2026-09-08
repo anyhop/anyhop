@@ -1,19 +1,19 @@
 # The setup bundle — backup, migration, and declarative config
 
-One YAML file — the **bundle** — describes an entire alle setup: providers
+One YAML file — the **bundle** — describes an entire anyhop setup: providers
 (with their credentials), channels of both archetypes, rulesets, and the
 router toggles. It serves three jobs with the same format:
 
-1. **Backup** — `alle export` now, re-apply after a reinstall.
+1. **Backup** — `anyhop export` now, re-apply after a reinstall.
 2. **Migration** — export on one machine, import on another.
 3. **Declarative config** — hand-write a bundle from scratch and apply it to a
-   fresh install as a startup config. `alle export` is just the convenient way
+   fresh install as a startup config. `anyhop export` is just the convenient way
    to produce one; nothing about the format assumes it was machine-generated.
 
 ```bash
-alle export                                             # -> alle-backup-<date>-<time>.yaml (0600)
-alle import alle-backup-20260709-143022.yaml            # merge into the current setup
-alle import alle-backup-20260709-143022.yaml --replace  # REPLACE the current setup (confirms)
+anyhop export                                             # -> anyhop-backup-<date>-<time>.yaml (0600)
+anyhop import anyhop-backup-20260709-143022.yaml            # merge into the current setup
+anyhop import anyhop-backup-20260709-143022.yaml --replace  # REPLACE the current setup (confirms)
 ```
 
 The Web UI's **Bundle** page offers the same operations (export downloads the
@@ -49,13 +49,13 @@ file; import uploads one, merge or replace).
 ## Format
 
 A single YAML document. JSON is accepted too (YAML is a superset of JSON), so
-a machine-generated JSON bundle imports unchanged; `alle export` always emits
+a machine-generated JSON bundle imports unchanged; `anyhop export` always emits
 YAML because hand-written config wants comments.
 
 ### Header
 
 ```yaml
-kind: alle-bundle     # required — identifies the file
+kind: anyhop-bundle     # required — identifies the file
 bundle_version: 1     # required — a newer version is refused with a clear error
 ```
 
@@ -94,7 +94,7 @@ providers:
 The `wg` rule follows the two provider archetypes:
 
 - **Token providers (NordVPN):** the provider's `credential` (its access
-  token) is **required** — alle needs it to resolve servers and to add
+  token) is **required** — anyhop needs it to resolve servers and to add
   channels, so a bundle with a NordVPN section but no token is rejected. Each
   channel's `wg` is *optional*: the WireGuard parameters are derived state (the
   API resolves them from the token and location), so a hand-written channel can
@@ -107,7 +107,7 @@ The `wg` rule follows the two provider archetypes:
   reads a file (compose/k8s secrets) — exactly one of the three spellings per
   field, resolved at validation time so a missing source is an ordinary
   blocker. This is what lets a hand-written bundle live in version control
-  without carrying the secret; `alle export` always writes the stored value
+  without carrying the secret; `anyhop export` always writes the stored value
   inline (an export is a backup, not a template). See
   [declarative-config.md](declarative-config.md) for authoring guidance.
 - **Config providers (Proton VPN):** `wg` is *required*. There is no API to
@@ -126,12 +126,12 @@ Declarative config is where you'd *fill them in* when you know them —
 `{country: United States, city: California, wg: {...}}` — rather than relying
 on the filename heuristic. (For **token** channels, by contrast, `country` is
 always required — it's the input the provider API resolves a server from, and
-`alle validate` checks it against the provider's real country list — see
+`anyhop validate` checks it against the provider's real country list — see
 [token channels](#token-channels-wg-is-derived-state).)
 
 Channel ids are lowercase slugs (`a-z`, `0-9`, `_`) and are the upsert
 identity: importing a bundle updates the channel with the same
-`provider`/`id` in place. When importing a `.conf`, alle derives this id by
+`provider`/`id` in place. When importing a `.conf`, anyhop derives this id by
 slugging the filename (e.g. `wg_us_ca_842`); in a declarative bundle you write
 the id directly as the channel key, so the id — not a filename — is what
 names and pins the channel. Keeping the same id as an existing `.conf`-derived
@@ -139,7 +139,7 @@ channel means a later re-import of a freshly downloaded `.conf` still updates
 it in place.
 
 **`enabled` round-trips, and unstated means keep.** The administrative
-enable/disable state (`alle channels disable` — see the CLI reference) is
+enable/disable state (`anyhop channels disable` — see the CLI reference) is
 part of the setup: exports write `enabled` **explicitly on every channel**
 (a bundle reader never needs an absent-key rule — same discipline as
 `lan_direct`), so applying a backup reproduces the split exactly. In a
@@ -154,7 +154,7 @@ provider: **no server resolution** (its `country`/`city` are checked against
 the provider's location catalog instead — skipped with a note if the catalog
 is unreachable), **no probe**, no connection slot occupied. It keeps an
 existing same-location channel's live `wg`, else the bundle's `wg` snapshot,
-else it lands wg-less and `alle channels enable` resolves a server at that
+else it lands wg-less and `anyhop channels enable` resolves a server at that
 moment. Two mirrors of the live restrict-only rule, both refused at
 validate/apply with nothing changed: a bundle ruleset cannot target a channel
 the bundle disables, and an import cannot disable a channel an existing
@@ -203,16 +203,16 @@ it occurs on. Network resolution for token channels also happens **before**
 the first mutation, so a mid-apply failure cannot leave a half-applied bundle.
 
 Run the same checks without applying anything — a pre-import dry run — with
-[`alle validate <file>`](cli-reference.md#alle-validate-file) (or the **Validate
+[`anyhop validate <file>`](cli-reference.md#anyhop-validate-file) (or the **Validate
 file** button on the Web UI Bundle page), which additionally checks each token
 channel's country/city against the provider's real location list. The full
 checklist (header, supported providers, token, unique channel ids, country/city,
 WireGuard fields, explicit router toggles, ruleset targets and matcher types)
-lives with the [`alle validate` reference](cli-reference.md#alle-validate-file).
+lives with the [`anyhop validate` reference](cli-reference.md#anyhop-validate-file).
 
 ### Merge (default)
 
-`alle import <file>` — nothing is removed; the bundle is layered onto the
+`anyhop import <file>` — nothing is removed; the bundle is layered onto the
 current setup:
 
 - Providers are added if missing; a bundle credential that differs from the
@@ -226,9 +226,9 @@ current setup:
 - **Rulesets always append at the bottom of the priority order.** Under
   first-match-wins an appended block can never hijack existing routing.
   Re-importing the same bundle therefore duplicates its rulesets — the shadow
-  lint in `alle routes ls` flags the dead copies; remove and `reorder` as
+  lint in `anyhop routes ls` flags the dead copies; remove and `reorder` as
   needed. For a bundle you intend to apply repeatedly, use
-  [`alle sync`](cli-reference.md#alle-sync-file) instead — merge semantics
+  [`anyhop sync`](cli-reference.md#anyhop-sync-file) instead — merge semantics
   plus managed provenance, so repeat applies are idempotent and removals
   prune only what sync created (it's what the Docker entrypoint runs on
   every container start).
@@ -239,7 +239,7 @@ current setup:
 
 ### Replace (`--replace`)
 
-`alle import <file> --replace` — the bundle becomes the entire setup:
+`anyhop import <file> --replace` — the bundle becomes the entire setup:
 providers, channels, credentials, rulesets, and toggles not in the bundle are
 **removed**. Destructive — the CLI prompts (or requires `--yes` off-TTY); the
 Web UI double-confirms. Two differences from a merge:
@@ -286,11 +286,11 @@ not a bundle limitation.
 ## What never travels in a bundle
 
 - **Auto-assigned ports.** Local proxy ports and the router entrypoint port
-  are local allocations, and `alle export` never serializes them. On apply, a
+  are local allocations, and `anyhop export` never serializes them. On apply, a
   channel whose `(provider, id)` already exists keeps its current local port
   (a same-machine restore preserves your app configs); new identities get
   fresh ports. **After migrating to a new machine, repoint apps at the ports
-  shown by `alle status`.** The exception is a *hand-written* `port:`
+  shown by `anyhop status`.** The exception is a *hand-written* `port:`
   declaration (see the format above): declared ports apply as written on
   every machine — that is what they are for (compose files, firewall rules) —
   and a declaration that clashes with an existing port is rejected, never
@@ -302,11 +302,11 @@ not a bundle limitation.
 
 ## Scheduled backups
 
-`alle backup on` keeps a rotation of bundle exports written automatically by
-the daemon — see [`alle backup`](cli-reference.md#alle-backup-onoffnow) for
+`anyhop backup on` keeps a rotation of bundle exports written automatically by
+the daemon — see [`anyhop backup`](cli-reference.md#anyhop-backup-onoffnow) for
 the schedule, destination-permission, and retention rules. A scheduled backup
-file is byte-for-byte an `alle export` bundle and is applied with the same
-`alle import` (or `alle sync`) path; it is equally a **secret**.
+file is byte-for-byte an `anyhop export` bundle and is applied with the same
+`anyhop import` (or `anyhop sync`) path; it is equally a **secret**.
 
 ## Caveats
 
@@ -345,7 +345,7 @@ current token afterwards if the old one is dead.
 ### Smaller notes
 
 - **Forward compatibility:** a bundle with a `bundle_version` newer than the
-  installed alle is refused with an upgrade hint rather than misparsed.
+  installed anyhop is refused with an upgrade hint rather than misparsed.
 - **Two files, one commit point:** credentials are written before state; the
   state transaction (a single transaction for the whole merge or replace) is
   the commit that triggers the reconcile. The whole apply runs as a *setup
@@ -355,4 +355,4 @@ current token afterwards if the old one is dead.
   the setup exactly as it was.
 - **The daemon picks changes up automatically** — `import` ends by ensuring
   the runtime is up, so applying a bundle onto a fresh install starts serving
-  without a separate `alle start`.
+  without a separate `anyhop start`.

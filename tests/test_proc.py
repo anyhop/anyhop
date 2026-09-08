@@ -1,5 +1,5 @@
 """PID-recycling guards: a pidfile is only believed when the process behind the
-number has the command line alle spawned — so a stale file can neither report a
+number has the command line anyhop spawned — so a stale file can neither report a
 dead daemon as running nor let stop() signal an unrelated process."""
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from alle import daemon, paths, proc, singbox
+from anyhop import daemon, paths, proc, singbox
 
 
 def test_command_of_reads_a_live_process():

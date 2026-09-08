@@ -3,8 +3,8 @@ requires = ["hatchling==1.32.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "alle-proxy"
-version = "0.1.17"
+name = "anyhop"
+version = "0.1.18"
 description = "A universal VPN client that manages multiple VPN connections with rule-based routing."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,11 +22,11 @@ classifiers = [
 dependencies = ["packaging>=23.2", "pyyaml>=6.0", "pycountry>=23.12"]
 
 [project.urls]
-Homepage = "https://github.com/zydo/alle"
-Issues = "https://github.com/zydo/alle/issues"
+Homepage = "https://github.com/anyhop/anyhop"
+Issues = "https://github.com/anyhop/anyhop/issues"
 
 [project.scripts]
-alle = "alle.cli:main"
+anyhop = "anyhop.cli:main"
 
 [tool.hatch.build]
 # Keep local-only notes (roadmaps, scratch) out of every release artifact
@@ -35,10 +35,10 @@ alle = "alle.cli:main"
 exclude = [".localonly"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/alle"]
+packages = ["src/anyhop"]
 # assets/readme/ exists only for the README and the PyPI project page — never
 # ship it in an installed wheel.
-exclude = ["src/alle/assets/readme"]
+exclude = ["src/anyhop/assets/readme"]
 
 [tool.ruff]
 line-length = 88
@@ -53,7 +53,7 @@ target-version = "py310"
 # carry per-line noqa with a reason; new code meets the rules or explains.
 select = ["E4", "E7", "E9", "F", "S"]
 # S603 flags every list-form subprocess call unconditionally — that IS the
-# safe (no-shell) form, and alle builds argv from constants/resolved paths.
+# safe (no-shell) form, and anyhop builds argv from constants/resolved paths.
 ignore = ["S603"]
 
 [tool.ruff.lint.per-file-ignores]
@@ -76,7 +76,7 @@ docs = ["mkdocs>=1.6", "mkdocs-material>=9.5"]
 [tool.mypy]
 # Permissive baseline, enforced at zero errors in CI; strictness is ratcheted
 # per-module as annotations grow (decided 2026-07-17).
-files = ["src/alle"]
+files = ["src/anyhop"]
 ignore_missing_imports = true
 check_untyped_defs = false
 disable_error_code = ["import-untyped"]
@@ -85,4 +85,4 @@ disable_error_code = ["import-untyped"]
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["src/alle"]
+source = ["src/anyhop"]

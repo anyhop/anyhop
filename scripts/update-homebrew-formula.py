@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Fill the `alle` Homebrew formula's top-level `url`/`sha256` from a published
-`alle-proxy` sdist.
+"""Fill the `anyhop` Homebrew formula's top-level `url`/`sha256` from a published
+`anyhop` sdist.
 
 Every release, the `homebrew-tap` tap's formula must point at the exact sdist
 that passed the tag publish gate and reached PyPI. This script reads the sdist's
@@ -14,7 +14,7 @@ Run it against a version only after that version exists on PyPI:
 
     scripts/update-homebrew-formula.py --version 0.1.9
 
-By default it edits packaging/homebrew/alle.rb in place; `--formula` and
+By default it edits packaging/homebrew/anyhop.rb in place; `--formula` and
 `--output` override the source and destination (use `--output -` for stdout).
 It is idempotent: re-running for the same version reproduces the same file.
 
@@ -31,9 +31,9 @@ import sys
 import urllib.request
 from pathlib import Path
 
-PACKAGE = "alle-proxy"
+PACKAGE = "anyhop"
 DEFAULT_FORMULA = (
-    Path(__file__).resolve().parents[1] / "packaging" / "homebrew" / "alle.rb"
+    Path(__file__).resolve().parents[1] / "packaging" / "homebrew" / "anyhop.rb"
 )
 
 
@@ -85,7 +85,7 @@ def rewrite_source(text: str, url: str, sha256: str) -> str:
     if url_hits != 1 or sha_hits != 1:
         raise UpdateError(
             "could not locate the formula's own url/sha256 before the first "
-            "resource block — is packaging/homebrew/alle.rb intact?"
+            "resource block — is packaging/homebrew/anyhop.rb intact?"
         )
     return head + tail
 
@@ -93,7 +93,7 @@ def rewrite_source(text: str, url: str, sha256: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
-        "--version", required=True, help="published alle-proxy version, e.g. 0.1.9"
+        "--version", required=True, help="published anyhop version, e.g. 0.1.9"
     )
     ap.add_argument(
         "--formula",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from alle import routes
+from anyhop import routes
 
 
 # ---- matcher validation --------------------------------------------------------
@@ -63,7 +63,7 @@ def test_inferred_domains_default_to_suffix_regardless_of_label_count():
 
 def test_legacy_domain_type_is_read_as_suffix():
     # The legacy exact "domain" type (old bundles, old API clients) is an
-    # alias — alle has one domain semantic, the domain and its subdomains.
+    # alias — anyhop has one domain semantic, the domain and its subdomains.
     assert routes.infer_matcher("api.openai.com", "domain") == (
         "domain_suffix",
         "api.openai.com",
@@ -211,7 +211,7 @@ _VALUE_POOL: dict[str, tuple[str, ...]] = {
     ),
     "geosite": ("netflix", "category-ads-all"),
     "geoip": ("us", "cn"),
-    # Not a matcher alle knows: it must stay undecidable, covered only by `all`
+    # Not a matcher anyhop knows: it must stay undecidable, covered only by `all`
     # and covering nothing — including another rule of the same unknown type.
     "port": ("443", "443"),
 }

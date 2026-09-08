@@ -1,11 +1,11 @@
-"""Parsing, validation, canonicalization and alle metadata headers for
+"""Parsing, validation, canonicalization and anyhop metadata headers for
 WireGuard .conf files."""
 
 from __future__ import annotations
 
 import pytest
 
-from alle import wgconf
+from anyhop import wgconf
 
 # Structurally valid WireGuard keys (32 bytes base64) with readable prefixes.
 PRIV = "aMf0PRIVATEkeyVALUE" + "A" * 24 + "="

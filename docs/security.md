@@ -1,16 +1,16 @@
 # Security model
 
-What alle defends, what it deliberately trusts, and where the residual risks
-are. alle is a local, single-user tool: the design goal is that **nothing on
+What anyhop defends, what it deliberately trusts, and where the residual risks
+are. anyhop is a local, single-user tool: the design goal is that **nothing on
 the network — and no *other local service* you happen to visit in a browser —
 can read or change your VPN setup**, while anything running as your OS user is
 inside the trust boundary.
 
 ## Trust boundary
 
-**Trusted:** processes running as your OS user. They can read `~/.alle/`
+**Trusted:** processes running as your OS user. They can read `~/.anyhop/`
 (state, credentials, the control-API secret) and can therefore do anything the
-CLI can. This is by design — alle does not try to defend against your own
+CLI can. This is by design — anyhop does not try to defend against your own
 user account, and cannot (nor against root/admin).
 
 **Untrusted:** the network (nothing listens beyond loopback), other OS users
@@ -23,29 +23,29 @@ app" as an attacker.
 **Known gap on multi-user machines:** the per-channel proxy ports and the
 router entrypoint are unauthenticated loopback listeners. Another *OS user* on
 the same machine may be able to send traffic through your channels (and your
-provider account). alle assumes a single-user machine; don't run it where
+provider account). anyhop assumes a single-user machine; don't run it where
 that assumption fails. (Tracked as backlog: per-installation proxy auth.)
 
 ## The container profile (Docker)
 
 The official Docker image shifts the trust boundary **one layer out, by
-explicit opt-in**: it sets `ALLE_LISTEN=0.0.0.0`, so the (still
+explicit opt-in**: it sets `ANYHOP_LISTEN=0.0.0.0`, so the (still
 unauthenticated) channel/router proxy ports are reachable from the
 *container's network* — the same reasoning as loopback-on-bare-metal, with
 the container network in the role of the machine. Consequences:
 
 - **Anything on the container's Docker network can use the proxies** (and
-  your provider account). Keep alle on networks whose members you trust, and
+  your provider account). Keep anyhop on networks whose members you trust, and
   treat a `-p`-published proxy port as publishing an open proxy to whatever
   can reach it — only ever publish onto trusted networks.
 - **The control API/Web UI does not widen by itself.** It stays
   `127.0.0.1`-only inside the container unless the operator additionally sets
-  `ALLE_API_LISTEN` — a second, separate opt-in that exposes the
+  `ANYHOP_API_LISTEN` — a second, separate opt-in that exposes the
   Bearer-authenticated REST API (never the browser cookie path) to the
   container network; see [Exposing the API](#exposing-the-api-to-a-network-opt-in)
   below and [api.md](api.md). Without it, manage via
-  `docker exec <name> alle …`.
-- **Nothing changes on hosts.** `ALLE_LISTEN` (and the other container knobs)
+  `docker exec <name> anyhop …`.
+- **Nothing changes on hosts.** `ANYHOP_LISTEN` (and the other container knobs)
   default off; container *detection* only ever refuses host-only footguns and
   rephrases hints — it never rebinds or reallocates.
 - **Gateway (tun) mode** follows the same tun trust analysis below, scoped to
@@ -53,7 +53,7 @@ the container network in the role of the machine. Consequences:
   is never touched, and the privilege is granted at `docker run` time
   (`--cap-add NET_ADMIN --device /dev/net/tun`) instead of sudo/setcap/helper.
 - **Secret indirection** (`token_env`/`token_file` in bundles) names its
-  source explicitly — alle still never *scans* the environment for
+  source explicitly — anyhop still never *scans* the environment for
   credentials. Environment variables are visible to `docker inspect` and any
   process in the container; secret files (compose/k8s secrets) are the
   tighter channel where that matters.
@@ -63,12 +63,12 @@ See [docker.md](docker.md) for the image design.
 ## TUN mode: the elevated trust surface
 
 Explicit-proxy mode (the default) runs entirely as your OS user and the
-boundary above is the whole story. **[TUN mode](cli-reference.md#alle-tun-onoff)
+boundary above is the whole story. **[TUN mode](cli-reference.md#anyhop-tun-onoff)
 widens it**, because creating the TUN device and rewriting the system route
 table is privileged. Two things change while TUN mode is on:
 
 - **A privileged component reads the generated config.** In the v1 model you
-  run sing-box as root (`sudo … alle tun on`), or on Linux grant the pinned
+  run sing-box as root (`sudo … anyhop tun on`), or on Linux grant the pinned
   binary `cap_net_admin` (`setcap`, see the tun docs). Either way, a component
   with more privilege than your user now reads the generated sing-box config —
   and that config carries **WireGuard private keys** (see the table below). On
@@ -80,28 +80,28 @@ table is privileged. Two things change while TUN mode is on:
   reason.
 
   On macOS the steady state is the **privileged tun helper** — a root
-  LaunchDaemon installed once by `sudo alle helper install` (see
-  `alle helper`). It removes the per-toggle sudo prompt: after install, `alle
+  LaunchDaemon installed once by `sudo anyhop helper install` (see
+  `anyhop helper`). It removes the per-toggle sudo prompt: after install, `anyhop
   tun on` from your normal user-level daemon asks the helper to run sing-box
   as root, and no password is asked again. The helper is deliberately the
   smallest root component that can hold the tun: it **only** launches, stops,
   reloads, and status-checks sing-box against the single fixed config path
-  `$ALLE_HOME/singbox.json` — it never parses `state.json`, never runs the
+  `$ANYHOP_HOME/singbox.json` — it never parses `state.json`, never runs the
   engine, never sees credentials. The WireGuard keys still reach a root
   process (sing-box itself, exactly as on the sudo path), but the helper adds
   no second consumer of them. The helper authenticates each request by the
   peer's kernel-verified uid (macOS `LOCAL_PEERCRED`), accepting only the one
-  installing user (and root); it also serves exactly **one `ALLE_HOME`** — the
+  installing user (and root); it also serves exactly **one `ANYHOP_HOME`** — the
   one recorded at install — and refuses state commands from any other home the
-  same way it refuses a foreign uid, so a second alle home on the machine can
+  same way it refuses a foreign uid, so a second anyhop home on the machine can
   neither adopt nor stop the served install's sing-box (rebind with
-  `sudo alle helper install` from the other home). The protocol carries no
+  `sudo anyhop helper install` from the other home). The protocol carries no
   file paths the helper acts on, so it cannot be talked into `exec`-ing an
   arbitrary binary as root. Install it only on a machine you trust the
   installing user on: anyone who can drive the helper can ask root to run the
   pinned sing-box (nothing more, but that is a real root-backed action).
 - **The tun captures every local user's traffic, not just yours.** A system
-  route table is machine-wide: once alle owns the default route, traffic from
+  route table is machine-wide: once anyhop owns the default route, traffic from
   **other OS users** on the machine is pulled through your channels and your
   provider account too. This is the multi-user gap above, made materially
   worse — it is no longer "another user *may* reach your proxy port," it is
@@ -128,16 +128,16 @@ of the v1 model. See the tun runbook for the recovery path.
 
 | Secret                        | Where                                           | Protection                                                                                                                                                                                                                     |
 | ----------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Provider tokens               | `~/.alle/credentials.yaml`                      | `0600`, never echoed back                                                                                                                                                                                                      |
-| WireGuard private keys        | `~/.alle/state.json`, generated sing-box config | `0600` / `0400`; in [TUN mode](#tun-mode-the-elevated-trust-surface) the generated config is additionally read by a root sing-box (sudo path) or a `cap_net_admin` binary (Linux setcap path)                                  |
-| Web UI secret                 | `~/.alle/control_api.json`                      | `0600`                                                                                                                                                                                                                         |
-| sing-box stats secret         | `~/.alle/clash_api.json`                        | `0600`                                                                                                                                                                                                                         |
-| Setup bundles (`alle export`) | wherever you save them                          | `0600` on export; **the file is a secret**                                                                                                                                                                                     |
-| Setup rollback journal        | `~/.alle/setup-journal.json`                    | `0600`, transient — holds the pre-change credentials while a compound setup change (token update, bundle apply, provider removal) is in flight, and is used to roll them back if the change fails or crashes before committing |
+| Provider tokens               | `~/.anyhop/credentials.yaml`                      | `0600`, never echoed back                                                                                                                                                                                                      |
+| WireGuard private keys        | `~/.anyhop/state.json`, generated sing-box config | `0600` / `0400`; in [TUN mode](#tun-mode-the-elevated-trust-surface) the generated config is additionally read by a root sing-box (sudo path) or a `cap_net_admin` binary (Linux setcap path)                                  |
+| Web UI secret                 | `~/.anyhop/control_api.json`                      | `0600`                                                                                                                                                                                                                         |
+| sing-box stats secret         | `~/.anyhop/clash_api.json`                        | `0600`                                                                                                                                                                                                                         |
+| Setup bundles (`anyhop export`) | wherever you save them                          | `0600` on export; **the file is a secret**                                                                                                                                                                                     |
+| Setup rollback journal        | `~/.anyhop/setup-journal.json`                    | `0600`, transient — holds the pre-change credentials while a compound setup change (token update, bundle apply, provider removal) is in flight, and is used to roll them back if the change fails or crashes before committing |
 
 ## The control API and Web UI
 
-One server (`alle.api`) serves the Bearer-authenticated REST API
+One server (`anyhop.api`) serves the Bearer-authenticated REST API
 (`/api/v1`, see [api.md](api.md)) and the browser Web UI. By default it
 binds `127.0.0.1` only. Defenses, layer by layer:
 
@@ -145,16 +145,16 @@ binds `127.0.0.1` only. Defenses, layer by layer:
   canonical name below); a DNS-rebound `evil.com` pointing at 127.0.0.1 is
   refused.
 - **Per-installation hostname** — browsers use
-  `http://alle-<random>.localhost:<port>`, not `http://127.0.0.1:<port>`.
+  `http://anyhop-<random>.localhost:<port>`, not `http://127.0.0.1:<port>`.
   Cookies are scoped to *hosts, not ports*, so a cookie set for `127.0.0.1`
   would be sent to **every** other local web app you ever open on any
   127.0.0.1 port — any of them could capture and replay it. The random
   `*.localhost` name (browsers resolve it to loopback themselves, RFC 6761)
   is a host no other service can occupy, so the session cookie never leaves
-  alle. Literal-host page loads are redirected to the canonical name, and a
-  session cookie is only ever minted there. Two `ALLE_HOME`s get two names,
+  anyhop. Literal-host page loads are redirected to the canonical name, and a
+  session cookie is only ever minted there. Two `ANYHOP_HOME`s get two names,
   so their sessions can't collide either.
-- **Sign-in** — `alle ui` mints a single-use, 2-minute HMAC login token; the
+- **Sign-in** — `anyhop ui` mints a single-use, 2-minute HMAC login token; the
   server exchanges it for a session cookie and refuses replays, so a copy in
   shell or browser history is inert. Manual sign-in pastes the secret from
   `control_api.json`. The persistent secret itself travels only as an
@@ -170,7 +170,7 @@ binds `127.0.0.1` only. Defenses, layer by layer:
   `Origin` header. Bearer-authenticated requests are exempt: no browser
   attaches an `Authorization` header cross-origin, so scripts and `curl` can
   mutate without faking a browser origin.
-- **Readiness proof** — before opening a sign-in link, `alle ui` challenges
+- **Readiness proof** — before opening a sign-in link, `anyhop ui` challenges
   the port with a nonce and requires an HMAC answer, so a foreign process
   squatting the port never receives a tokenized URL.
 - **Request hygiene** — strict framing (`Content-Length` validation, 1 MiB
@@ -180,15 +180,15 @@ binds `127.0.0.1` only. Defenses, layer by layer:
 
 **Remote browser access:** never expose or reverse-proxy the port for
 *browser* use. Tunnel the same port over SSH
-(`ssh -L <port>:127.0.0.1:<port> user@host`) and open the `alle ui` link
+(`ssh -L <port>:127.0.0.1:<port> user@host`) and open the `anyhop ui` link
 locally — the `*.localhost` name resolves to your end of the tunnel.
 Programmatic access from other machines has a sanctioned path instead:
 
 ### Exposing the API to a network (opt-in)
 
-`ALLE_API_LISTEN=<host>[:<port>]` (e.g. `0.0.0.0:8080`) binds the server
+`ANYHOP_API_LISTEN=<host>[:<port>]` (e.g. `0.0.0.0:8080`) binds the server
 beyond loopback — built for compose stacks where sibling containers manage
-alle over REST. The posture changes it makes, and only these:
+anyhop over REST. The posture changes it makes, and only these:
 
 - **Bearer requests and `/health` accept a non-loopback `Host`.** A browser
   cannot be tricked into attaching an `Authorization` header cross-origin,
@@ -200,17 +200,17 @@ alle over REST. The posture changes it makes, and only these:
   not: the API can export `credentials.yaml` (WireGuard private keys,
   provider tokens) and disable the kill switch, so an open port is account
   theft plus silent traffic leaks. Provision the secret to siblings with
-  `ALLE_API_SECRET` (or `ALLE_API_SECRET_FILE` for compose/k8s secrets);
+  `ANYHOP_API_SECRET` (or `ANYHOP_API_SECRET_FILE` for compose/k8s secrets);
   a conflicting or weak injection makes the server refuse to start rather
-  than guess. Never share alle's state volume as the provisioning channel —
+  than guess. Never share anyhop's state volume as the provisioning channel —
   it holds `credentials.yaml`.
 - **The trust boundary is the network you bind onto.** Bearer over plain
   HTTP inside a private compose network is the same trust model as a
   database password there. Publishing the API port (`-p`) publishes control
   of your VPN egress and credentials to whatever can reach it; crossing
-  hosts or untrusted networks needs a TLS-terminating reverse proxy — alle
+  hosts or untrusted networks needs a TLS-terminating reverse proxy — anyhop
   does not do TLS.
-- **A config typo narrows, never widens.** An invalid `ALLE_API_LISTEN`
+- **A config typo narrows, never widens.** An invalid `ANYHOP_API_LISTEN`
   logs and keeps the loopback contract; the default (unset) is exactly the
   loopback-only behavior above, on hosts and in the image alike.
 
@@ -229,9 +229,9 @@ alle over REST. The posture changes it makes, and only these:
 
 The bundled sing-box is a pinned upstream release, checksum-verified on every
 use — a binary that doesn't match the pinned SHA-256 is re-downloaded, never
-executed. A pre-provisioned binary (`ALLE_SINGBOX=<path>`, e.g. an air-gapped
+executed. A pre-provisioned binary (`ANYHOP_SINGBOX=<path>`, e.g. an air-gapped
 host or a baked image) is held to the same pin: verified on every start, and
-a mismatch is a hard error — alle never downloads over or beside a path the
+a mismatch is a hard error — anyhop never downloads over or beside a path the
 operator chose. The Docker image deliberately ships **no** sing-box; the
 container fetches and verifies the pinned build into its state volume on
 first start, exactly like a host install.

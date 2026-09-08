@@ -1,10 +1,10 @@
-"""CLI surface for the Web UI: `alle ui` and the URL shown in `alle status`."""
+"""CLI surface for the Web UI: `anyhop ui` and the URL shown in `anyhop status`."""
 
 from __future__ import annotations
 
 from types import SimpleNamespace
 
-from alle import cli, output, service
+from anyhop import cli, output, service
 
 
 def test_ui_command_prints_login_url_when_not_opening(capsys, monkeypatch):
@@ -50,4 +50,4 @@ def test_status_output_shows_web_ui_url():
     assert "Web UI    http://127.0.0.1:8123" in text
     assert "REST API  http://127.0.0.1:8123/api/v1" in text
     assert "shares the Web UI listener; Bearer auth required" in text
-    assert "alle ui" in text
+    assert "anyhop ui" in text

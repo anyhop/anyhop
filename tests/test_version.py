@@ -23,6 +23,6 @@ def test_version_falls_back_when_package_metadata_is_missing(monkeypatch):
     monkeypatch.setattr(metadata, "version", missing, raising=False)
     monkeypatch.setitem(sys.modules, "importlib.metadata", metadata)
 
-    module = runpy.run_path("src/alle/__init__.py")
+    module = runpy.run_path("src/anyhop/__init__.py")
 
     assert module["__version__"] == "0.0.0+unknown"

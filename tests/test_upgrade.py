@@ -1,4 +1,4 @@
-"""``alle upgrade`` channel checks, delegated mutation, and restart ownership.
+"""``anyhop upgrade`` channel checks, delegated mutation, and restart ownership.
 
 Every package-manager and network boundary is faked. The tests cover stable and
 prerelease transitions, post-install verification, refusal channels, and the
@@ -17,7 +17,7 @@ from io import BytesIO
 
 import pytest
 
-from alle import service, upgrade
+from anyhop import service, upgrade
 
 _REAL_UPGRADE_LOCK_DIRECTORY = upgrade._upgrade_lock_directory
 
@@ -35,13 +35,13 @@ def isolated_upgrade_lock(monkeypatch, tmp_path):
 
 
 def _no_container(monkeypatch):
-    from alle import runtime
+    from anyhop import runtime
 
     monkeypatch.setattr(runtime, "in_container", lambda: False)
 
 
 def test_detects_container_first(monkeypatch):
-    from alle import runtime
+    from anyhop import runtime
 
     monkeypatch.setattr(runtime, "in_container", lambda: True)
     assert upgrade.detect_channel() == "container"
@@ -64,27 +64,25 @@ def test_malformed_direct_url_metadata_is_not_treated_as_editable(monkeypatch, p
 def test_detects_uv_tool_by_prefix(monkeypatch):
     _no_container(monkeypatch)
     monkeypatch.setattr(upgrade, "_editable_install", lambda: False)
-    monkeypatch.setattr(
-        upgrade.sys, "prefix", "/Users/x/.local/share/uv/tools/alle-proxy"
-    )
+    monkeypatch.setattr(upgrade.sys, "prefix", "/Users/x/.local/share/uv/tools/anyhop")
     assert upgrade.detect_channel() == "uv-tool"
 
 
 def test_detects_pipx_by_prefix(monkeypatch):
     _no_container(monkeypatch)
     monkeypatch.setattr(upgrade, "_editable_install", lambda: False)
-    monkeypatch.setattr(upgrade.sys, "prefix", "/Users/x/.local/pipx/venvs/alle-proxy")
+    monkeypatch.setattr(upgrade.sys, "prefix", "/Users/x/.local/pipx/venvs/anyhop")
     assert upgrade.detect_channel() == "pipx"
 
 
 def test_detects_uv_tool_from_receipt_under_a_custom_root(monkeypatch, tmp_path):
     _no_container(monkeypatch)
     monkeypatch.setattr(upgrade, "_editable_install", lambda: False)
-    prefix = tmp_path / "company-managed" / "alle-environment"
+    prefix = tmp_path / "company-managed" / "anyhop-environment"
     prefix.mkdir(parents=True)
     (prefix / "uv-receipt.toml").write_text(
-        '[tool]\nrequirements = [{ name = "alle_proxy" }]\n'
-        'entrypoints = [{ name = "alle", from = "alle-proxy" }]\n'
+        '[tool]\nrequirements = [{ name = "anyhop" }]\n'
+        'entrypoints = [{ name = "anyhop", from = "anyhop" }]\n'
     )
     monkeypatch.setattr(upgrade.sys, "prefix", str(prefix))
 
@@ -94,10 +92,10 @@ def test_detects_uv_tool_from_receipt_under_a_custom_root(monkeypatch, tmp_path)
 def test_detects_pipx_from_metadata_under_a_custom_root(monkeypatch, tmp_path):
     _no_container(monkeypatch)
     monkeypatch.setattr(upgrade, "_editable_install", lambda: False)
-    prefix = tmp_path / "managed-apps" / "venvs" / "alle-proxy"
+    prefix = tmp_path / "managed-apps" / "venvs" / "anyhop"
     prefix.mkdir(parents=True)
     (prefix / "pipx_metadata.json").write_text(
-        json.dumps({"main_package": {"package": "Alle.Proxy"}})
+        json.dumps({"main_package": {"package": "AnyHop"}})
     )
     monkeypatch.setattr(upgrade.sys, "prefix", str(prefix))
 
@@ -130,8 +128,8 @@ def test_malformed_custom_root_receipts_refuse_instead_of_falling_through_to_pip
 @pytest.mark.parametrize(
     ("prefix", "expected"),
     [
-        ("/srv/UV/TOOLS/alle-proxy", "uv-tool"),
-        ("/srv/PIPX/VENVS/alle-proxy", "pipx"),
+        ("/srv/UV/TOOLS/anyhop", "uv-tool"),
+        ("/srv/PIPX/VENVS/anyhop", "pipx"),
     ],
 )
 def test_manager_path_heuristics_remain_as_receipt_fallback(
@@ -145,14 +143,14 @@ def test_manager_path_heuristics_remain_as_receipt_fallback(
 
 
 def test_detects_homebrew_cellar_keg(monkeypatch):
-    # macOS arm Cellar, Intel Cellar, and Linuxbrew all contain /Cellar/alle/.
+    # macOS arm Cellar, Intel Cellar, and Linuxbrew all contain /Cellar/anyhop/.
     _no_container(monkeypatch)
     monkeypatch.setattr(upgrade, "_editable_install", lambda: False)
     for prefix in (
-        "/opt/homebrew/Cellar/alle/0.1.8/libexec",
-        "/usr/local/Cellar/alle/0.1.8/libexec",
-        "/home/linuxbrew/.linuxbrew/Cellar/alle/0.1.8/libexec",
-        "/opt/homebrew/opt/alle/libexec",
+        "/opt/homebrew/Cellar/anyhop/0.1.8/libexec",
+        "/usr/local/Cellar/anyhop/0.1.8/libexec",
+        "/home/linuxbrew/.linuxbrew/Cellar/anyhop/0.1.8/libexec",
+        "/opt/homebrew/opt/anyhop/libexec",
     ):
         monkeypatch.setattr(upgrade.sys, "prefix", prefix)
         assert upgrade.detect_channel() == "homebrew", prefix
@@ -162,9 +160,7 @@ def test_homebrew_does_not_shadow_uv_or_pipx(monkeypatch):
     # A uv/pipx install must not be misread as brew just because brew exists.
     _no_container(monkeypatch)
     monkeypatch.setattr(upgrade, "_editable_install", lambda: False)
-    monkeypatch.setattr(
-        upgrade.sys, "prefix", "/Users/x/.local/share/uv/tools/alle-proxy"
-    )
+    monkeypatch.setattr(upgrade.sys, "prefix", "/Users/x/.local/share/uv/tools/anyhop")
     assert upgrade.detect_channel() == "uv-tool"
 
 
@@ -246,15 +242,15 @@ def test_upgrade_lock_inode_is_fixed_across_different_alle_homes(monkeypatch, tm
     account.chmod(0o770)  # legitimate shared-group home remains a usable inode
     monkeypatch.setattr(upgrade, "_account_home", lambda: account)
     # Restore the production target function hidden by this module's isolation
-    # fixture, then prove ALLE_HOME does not select a second package lock.
+    # fixture, then prove ANYHOP_HOME does not select a second package lock.
     monkeypatch.setattr(
         upgrade, "_upgrade_lock_directory", _REAL_UPGRADE_LOCK_DIRECTORY
     )
-    monkeypatch.setenv("ALLE_HOME", str(tmp_path / "state-a"))
+    monkeypatch.setenv("ANYHOP_HOME", str(tmp_path / "state-a"))
     monkeypatch.setenv("HOME", str(tmp_path / "shell-home-a"))
     first = upgrade._upgrade_lock_directory()
     with upgrade._upgrade_lock():
-        monkeypatch.setenv("ALLE_HOME", str(tmp_path / "state-b"))
+        monkeypatch.setenv("ANYHOP_HOME", str(tmp_path / "state-b"))
         monkeypatch.setenv("HOME", str(tmp_path / "shell-home-b"))
         assert upgrade._upgrade_lock_directory() == first
         with pytest.raises(upgrade.UpgradeBusyError, match="already running"):
@@ -307,7 +303,7 @@ def test_run_rereads_version_under_lock_before_an_exact_rc_gate(monkeypatch):
 def test_upgrade_drops_the_status_version_cache(monkeypatch):
     """Status must report the new version on the next poll, not wait out the
     cache window it warmed a moment before the upgrade ran."""
-    from alle import daemon
+    from anyhop import daemon
 
     installed = ["0.1.8"]
     monkeypatch.setattr(upgrade, "detect_channel", lambda: "uv-tool")
@@ -331,7 +327,7 @@ def test_upgrade_drops_the_status_version_cache(monkeypatch):
 
 def test_a_failed_upgrade_also_drops_the_status_version_cache(monkeypatch):
     """A manager can replace the package and still exit non-zero."""
-    from alle import daemon
+    from anyhop import daemon
 
     installed = ["0.1.8"]
     monkeypatch.setattr(upgrade, "detect_channel", lambda: "uv-tool")
@@ -388,7 +384,7 @@ def test_run_delegates_to_uv_and_reports_versions(monkeypatch):
             "--no-sources",
             "--prerelease",
             "disallow",
-            "alle-proxy",
+            "anyhop",
         ]
     ]
     assert res["channel"] == "uv-tool"
@@ -426,7 +422,7 @@ def test_run_requires_the_owning_tool_on_path(monkeypatch):
 
 
 def test_run_delegates_to_brew_upgrade(monkeypatch):
-    # The keg is named for the formula (`alle`), not the PyPI package.
+    # The keg is named for the formula (`anyhop`), not the PyPI package.
     monkeypatch.setattr(upgrade, "detect_channel", lambda: "homebrew")
     monkeypatch.setattr(
         upgrade.shutil, "which", lambda name: f"/opt/homebrew/bin/{name}"
@@ -445,7 +441,7 @@ def test_run_delegates_to_brew_upgrade(monkeypatch):
 
     monkeypatch.setattr(upgrade.subprocess, "run", fake_run)
     res = upgrade.run()
-    assert calls == [["/opt/homebrew/bin/brew", "upgrade", "alle"]]
+    assert calls == [["/opt/homebrew/bin/brew", "upgrade", "anyhop"]]
     assert res["channel"] == "homebrew"
     assert res["changed"] is True
 
@@ -453,9 +449,9 @@ def test_run_delegates_to_brew_upgrade(monkeypatch):
 def test_homebrew_manager_must_own_the_running_formula_environment(
     monkeypatch, tmp_path
 ):
-    running = tmp_path / "cellar-a" / "alle" / "0.1.8" / "libexec"
+    running = tmp_path / "cellar-a" / "anyhop" / "0.1.8" / "libexec"
     running.mkdir(parents=True)
-    other = tmp_path / "cellar-b" / "alle" / "0.1.8"
+    other = tmp_path / "cellar-b" / "anyhop" / "0.1.8"
     (other / "libexec").mkdir(parents=True)
     monkeypatch.setattr(upgrade.sys, "prefix", str(running))
     monkeypatch.setattr(upgrade, "_homebrew_prefix", lambda brew: other)
@@ -467,9 +463,9 @@ def test_homebrew_manager_must_own_the_running_formula_environment(
 def test_homebrew_manager_accepts_its_opt_symlink_to_the_running_keg(
     monkeypatch, tmp_path
 ):
-    keg = tmp_path / "Cellar" / "alle" / "0.1.8"
+    keg = tmp_path / "Cellar" / "anyhop" / "0.1.8"
     (keg / "libexec").mkdir(parents=True)
-    opt = tmp_path / "opt" / "alle"
+    opt = tmp_path / "opt" / "anyhop"
     opt.parent.mkdir(parents=True)
     opt.symlink_to(keg, target_is_directory=True)
     monkeypatch.setattr(upgrade.sys, "prefix", str(keg / "libexec"))
@@ -483,11 +479,11 @@ def test_homebrew_post_version_comes_from_the_new_keg_shim(monkeypatch):
 
     def fake_run(cmd, **kwargs):
         calls.append(cmd)
-        if cmd[1:] == ["--prefix", "alle"]:
+        if cmd[1:] == ["--prefix", "anyhop"]:
             return subprocess.CompletedProcess(
-                cmd, 0, stdout="/opt/homebrew/opt/alle\n", stderr=""
+                cmd, 0, stdout="/opt/homebrew/opt/anyhop\n", stderr=""
             )
-        if cmd == ["/opt/homebrew/opt/alle/bin/alle", "version"]:
+        if cmd == ["/opt/homebrew/opt/anyhop/bin/anyhop", "version"]:
             return subprocess.CompletedProcess(cmd, 0, stdout="0.1.9\n", stderr="")
         raise AssertionError(cmd)
 
@@ -495,8 +491,8 @@ def test_homebrew_post_version_comes_from_the_new_keg_shim(monkeypatch):
 
     assert upgrade._homebrew_installed_version("/opt/homebrew/bin/brew") == "0.1.9"
     assert calls == [
-        ["/opt/homebrew/bin/brew", "--prefix", "alle"],
-        ["/opt/homebrew/opt/alle/bin/alle", "version"],
+        ["/opt/homebrew/bin/brew", "--prefix", "anyhop"],
+        ["/opt/homebrew/opt/anyhop/bin/anyhop", "version"],
     ]
 
 
@@ -536,7 +532,7 @@ def test_pip_channel_upgrades_via_the_running_interpreter(monkeypatch):
             "--upgrade",
             "--index-url",
             upgrade.PYPI_SIMPLE_URL,
-            "alle-proxy",
+            "anyhop",
         ]
     ]
 
@@ -595,7 +591,7 @@ def test_prerelease_upgrade_uses_exact_uv_requirement(monkeypatch):
             upgrade.PYPI_SIMPLE_URL,
             "--no-config",
             "--no-sources",
-            "alle-proxy==0.1.9rc2",
+            "anyhop==0.1.9rc2",
         ]
     ]
     assert result["changed"] is True
@@ -609,7 +605,7 @@ def test_prerelease_pipx_uses_forced_versioned_install(monkeypatch):
         "--force",
         "--index-url",
         upgrade.PYPI_SIMPLE_URL,
-        "alle-proxy==0.1.9rc1",
+        "anyhop==0.1.9rc1",
     ]
 
 
@@ -622,27 +618,27 @@ def test_stable_pipx_force_install_replaces_any_recorded_source(monkeypatch):
         "--force",
         "--index-url",
         upgrade.PYPI_SIMPLE_URL,
-        "alle-proxy",
+        "anyhop",
     ]
 
 
 def test_python_manager_environment_preserves_owner_but_removes_source_overrides(
     monkeypatch, tmp_path
 ):
-    prefix = tmp_path / "custom-uv-tools" / "alle-proxy"
+    prefix = tmp_path / "custom-uv-tools" / "anyhop"
     prefix.mkdir(parents=True)
     bin_dir = tmp_path / "custom-bin"
     bin_dir.mkdir()
-    shim = bin_dir / "alle"
+    shim = bin_dir / "anyhop"
     shim.write_text("#!/bin/sh\n")
     (prefix / "uv-receipt.toml").write_text(
-        f'[tool]\nrequirements = [{{ name = "alle-proxy" }}]\n'
-        f'entrypoints = [{{ name = "alle", install-path = "{shim}", '
-        'from = "alle-proxy" }]\n'
+        f'[tool]\nrequirements = [{{ name = "anyhop" }}]\n'
+        f'entrypoints = [{{ name = "anyhop", install-path = "{shim}", '
+        'from = "anyhop" }]\n'
     )
     monkeypatch.setattr(upgrade.sys, "prefix", str(prefix))
     monkeypatch.setattr(
-        upgrade.shutil, "which", lambda name: str(shim) if name == "alle" else None
+        upgrade.shutil, "which", lambda name: str(shim) if name == "anyhop" else None
     )
     monkeypatch.setenv("UV_TOOL_DIR", "/stale/uv-tools")
     monkeypatch.setenv("PIPX_HOME", "/custom/pipx")
@@ -652,7 +648,7 @@ def test_python_manager_environment_preserves_owner_but_removes_source_overrides
     monkeypatch.setenv("UV_FIND_LINKS", "/tmp/untrusted-wheels")
     monkeypatch.setenv("UV_CONFIG_FILE", "/tmp/alternate-uv.toml")
     monkeypatch.setenv("UV_EXCLUDE_NEWER", "2024-01-01")
-    monkeypatch.setenv("UV_EXCLUDE_NEWER_PACKAGE", "alle-proxy=2024-01-01")
+    monkeypatch.setenv("UV_EXCLUDE_NEWER_PACKAGE", "anyhop=2024-01-01")
     monkeypatch.setenv("UV_OFFLINE", "1")
     monkeypatch.setenv("UV_RESOLUTION", "lowest-direct")
 
@@ -677,21 +673,21 @@ def test_python_manager_environment_preserves_owner_but_removes_source_overrides
 def test_pipx_manager_environment_targets_the_receipt_custom_home(
     monkeypatch, tmp_path
 ):
-    prefix = tmp_path / "custom-pipx" / "venvs" / "alle-proxy"
-    internal = prefix / "bin" / "alle"
+    prefix = tmp_path / "custom-pipx" / "venvs" / "anyhop"
+    internal = prefix / "bin" / "anyhop"
     internal.parent.mkdir(parents=True)
     internal.write_text("#!/bin/sh\n")
     (prefix / "pipx_metadata.json").write_text(
-        json.dumps({"main_package": {"package": "alle-proxy"}})
+        json.dumps({"main_package": {"package": "anyhop"}})
     )
     bin_dir = tmp_path / "custom-bin"
     bin_dir.mkdir()
-    shim = bin_dir / "alle"
+    shim = bin_dir / "anyhop"
     shim.symlink_to(internal)
     monkeypatch.setattr(upgrade.sys, "prefix", str(prefix))
     monkeypatch.setenv("PIPX_HOME", "/stale/default")
     monkeypatch.setattr(
-        upgrade.shutil, "which", lambda name: str(shim) if name == "alle" else None
+        upgrade.shutil, "which", lambda name: str(shim) if name == "anyhop" else None
     )
 
     env = upgrade._python_manager_env("pipx")
@@ -703,18 +699,18 @@ def test_pipx_manager_environment_targets_the_receipt_custom_home(
 def test_uv_path_fallback_derives_bin_dir_from_the_validated_shim(
     monkeypatch, tmp_path
 ):
-    prefix = tmp_path / "share" / "uv" / "tools" / "alle-proxy"
-    internal = prefix / "bin" / "alle"
+    prefix = tmp_path / "share" / "uv" / "tools" / "anyhop"
+    internal = prefix / "bin" / "anyhop"
     internal.parent.mkdir(parents=True)
     internal.write_text("#!/bin/sh\n")
     bin_dir = tmp_path / "custom-bin"
     bin_dir.mkdir()
-    shim = bin_dir / "alle"
+    shim = bin_dir / "anyhop"
     shim.symlink_to(internal)
     monkeypatch.setattr(upgrade.sys, "prefix", str(prefix))
     monkeypatch.setenv("UV_TOOL_BIN_DIR", "/stale/bin")
     monkeypatch.setattr(
-        upgrade.shutil, "which", lambda name: str(shim) if name == "alle" else None
+        upgrade.shutil, "which", lambda name: str(shim) if name == "anyhop" else None
     )
 
     env = upgrade._python_manager_env("uv-tool")
@@ -724,14 +720,14 @@ def test_uv_path_fallback_derives_bin_dir_from_the_validated_shim(
 
 
 def test_manager_environment_rejects_a_different_alle_shim(monkeypatch, tmp_path):
-    prefix = tmp_path / "custom-pipx" / "venvs" / "alle-proxy"
-    internal = prefix / "bin" / "alle"
+    prefix = tmp_path / "custom-pipx" / "venvs" / "anyhop"
+    internal = prefix / "bin" / "anyhop"
     internal.parent.mkdir(parents=True)
     internal.write_text("#!/bin/sh\n")
     (prefix / "pipx_metadata.json").write_text(
-        json.dumps({"main_package": {"package": "alle-proxy"}})
+        json.dumps({"main_package": {"package": "anyhop"}})
     )
-    wrong = tmp_path / "other-bin" / "alle"
+    wrong = tmp_path / "other-bin" / "anyhop"
     wrong.parent.mkdir()
     wrong.write_text("#!/bin/sh\n")
     monkeypatch.setattr(upgrade.sys, "prefix", str(prefix))
@@ -768,7 +764,7 @@ def test_stable_pipx_force_install_replaces_an_exact_rc_receipt(monkeypatch):
             "--force",
             "--index-url",
             upgrade.PYPI_SIMPLE_URL,
-            "alle-proxy",
+            "anyhop",
         ]
     ]
     assert result["after"] == "0.1.9"
@@ -833,9 +829,9 @@ def test_stable_upgrade_rejects_a_higher_prerelease_or_dev_result(
 
 def test_homebrew_refuses_prerelease_channel(monkeypatch):
     monkeypatch.setattr(upgrade, "detect_channel", lambda: "homebrew")
-    with pytest.raises(upgrade.UpgradeError, match="stable alle releases only"):
+    with pytest.raises(upgrade.UpgradeError, match="stable anyhop releases only"):
         upgrade.run(prerelease=True)
-    with pytest.raises(upgrade.UpgradeError, match="stable alle releases only"):
+    with pytest.raises(upgrade.UpgradeError, match="stable anyhop releases only"):
         upgrade.check_latest(prerelease=True)
 
 
@@ -900,7 +896,7 @@ def test_homebrew_check_uses_tap_instead_of_pypi(monkeypatch):
 
 
 def test_homebrew_formula_version_is_parsed_from_sdist_url(monkeypatch):
-    formula = b'''url "https://files.pythonhosted.org/x/alle_proxy-0.1.10.tar.gz"'''
+    formula = b'''url "https://files.pythonhosted.org/x/anyhop-0.1.10.tar.gz"'''
     monkeypatch.setattr(
         urllib.request, "urlopen", lambda request, timeout: BytesIO(formula)
     )
@@ -911,9 +907,9 @@ def test_homebrew_formula_without_version_is_rejected(monkeypatch):
     monkeypatch.setattr(
         urllib.request,
         "urlopen",
-        lambda request, timeout: BytesIO(b"class Alle < Formula\nend\n"),
+        lambda request, timeout: BytesIO(b"class Anyhop < Formula\nend\n"),
     )
-    with pytest.raises(upgrade.UpgradeError, match="carried no alle version"):
+    with pytest.raises(upgrade.UpgradeError, match="carried no anyhop version"):
         upgrade._fetch_homebrew_version(3.0)
 
 
@@ -1066,13 +1062,13 @@ def test_service_requires_explicit_restart_for_unsupervised_brew_daemon(monkeypa
     result = service.upgrade_run()
 
     assert result["restart_required"] is True
-    assert result["restart_command"] == "brew services restart alle"
+    assert result["restart_command"] == "brew services restart anyhop"
     assert "restart" not in result
 
 
 def test_service_upgrade_maps_refusals_to_service_errors(monkeypatch):
     def refuse(**kwargs):
-        raise upgrade.UpgradeError("this alle runs in a container image")
+        raise upgrade.UpgradeError("this anyhop runs in a container image")
 
     monkeypatch.setattr(upgrade, "run", refuse)
     with pytest.raises(service.ServiceError, match="container image"):
@@ -1081,7 +1077,7 @@ def test_service_upgrade_maps_refusals_to_service_errors(monkeypatch):
 
 def test_service_upgrade_preserves_typed_busy_error(monkeypatch):
     def busy(**kwargs):
-        raise upgrade.UpgradeBusyError("another alle upgrade is already running")
+        raise upgrade.UpgradeBusyError("another anyhop upgrade is already running")
 
     monkeypatch.setattr(upgrade, "run", busy)
     with pytest.raises(service.ServiceBusyError, match="already running"):

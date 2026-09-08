@@ -1,39 +1,39 @@
-# alle with Docker Compose — a walkthrough
+# anyhop with Docker Compose — a walkthrough
 
-Step-by-step recipes for running alle as a compose service. This is the
+Step-by-step recipes for running anyhop as a compose service. This is the
 how-to companion to **[docker.md](docker.md)** (the image design and trust
 model) — read that page's security notes before publishing any port.
 
-Both recipes share the same shape: one `alle` service holding the VPN
+Both recipes share the same shape: one `anyhop` service holding the VPN
 channels, configured **declaratively** by a bundle file that is applied on
-every container start, with other services either *pointing at* alle's proxy
+every container start, with other services either *pointing at* anyhop's proxy
 ports (proxy hub) or *joining* its network namespace (gateway).
 
 ## Contents
 
-- [alle with Docker Compose — a walkthrough](#alle-with-docker-compose--a-walkthrough)
+- [anyhop with Docker Compose — a walkthrough](#anyhop-with-docker-compose--a-walkthrough)
   - [Contents](#contents)
   - [Prerequisites](#prerequisites)
   - [Step 1 — author the bundle](#step-1--author-the-bundle)
-  - [Step 2 — proxy hub: point services at alle](#step-2--proxy-hub-point-services-at-alle)
+  - [Step 2 — proxy hub: point services at anyhop](#step-2--proxy-hub-point-services-at-anyhop)
   - [Step 3 — verify](#step-3--verify)
-  - [Variant — VPN gateway: route a whole container through alle](#variant--vpn-gateway-route-a-whole-container-through-alle)
+  - [Variant — VPN gateway: route a whole container through anyhop](#variant--vpn-gateway-route-a-whole-container-through-anyhop)
   - [Using compose secrets instead of environment variables](#using-compose-secrets-instead-of-environment-variables)
-  - [Variant — manage alle from a sibling container (REST API)](#variant--manage-alle-from-a-sibling-container-rest-api)
+  - [Variant — manage anyhop from a sibling container (REST API)](#variant--manage-anyhop-from-a-sibling-container-rest-api)
   - [Day-2 operations](#day-2-operations)
   - [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
-Install Docker Engine with Docker Compose, then pull the official image from
-Docker Hub (Compose will also pull it automatically on first use):
+Install Docker Engine with Docker Compose, then pull the official image from the
+GitHub Container Registry (Compose will also pull it automatically on first use):
 
 ```bash
-docker pull ziyudo/alle:latest
+docker pull ghcr.io/anyhop/anyhop:latest
 ```
 
 The examples use `latest`. A release tag is a convenient version selector but
-is still mutable; use `ziyudo/alle@sha256:…` when deployment must select the
+is still mutable; use `ghcr.io/anyhop/anyhop@sha256:…` when deployment must select the
 exact tested manifest bytes.
 
 ## Step 1 — author the bundle
@@ -44,7 +44,7 @@ them. Save as `bundle.yaml` next to your `compose.yaml`:
 
 ```yaml
 # bundle.yaml — the managed desired state, synced on every container start
-kind: alle-bundle
+kind: anyhop-bundle
 bundle_version: 1
 providers:
   nordvpn:
@@ -74,33 +74,33 @@ router:
 Notes:
 
 - **Declare `port:` on anything a compose file must reference.** Undeclared
-  ports still work but are allocated (from `ALLE_PORT_BASE=20000` in the
+  ports still work but are allocated (from `ANYHOP_PORT_BASE=20000` in the
   image), so their numbers depend on creation order — fine for
   `docker exec` use, wrong for hard-coded compose wiring.
 - **`token_env` / `token_file`** keep the secret out of the file, so
   `bundle.yaml` can live in the same repo as your compose file. Config
   providers (Proton VPN) instead embed their `wg:` block — translate the
   downloaded `.conf` per [declarative-config.md](declarative-config.md).
-- Check the file before ever starting a container: `alle validate bundle.yaml`
-  (on any machine with alle installed).
+- Check the file before ever starting a container: `anyhop validate bundle.yaml`
+  (on any machine with anyhop installed).
 
-## Step 2 — proxy hub: point services at alle
+## Step 2 — proxy hub: point services at anyhop
 
 Each service that should exit through a VPN sets an ordinary proxy variable
-(or app-level proxy setting) at alle's service name — no privileges, no
+(or app-level proxy setting) at anyhop's service name — no privileges, no
 network tricks:
 
 ```yaml
 # compose.yaml
 services:
-  alle:
-    image: ziyudo/alle:latest
+  anyhop:
+    image: ghcr.io/anyhop/anyhop:latest
     restart: unless-stopped
     volumes:
-      - alle-state:/var/lib/alle                 # channels/keys/binary cache survive recreates
+      - anyhop-state:/var/lib/anyhop                 # channels/keys/binary cache survive recreates
       - type: bind                               # the declarative setup;
         source: ./bundle.yaml                    # long syntax: a missing host
-        target: /etc/alle/bundle.yaml            # file fails `up` instead of
+        target: /etc/anyhop/bundle.yaml            # file fails `up` instead of
         read_only: true                          # mounting an empty directory
     environment:
       NORDVPN_TOKEN: ${NORDVPN_TOKEN}            # from .env or your shell
@@ -114,14 +114,14 @@ services:
     image: some/app
     environment:
       # socks5h:// = the app's DNS also resolves through the tunnel
-      ALL_PROXY: socks5h://alle:20000            # router → rules pick the exit
-      # or pin one exit: socks5h://alle:20010    # the US channel directly
+      ALL_PROXY: socks5h://anyhop:20000            # router → rules pick the exit
+      # or pin one exit: socks5h://anyhop:20010    # the US channel directly
     depends_on:
-      alle:
+      anyhop:
         condition: service_healthy               # image ships a HEALTHCHECK
 
 volumes:
-  alle-state:
+  anyhop-state:
 ```
 
 ```bash
@@ -135,41 +135,41 @@ and offline-safe.
 ## Step 3 — verify
 
 ```bash
-docker compose exec alle alle status          # channels healthy, router :20000
-docker compose exec alle alle test            # per-channel exit IP + latency
+docker compose exec anyhop anyhop status          # channels healthy, router :20000
+docker compose exec anyhop anyhop test            # per-channel exit IP + latency
 docker compose exec app sh -c \
   'wget -qO- https://api.ipify.org'           # → a VPN exit IP, not your egress
-docker compose logs alle                      # the daemon's operation log
+docker compose logs anyhop                      # the daemon's operation log
 ```
 
-Anything you would do on a host works through `docker exec alle alle …` —
+Anything you would do on a host works through `docker exec anyhop anyhop …` —
 add channels, edit routes, run speed tests. Prefer editing `bundle.yaml` for
 anything permanent, though: it is the version-controlled source of truth, and
-the next `docker compose restart alle` converges on it.
+the next `docker compose restart anyhop` converges on it.
 
-## Variant — VPN gateway: route a whole container through alle
+## Variant — VPN gateway: route a whole container through anyhop
 
 For apps that can't speak proxy (or to capture *all* of a container's
-traffic), run alle as the network namespace other services join. This is tun
+traffic), run anyhop as the network namespace other services join. This is tun
 mode scoped to the container — the host's routes are never touched:
 
 ```yaml
 services:
-  alle:
-    image: ziyudo/alle:latest
+  anyhop:
+    image: ghcr.io/anyhop/anyhop:latest
     restart: unless-stopped
     cap_add: [NET_ADMIN]               # tun creation + route table (this netns only)
     devices: [/dev/net/tun]
     user: "0"
     environment:
-      ALLE_RUN_AS_ROOT: "1"            # v1: tun mode runs as container root
-      ALLE_GATEWAY: "1"                # tun + kill switch before readiness
+      ANYHOP_RUN_AS_ROOT: "1"            # v1: tun mode runs as container root
+      ANYHOP_GATEWAY: "1"                # tun + kill switch before readiness
       NORDVPN_TOKEN: ${NORDVPN_TOKEN}
     volumes:
-      - alle-state:/var/lib/alle
+      - anyhop-state:/var/lib/anyhop
       - type: bind
         source: ./bundle.yaml
-        target: /etc/alle/bundle.yaml
+        target: /etc/anyhop/bundle.yaml
         read_only: true
     # ports for JOINED services are declared HERE (they share this netns):
     # ports:
@@ -177,13 +177,13 @@ services:
 
   app:
     image: some/app
-    network_mode: service:alle         # every packet rides alle's rules/tunnels
+    network_mode: service:anyhop         # every packet rides anyhop's rules/tunnels
     depends_on:
-      alle:
+      anyhop:
         condition: service_healthy
 
 volumes:
-  alle-state:
+  anyhop-state:
 ```
 
 Start the stack; the gateway profile declares TUN plus the kill switch before
@@ -199,10 +199,10 @@ Gateway-mode facts worth knowing:
 
 - **Kill-switch**: gateway startup forces it on. Joined containers go dark if
   the tunnel drops rather than leaking real egress.
-- **Joined containers share alle's network identity**: `network_mode:
-  service:alle` means no `ports:` of their own (declare them on the alle
-  service), no separate hostname, and DNS answered through alle's hijack.
-- **Restart coupling**: recreating the alle container tears down the shared
+- **Joined containers share anyhop's network identity**: `network_mode:
+  service:anyhop` means no `ports:` of their own (declare them on the anyhop
+  service), no separate hostname, and DNS answered through anyhop's hijack.
+- **Restart coupling**: recreating the anyhop container tears down the shared
   netns — compose restarts joined services with it. Expect the pair to bounce
   together.
 
@@ -213,15 +213,15 @@ as files, which pairs with `token_file`:
 
 ```yaml
 services:
-  alle:
-    image: ziyudo/alle:latest
+  anyhop:
+    image: ghcr.io/anyhop/anyhop:latest
     restart: unless-stopped
     secrets: [nordvpn_token]
     volumes:
-      - alle-state:/var/lib/alle
+      - anyhop-state:/var/lib/anyhop
       - type: bind
         source: ./bundle.yaml
-        target: /etc/alle/bundle.yaml
+        target: /etc/anyhop/bundle.yaml
         read_only: true
 
 secrets:
@@ -229,7 +229,7 @@ secrets:
     file: ./secrets/nordvpn_token     # one line: the access token
 
 volumes:
-  alle-state:
+  anyhop-state:
 ```
 
 and in the bundle:
@@ -239,53 +239,53 @@ credential:
   token_file: /run/secrets/nordvpn_token
 ```
 
-## Variant — manage alle from a sibling container (REST API)
+## Variant — manage anyhop from a sibling container (REST API)
 
-`docker exec` covers hands-on management; for a service that manages alle
+`docker exec` covers hands-on management; for a service that manages anyhop
 *programmatically* (rotate channels, toggle the kill switch, read metrics),
 expose the REST API to the compose network — two env vars, both explicit
 opt-ins:
 
 ```yaml
 # .env — one shared credential; generate with: openssl rand -hex 32
-ALLE_API_SECRET=change-me
+ANYHOP_API_SECRET=change-me
 ```
 
 ```yaml
 services:
-  alle:
-    image: ziyudo/alle:latest
+  anyhop:
+    image: ghcr.io/anyhop/anyhop:latest
     restart: unless-stopped
     environment:
-      ALLE_API_LISTEN: "0.0.0.0:8080"      # bind the API onto the compose network
-      ALLE_API_SECRET: ${ALLE_API_SECRET}  # ...authenticated by this Bearer secret
+      ANYHOP_API_LISTEN: "0.0.0.0:8080"      # bind the API onto the compose network
+      ANYHOP_API_SECRET: ${ANYHOP_API_SECRET}  # ...authenticated by this Bearer secret
     volumes:
-      - alle-state:/var/lib/alle
+      - anyhop-state:/var/lib/anyhop
       - type: bind
         source: ./bundle.yaml
-        target: /etc/alle/bundle.yaml
+        target: /etc/anyhop/bundle.yaml
         read_only: true
 
   manager:
     build: ./manager                       # your automation
     depends_on:
-      alle:
+      anyhop:
         condition: service_healthy         # /health needs no secret
     environment:
-      ALLE_API_URL: http://alle:8080
-      ALLE_API_SECRET: ${ALLE_API_SECRET}  # same value -> sent as Bearer
+      ANYHOP_API_URL: http://anyhop:8080
+      ANYHOP_API_SECRET: ${ANYHOP_API_SECRET}  # same value -> sent as Bearer
 ```
 
 From `manager`, every CLI capability is one authenticated call away
 (`docs/api.md` is the full contract):
 
 ```bash
-AUTH="Authorization: Bearer $ALLE_API_SECRET"
-curl -s -H "$AUTH" $ALLE_API_URL/api/v1/status
-curl -s -H "$AUTH" $ALLE_API_URL/api/v1/metrics
+AUTH="Authorization: Bearer $ANYHOP_API_SECRET"
+curl -s -H "$AUTH" $ANYHOP_API_URL/api/v1/status
+curl -s -H "$AUTH" $ANYHOP_API_URL/api/v1/metrics
 curl -s -H "$AUTH" -X POST -H 'Content-Type: application/json' \
   -d '{"refs":["us_*"],"enabled":true,"provider":"nordvpn"}' \
-  $ALLE_API_URL/api/v1/channels/enabled
+  $ANYHOP_API_URL/api/v1/channels/enabled
 ```
 
 Rules of the road:
@@ -293,48 +293,48 @@ Rules of the road:
 - **Never run without the secret** — there is no unauthenticated mode. The
   API can export your VPN credentials (`/api/v1/export`) and disable the
   kill switch; treat the port like a database with its password.
-- **Don't mount alle's state volume into the manager** to read the secret —
+- **Don't mount anyhop's state volume into the manager** to read the secret —
   the volume also carries `credentials.yaml` (WireGuard private keys,
-  provider tokens). Inject `ALLE_API_SECRET` instead; the file-based
-  `ALLE_API_SECRET_FILE` pairs with compose secrets exactly like
+  provider tokens). Inject `ANYHOP_API_SECRET` instead; the file-based
+  `ANYHOP_API_SECRET_FILE` pairs with compose secrets exactly like
   `token_file` above.
 - **Don't publish the API port** (`-p 8080:8080`) unless you mean to hand
   control of your VPN egress to that network; anything crossing hosts wants
   a TLS-terminating reverse proxy in front.
 - The Web UI does not ride along: on a network bind only Bearer calls and
   `/health` are accepted from the network — browser access stays loopback
-  (`docker exec` + `alle ui`, or an SSH tunnel).
+  (`docker exec` + `anyhop ui`, or an SSH tunnel).
 
 ## Day-2 operations
 
 - **Change the setup** — edit `bundle.yaml`, then `docker compose restart
-  alle`. The entrypoint's `alle sync` converges on the bundle: changed
+  anyhop`. The entrypoint's `anyhop sync` converges on the bundle: changed
   channels/rulesets update in place, unchanged ones aren't touched, and
   entries you removed from the bundle are pruned — while anything you created
   ad hoc (`docker exec`, Web UI) is left alone. A pruned channel one of your
   ad-hoc rules still references is kept and reported in the logs instead of
   breaking the rule.
-- **Upgrade alle** — run `docker compose pull alle`, then `docker compose up
+- **Upgrade anyhop** — run `docker compose pull anyhop`, then `docker compose up
   -d` (recreates the container; the volume carries the setup over). If you pin
   a release tag, update that tag in `compose.yaml` first. There is no
   in-container self-upgrade — the image is immutable by design.
-- **Backup** — `docker compose exec alle alle export --out - >
+- **Backup** — `docker compose exec anyhop anyhop export --out - >
   backup.yaml`. The output contains secrets; treat it like a password file.
 - **Watch health** — `docker compose ps` shows the health state;
-  `docker compose exec alle alle health` gives the strict exit code for
+  `docker compose exec anyhop anyhop health` gives the strict exit code for
   scripts/monitoring.
 
 ## Troubleshooting
 
 | Symptom                                                   | Likely cause / fix                                                                                                                                                                                                                                                                                                        |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Container exits immediately at start                      | The bundle failed validation — the entrypoint fails loudly. `docker compose logs alle` shows every blocker with line numbers; fix `bundle.yaml`.                                                                                                                                                                          |
+| Container exits immediately at start                      | The bundle failed validation — the entrypoint fails loudly. `docker compose logs anyhop` shows every blocker with line numbers; fix `bundle.yaml`.                                                                                                                                                                          |
 | `bundle.yaml is a directory` in logs                      | A short `-v` mount with a missing host file made Docker create a directory at the bundle path. Delete that stray directory, restore the host file, and use the long `type: bind` volume syntax (as in every example here) so a missing file fails at `up` time instead.                                                   |
 | `environment variable 'NORDVPN_TOKEN' is not set` in logs | The variable didn't reach the container: set it in `.env`, the shell, or switch to compose secrets + `token_file`.                                                                                                                                                                                                        |
-| A service can't reach `alle:20010`                        | The port isn't declared in the bundle (allocation order gave it another number — `docker compose exec alle alle status` shows actual ports), the channel is **disabled** (a disabled channel's port isn't listening — `alle channels ls` shows STATUS; enable it), or the two services are on different compose networks. |
+| A service can't reach `anyhop:20010`                        | The port isn't declared in the bundle (allocation order gave it another number — `docker compose exec anyhop anyhop status` shows actual ports), the channel is **disabled** (a disabled channel's port isn't listening — `anyhop channels ls` shows STATUS; enable it), or the two services are on different compose networks. |
 | First start is slow / unhealthy briefly                   | The one-time sing-box download into the volume. The health check's start period covers it; it never repeats while the volume lives.                                                                                                                                                                                       |
-| Gateway startup says it needs privileges                  | The gateway variant's grants are incomplete: `user: "0"`, `cap_add: [NET_ADMIN]`, `devices: [/dev/net/tun]`, `ALLE_RUN_AS_ROOT=1`, and `ALLE_GATEWAY=1` — then recreate the container.                                                                                                                                    |
-| Joined container has no network at all                    | Kill-switch doing its job while the tunnel is down (check `docker compose exec alle alle status`), or the alle container restarted and the joined service needs its compose-driven restart to finish.                                                                                                                     |
-| Web UI unreachable from the host                          | By design: the browser UI stays loopback-only inside the container. Use `docker exec` for management — or expose the REST API (Bearer-authenticated) with `ALLE_API_LISTEN` + `ALLE_API_SECRET` for programmatic control; see the sibling-container variant above.                                                        |
-| API returns 403 `bad host` from a sibling                 | `ALLE_API_LISTEN` isn't set (the server is loopback-only, and only loopback Hosts pass) or the request carries no/wrong Bearer — on a network bind a foreign `Host` is only accepted alongside a valid `Authorization: Bearer` header.                                                                                    |
-| `api: refusing to start` in logs                          | The secret injection is unusable: both `ALLE_API_SECRET` and `ALLE_API_SECRET_FILE` set, an unreadable file, or a value under 16 characters. The daemon runs; the API deliberately serves nothing until the config is fixed.                                                                                              |
+| Gateway startup says it needs privileges                  | The gateway variant's grants are incomplete: `user: "0"`, `cap_add: [NET_ADMIN]`, `devices: [/dev/net/tun]`, `ANYHOP_RUN_AS_ROOT=1`, and `ANYHOP_GATEWAY=1` — then recreate the container.                                                                                                                                    |
+| Joined container has no network at all                    | Kill-switch doing its job while the tunnel is down (check `docker compose exec anyhop anyhop status`), or the anyhop container restarted and the joined service needs its compose-driven restart to finish.                                                                                                                     |
+| Web UI unreachable from the host                          | By design: the browser UI stays loopback-only inside the container. Use `docker exec` for management — or expose the REST API (Bearer-authenticated) with `ANYHOP_API_LISTEN` + `ANYHOP_API_SECRET` for programmatic control; see the sibling-container variant above.                                                        |
+| API returns 403 `bad host` from a sibling                 | `ANYHOP_API_LISTEN` isn't set (the server is loopback-only, and only loopback Hosts pass) or the request carries no/wrong Bearer — on a network bind a foreign `Host` is only accepted alongside a valid `Authorization: Bearer` header.                                                                                    |
+| `api: refusing to start` in logs                          | The secret injection is unusable: both `ANYHOP_API_SECRET` and `ANYHOP_API_SECRET_FILE` set, an unreadable file, or a value under 16 characters. The daemon runs; the API deliberately serves nothing until the config is fixed.                                                                                              |

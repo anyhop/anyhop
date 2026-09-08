@@ -7,8 +7,8 @@ import threading
 
 import pytest
 
-from alle import credentials, fsio, paths
-from alle.state import StoreReadError
+from anyhop import credentials, fsio, paths
+from anyhop.state import StoreReadError
 
 
 def test_set_get_remove_roundtrip():

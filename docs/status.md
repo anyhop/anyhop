@@ -1,6 +1,6 @@
 # Current status
 
-What works today, what is planned. `alle` is usable now as a CLI-first client
+What works today, what is planned. `anyhop` is usable now as a CLI-first client
 for per-app and per-workflow VPN exits.
 
 ## Providers
@@ -19,7 +19,7 @@ Which providers can come next, and why some cannot, is in
 | -------- | ----------------------------------------------------------------- |
 | macOS    | Supported                                                         |
 | Linux    | Supported                                                         |
-| Docker   | Supported — [`ziyudo/alle`](https://hub.docker.com/r/ziyudo/alle) |
+| Docker   | Supported — [`ghcr.io/anyhop/anyhop`](https://github.com/anyhop/anyhop/pkgs/container/anyhop) |
 | Windows  | Planned                                                           |
 
 ## Features
@@ -31,11 +31,11 @@ Which providers can come next, and why some cannot, is in
 | Web UI            | Dashboard (channels, probe/speed, routes, kill-switch) + Bundle + Logs pages                                     |
 | REST API          | Everything the CLI does over `/api/v1` (Bearer auth) — for scripts and compose siblings                          |
 | Docker            | Container profile: proxy hub for compose networks, VPN gateway container (tun), declarative boot config          |
-| Distribution      | PyPI, one-command uv bootstrap, Homebrew, Docker Hub                                                          |
+| Distribution      | PyPI, one-command uv bootstrap, Homebrew, GHCR                                                          |
 
 ## Planned next
 
-- More VPN providers: WireGuard now, and OpenVPN-only providers once `alle` adds
+- More VPN providers: WireGuard now, and OpenVPN-only providers once `anyhop` adds
   an OpenVPN provider archetype (sing-box 1.14.0 has shipped the OpenVPN client
   this was waiting on) — see [VPN provider research](vpn-provider-research.md).
 - A macOS native app, built as an independent project on top of the public
@@ -45,7 +45,7 @@ Which providers can come next, and why some cannot, is in
 ## Non-goals
 
 - IKEv2/IPsec support.
-- VPN providers without a usable WireGuard or (once `alle` ships the OpenVPN
+- VPN providers without a usable WireGuard or (once `anyhop` ships the OpenVPN
   path) OpenVPN credential path — the excluded list and the reasoning for each
   is in [VPN provider research](vpn-provider-research.md).
 - SOCKS5-only or unencrypted proxy providers.

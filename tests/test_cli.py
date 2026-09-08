@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from alle import __version__, cli, service
+from anyhop import __version__, cli, service
 
 
 @pytest.fixture
@@ -33,14 +33,14 @@ def run_cli(args, capsys):
 
 def test_empty_read_commands_keep_human_output(capsys, no_singbox):
     assert run_cli(["providers", "ls"], capsys) == (
-        "No providers added yet. Add one:  alle providers add nordvpn"
+        "No providers added yet. Add one:  anyhop providers add nordvpn"
     )
     assert run_cli(["channels", "ls"], capsys) == (
-        "No providers added yet. Add one:  alle providers add nordvpn"
+        "No providers added yet. Add one:  anyhop providers add nordvpn"
     )
-    assert run_cli(["status"], capsys) == "Alle - Inactive"
+    assert run_cli(["status"], capsys) == "Anyhop - Inactive"
     assert run_cli(["test"], capsys) == (
-        "No channels configured. Add one:  alle channels add nordvpn --country …"
+        "No channels configured. Add one:  anyhop channels add nordvpn --country …"
     )
 
 
@@ -101,7 +101,7 @@ def test_prerelease_check_recommends_the_matching_upgrade_flag(capsys, monkeypat
 
     output = run_cli(["upgrade", "--check", "--prerelease"], capsys)
 
-    assert "Run: alle upgrade --prerelease" in output
+    assert "Run: anyhop upgrade --prerelease" in output
 
 
 def test_stable_check_does_not_call_an_ahead_prerelease_latest(capsys, monkeypatch):
@@ -134,9 +134,9 @@ def test_stable_check_does_not_call_an_ahead_prerelease_latest(capsys, monkeypat
         (
             {
                 "restart_required": True,
-                "restart_command": "brew services restart alle",
+                "restart_command": "brew services restart anyhop",
             },
-            "Restart required. Run: brew services restart alle",
+            "Restart required. Run: brew services restart anyhop",
         ),
     ],
 )
@@ -235,7 +235,7 @@ def test_providers_rm_accepts_multiple_and_dry_run(capsys, no_background):
 # endpoint uses a TEST-NET-1 documentation address. Never real conf contents.
 SAMPLE_CONF = """\
 [Interface]
-# Key for alle-test
+# Key for anyhop-test
 PrivateKey = WEVHcHJpdmF0ZUtleUV4YW1wbGVWYWx1ZUFBQUFBQUE=
 Address = 10.0.0.2/32
 DNS = 10.0.0.1
@@ -252,7 +252,7 @@ def test_config_import_requires_provider_added(capsys, no_background):
         cli.main(["channels", "add", "protonvpn", "--config", "/tmp/proton.conf"])
     assert (
         str(exc.value)
-        == "Proton VPN is not added — run `alle providers add protonvpn` first."
+        == "Proton VPN is not added — run `anyhop providers add protonvpn` first."
     )
 
 
@@ -596,21 +596,21 @@ def test_config_flag_rejected_for_api_provider(capsys, no_background, tmp_path):
     assert "uses an API" in str(exc.value)
 
 
-# ---- first-use daemon-install offer on `alle start` ---------------------------
+# ---- first-use daemon-install offer on `anyhop start` ---------------------------
 
 
 @pytest.fixture
 def offerable(monkeypatch, no_background):
-    """`alle start` in a context where the one-time offer may fire: interactive
+    """`anyhop start` in a context where the one-time offer may fire: interactive
     TTY, host (not container), no unit installed, never asked before."""
     monkeypatch.setattr(service, "start", lambda: {"has_channels": False})
     monkeypatch.setattr(service, "web_ui_url", lambda: "http://127.0.0.1:1")
     monkeypatch.setattr(cli, "_interactive", lambda: True)
-    from alle import daemonctl, runtime
+    from anyhop import daemonctl, runtime
 
     monkeypatch.setattr(runtime, "in_container", lambda: False)
     monkeypatch.setattr(daemonctl, "is_installed", lambda: False)
-    monkeypatch.delenv("ALLE_SERVICE", raising=False)
+    monkeypatch.delenv("ANYHOP_SERVICE", raising=False)
     installs = []
     monkeypatch.setattr(
         service, "daemon_install", lambda linger=False: installs.append(1) or {}
@@ -619,7 +619,7 @@ def offerable(monkeypatch, no_background):
 
 
 def test_start_offers_once_and_remembers_declination(offerable, monkeypatch, capsys):
-    from alle.state import Store
+    from anyhop.state import Store
 
     monkeypatch.setattr("builtins.input", lambda prompt="": "n")
     cli.main(["start"])
@@ -650,7 +650,7 @@ def test_start_yes_installs_without_prompt(offerable, monkeypatch, capsys):
 
 
 def test_start_no_service_declines_without_prompt(offerable, monkeypatch, capsys):
-    from alle.state import Store
+    from anyhop.state import Store
 
     def boom(prompt=""):
         raise AssertionError("prompted despite --no-service")
@@ -662,7 +662,7 @@ def test_start_no_service_declines_without_prompt(offerable, monkeypatch, capsys
 
 
 def test_start_never_prompts_without_a_tty(offerable, monkeypatch, capsys):
-    from alle.state import Store
+    from anyhop.state import Store
 
     monkeypatch.setattr(cli, "_interactive", lambda: False)
 
@@ -677,7 +677,7 @@ def test_start_never_prompts_without_a_tty(offerable, monkeypatch, capsys):
 
 
 def test_start_never_prompts_when_unit_exists(offerable, monkeypatch, capsys):
-    from alle import daemonctl
+    from anyhop import daemonctl
 
     monkeypatch.setattr(daemonctl, "is_installed", lambda: True)
 
@@ -690,7 +690,7 @@ def test_start_never_prompts_when_unit_exists(offerable, monkeypatch, capsys):
 
 
 def test_start_never_prompts_in_container_or_supervised(offerable, monkeypatch, capsys):
-    from alle import runtime
+    from anyhop import runtime
 
     def boom(prompt=""):
         raise AssertionError("prompted in a container")
@@ -699,12 +699,12 @@ def test_start_never_prompts_in_container_or_supervised(offerable, monkeypatch, 
     monkeypatch.setattr(runtime, "in_container", lambda: True)
     cli.main(["start"])
     monkeypatch.setattr(runtime, "in_container", lambda: False)
-    monkeypatch.setenv("ALLE_SERVICE", "1")
+    monkeypatch.setenv("ANYHOP_SERVICE", "1")
     cli.main(["start"])
     assert offerable == []
 
 
-# ---- `alle test --fail`: strict exit for monitoring ---------------------------
+# ---- `anyhop test --fail`: strict exit for monitoring ---------------------------
 
 
 def _fake_test_result(healthy: int, failed: int) -> dict:

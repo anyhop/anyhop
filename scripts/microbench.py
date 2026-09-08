@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in microbenchmarks for alle's measured hot paths.
+"""Opt-in microbenchmarks for anyhop's measured hot paths.
 
 Run locally to produce before/after evidence for optimization work:
 
@@ -13,9 +13,9 @@ never an assertion. The deterministic half of the same contracts (how many
 subprocesses and verified pidfile reads each path performs) is pinned by
 ``tests/test_perf_contracts.py``, which is where regressions must fail.
 
-Every benchmark is hermetic: a throwaway ``ALLE_HOME``, no provider
+Every benchmark is hermetic: a throwaway ``ANYHOP_HOME``, no provider
 credentials, and no network. The one real subprocess is a local stand-in for
-the Homebrew ``opt/bin/alle`` shim — an interpreter start plus an ``alle``
+the Homebrew ``opt/bin/anyhop`` shim — an interpreter start plus an ``anyhop``
 import, which is what that shim actually costs — so the Homebrew-shaped status
 number reflects real process start-up rather than a mocked constant.
 
@@ -51,7 +51,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 
 class BenchHome:
-    """A throwaway ``ALLE_HOME`` plus the fixtures the benchmarks compose from.
+    """A throwaway ``ANYHOP_HOME`` plus the fixtures the benchmarks compose from.
 
     Nothing here may reach the developer's real installation: the home is a
     temp dir, the privileged-helper socket points at a path nothing binds (so
@@ -61,16 +61,16 @@ class BenchHome:
 
     def __init__(self, root: Path) -> None:
         self.root = root
-        os.environ["ALLE_HOME"] = str(root / "home")
-        os.environ["ALLE_HELPER_SOCKET"] = str(root / "no-helper.sock")
-        for var in ("ALLE_SERVICE_OWNER", "ALLE_SERVICE_PREFIX", "ALLE_SERVICE"):
+        os.environ["ANYHOP_HOME"] = str(root / "home")
+        os.environ["ANYHOP_HELPER_SOCKET"] = str(root / "no-helper.sock")
+        for var in ("ANYHOP_SERVICE_OWNER", "ANYHOP_SERVICE_PREFIX", "ANYHOP_SERVICE"):
             os.environ.pop(var, None)
 
     # -- synthetic state ------------------------------------------------------
 
     def write_state(self, channels: int = 1, provider: str = "nordvpn") -> None:
         """Replace state.json with ``channels`` synthetic channels."""
-        from alle import state
+        from anyhop import state
 
         data = state._blank()
         data["router"]["port"] = 18080
@@ -100,7 +100,7 @@ class BenchHome:
         each distinct category once, so the cost of the table should follow the
         number of categories, not the number of rules.
         """
-        from alle import geodata, state
+        from anyhop import geodata, state
 
         data = state._read_raw()
         rules = []
@@ -140,13 +140,13 @@ class BenchHome:
         benchmark has to look like a running installation, not a stopped one.
         Our own PID is the one process guaranteed to be alive and ours.
         """
-        from alle import daemon, proc, singbox
+        from anyhop import daemon, proc, singbox
 
         proc.write_pidfile(singbox._pid_path(), os.getpid())
         proc.write_pidfile(daemon._pid_path(), os.getpid())
 
     def release_pidfiles(self) -> None:
-        from alle import daemon, singbox
+        from anyhop import daemon, singbox
 
         singbox._pid_path().unlink(missing_ok=True)
         daemon._pid_path().unlink(missing_ok=True)
@@ -156,7 +156,7 @@ class BenchHome:
     @contextlib.contextmanager
     def stubbed_version(self, value: str = "0.0.0-bench") -> Iterator[None]:
         """Take version discovery out of the measurement entirely."""
-        from alle import daemon
+        from anyhop import daemon
 
         original = daemon.installed_version
         daemon.installed_version = lambda: value  # type: ignore[assignment]
@@ -168,24 +168,24 @@ class BenchHome:
     @contextlib.contextmanager
     def homebrew_shim(self) -> Iterator[None]:
         """A Homebrew-shaped install whose opt shim really starts a process."""
-        prefix = self.root / "opt" / "alle"
-        shim = prefix / "bin" / "alle"
+        prefix = self.root / "opt" / "anyhop"
+        shim = prefix / "bin" / "anyhop"
         shim.parent.mkdir(parents=True, exist_ok=True)
         shim.write_text(
             "#!/bin/sh\n"
-            f'exec "{sys.executable}" -c "import alle; print(alle.__version__)"\n'
+            f'exec "{sys.executable}" -c "import anyhop; print(anyhop.__version__)"\n'
         )
         shim.chmod(0o755)
-        os.environ["ALLE_SERVICE_OWNER"] = "homebrew"
-        os.environ["ALLE_SERVICE_PREFIX"] = str(prefix)
+        os.environ["ANYHOP_SERVICE_OWNER"] = "homebrew"
+        os.environ["ANYHOP_SERVICE_PREFIX"] = str(prefix)
         try:
             yield
         finally:
-            os.environ.pop("ALLE_SERVICE_OWNER", None)
-            os.environ.pop("ALLE_SERVICE_PREFIX", None)
+            os.environ.pop("ANYHOP_SERVICE_OWNER", None)
+            os.environ.pop("ANYHOP_SERVICE_PREFIX", None)
 
     def shim_description(self) -> str:
-        return f"/bin/sh -> {Path(sys.executable).name} -c 'import alle; print(...)'"
+        return f"/bin/sh -> {Path(sys.executable).name} -c 'import anyhop; print(...)'"
 
 
 # Placeholder keys, kept as short as the test suite's (tests/conftest.py): the
@@ -253,7 +253,7 @@ def bench(name: str, *, repeat: int, note: str):
     note="one channel, no live pidfile, version discovery stubbed",
 )
 def _status_compose(home: BenchHome):
-    from alle import service
+    from anyhop import service
 
     home.write_state(channels=1)
     home.release_pidfiles()
@@ -267,7 +267,7 @@ def _status_compose(home: BenchHome):
     note="1,000 channels, same pure-composition shape as status.compose",
 )
 def _status_compose_1000(home: BenchHome):
-    from alle import service
+    from anyhop import service
 
     home.write_state(channels=1000)
     home.release_pidfiles()
@@ -281,7 +281,7 @@ def _status_compose_1000(home: BenchHome):
     note="live sing-box + daemon pidfiles, native (importlib.metadata) version",
 )
 def _status_native(home: BenchHome):
-    from alle import service
+    from anyhop import service
 
     home.write_state(channels=1)
     home.claim_pidfiles()
@@ -298,7 +298,7 @@ def _status_native(home: BenchHome):
 )
 def _status_homebrew(home: BenchHome):
     """What a Web-UI tab actually pays per poll on a Homebrew install."""
-    from alle import service
+    from anyhop import service
 
     home.write_state(channels=1)
     home.claim_pidfiles()
@@ -320,7 +320,7 @@ def _status_homebrew_cold(home: BenchHome):
     The comparable successor to the old uncached `status.homebrew`: before the
     cache existed, *every* poll looked like this.
     """
-    from alle import daemon, service
+    from anyhop import daemon, service
 
     home.write_state(channels=1)
     home.claim_pidfiles()
@@ -352,7 +352,7 @@ def _metrics_identity(home: BenchHome):
     is overhead *for*. The real path's call counts are pinned separately by
     ``tests/test_perf_contracts.py``; this only prices them.
     """
-    from alle import singbox
+    from anyhop import singbox
 
     home.write_state(channels=1)
     home.claim_pidfiles()
@@ -377,7 +377,7 @@ def _metrics_identity(home: BenchHome):
     note="one recorded pidfile identity proven live (the unit both paths repeat)",
 )
 def _proc_verify(home: BenchHome):
-    from alle import proc
+    from anyhop import proc
 
     record = proc.record(os.getpid())
     yield lambda: proc.verify(record, ("sing-box",))
@@ -393,8 +393,8 @@ def _proc_verify(home: BenchHome):
 )
 def _geo_compile(home: BenchHome):
     """Prices the digest checks a compile performs for duplicate geo matchers."""
-    from alle.engine import Engine
-    from alle.state import Store
+    from anyhop.engine import Engine
+    from anyhop.state import Store
 
     home.write_state(channels=1)
     home.write_geo_rules(categories=20, per_category=10)
@@ -443,7 +443,7 @@ def _shadow_bench(count: int, repeat: int):
         note=f"{count} non-covering rules (worst case for a pairwise scan)",
     )
     def _run(home: BenchHome, count: int = count):
-        from alle import routes
+        from anyhop import routes
 
         rules = synthetic_rules(count)
         yield lambda: routes.shadowed_by(rules)
@@ -468,7 +468,7 @@ def _metrics_speed_batch(home: BenchHome):
     tested — because the cost that mattered was reading *every* stored row once
     per completed channel.
     """
-    from alle import metrics
+    from anyhop import metrics
 
     metrics.add_deltas(
         {
@@ -495,7 +495,7 @@ def _metrics_speed_batch(home: BenchHome):
     note="one SQLite transaction banking a 1,000-channel sample",
 )
 def _metrics_add_deltas(home: BenchHome):
-    from alle import metrics
+    from anyhop import metrics
 
     deltas = {
         (f"provider{i % 10}", f"wg_us_{i + 1}"): (1024 + i, 2048 + i)
@@ -509,11 +509,11 @@ def _metrics_add_deltas(home: BenchHome):
 
 def environment(home: BenchHome) -> dict:
     """Everything a later run needs to judge whether it is comparable."""
-    from alle import __version__
+    from anyhop import __version__
 
     return {
         "when": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "alle": __version__,
+        "anyhop": __version__,
         "git": _git_description(),
         "python": f"{platform.python_version()} ({platform.python_implementation()})",
         "platform": platform.platform(),
@@ -546,7 +546,7 @@ def _git_description() -> str:
 
 
 def run_one(benchmark: Benchmark, home: BenchHome, scale: float) -> dict:
-    from alle import daemon
+    from anyhop import daemon
 
     repeat = max(1, round(benchmark.repeat * scale))
     # Installed-version discovery is cached per process: without this, one
@@ -572,7 +572,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         # Its own string, not __doc__: the module docstring is developer
         # documentation (and is None under `python -OO`).
-        description="Opt-in microbenchmarks for alle's measured hot paths.",
+        description="Opt-in microbenchmarks for anyhop's measured hot paths.",
         epilog="Local evidence only — never a CI gate.",
     )
     parser.add_argument(
@@ -610,7 +610,7 @@ def main(argv: list[str] | None = None) -> int:
         print("no benchmark matched --only", file=sys.stderr)
         return 2
 
-    root = Path(tempfile.mkdtemp(prefix="alle-microbench-"))
+    root = Path(tempfile.mkdtemp(prefix="anyhop-microbench-"))
     try:
         home = BenchHome(root)
         env = environment(home)

@@ -1,0 +1,780 @@
+"""alled: anyhop's local background service.
+
+The daemon owns runtime reconciliation and probing for the CLI today and future
+Web UI / desktop clients. It keeps the single sing-box process matched to
+``state.json`` and continuously probes every channel's connectivity.
+
+Its single 1 Hz loop drives five duties:
+
+1. **Reconcile** — when the config-relevant part of ``state.json`` changes (a
+   channel added/removed/relocated), rebuild the one sing-box config and restart
+   it only if it actually changed. A file edit from the application layer is the
+   trigger.
+2. **Heartbeat probe** — every ``PROBE_INTERVAL`` seconds, route a tiny request
+   through each channel's proxy to record its exit IP + latency (or a failure)
+   back into ``state.json``. This is what ``anyhop status`` reads. Runs (with
+   auto-reconnect) on its own worker thread so a slow pass never delays a
+   reconcile.
+3. **Traffic sampling** — every ``METRICS_INTERVAL`` seconds, read the Clash
+   API's live connections and bank per-channel byte deltas (see ``metrics``).
+4. **Supervision** — every ``SUPERVISE_INTERVAL`` seconds, restart an
+   unexpectedly-exited sing-box with capped exponential backoff and publish
+   its runtime health into ``applier.info.json``.
+5. **Scheduled backups** — every ``BACKUP_CHECK`` seconds, ask ``backup`` to
+   write a setup-bundle backup if one is due (local file I/O only — no
+   network). The daemon is the scheduler: anyhop installs no OS timers, so
+   backups happen while the daemon runs.
+
+It is auto-started by CLI mutations (and by ``anyhop start``) when not already
+running, runs detached with a pidfile, and owns the single sing-box process for
+its lifetime. The legacy hidden ``anyhop applier`` entrypoint remains as an alias.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+from anyhop import __version__, applog, paths, proc
+
+POLL_SECONDS = 1.0  # how often we check for a config change
+PROBE_INTERVAL = 30.0  # how often each channel is probed
+METRICS_INTERVAL = 2.0  # how often traffic counters are sampled from the Clash API
+RECONCILE_RETRY = 60.0  # retry a *failed* reconcile this often, sans state change
+VERSION_CHECK = 30.0  # how often a supervised daemon checks for an upgraded package
+VERSION_PROBE_TIMEOUT = 5.0  # bounded Homebrew opt-shim version discovery
+# How stale a *status* read of the installed version may be. Never longer than
+# VERSION_CHECK: the supervised watcher is the authority on an upgrade, so
+# status must not be able to report a version older than the watcher's own view.
+VERSION_CACHE_TTL = VERSION_CHECK
+SUPERVISE_INTERVAL = 2.0  # how often sing-box liveness is checked (sans probes)
+BACKUP_CHECK = 300.0  # how often due-ness of a scheduled backup is evaluated
+CRASH_BACKOFF_MAX = 60.0  # cap between supervised restart attempts
+CRASH_RESET = 60.0  # this long alive after a crash forgets the crash history
+
+# Exit code for the intentional self-restart-on-upgrade exit. Non-zero on
+# purpose: new units use Restart=always, but units installed before that were
+# Restart=on-failure — a clean exit under those left the daemon down after
+# every upgrade until the next login.
+UPGRADE_EXIT_CODE = 3
+
+# What the applier's command line looks like: ensure_running() spawns either
+# ``<python> -m anyhop applier`` in source/PyPI installs, or ``<anyhop> applier``
+# when a frozen/app-bundled executable owns the runtime. A supervised or hand-run
+# ``anyhop applier`` shows as ``.../bin/anyhop applier``; the foreground form (a
+# container's PID 1) as ``.../bin/anyhop run``. Used to reject recycled PIDs.
+_MARKERS = ("-m anyhop", "anyhop applier", "anyhop run")
+
+# A Web API upgrade replaces the package before its handler can serialize and
+# flush the success response. The main daemon loop runs concurrently with that
+# handler; without this lease its version watcher can see the replacement and
+# terminate the whole process mid-response (Homebrew's opt shim makes this
+# especially deterministic). A count keeps the primitive correct even if a
+# future caller permits distinct upgrade request kinds concurrently.
+_upgrade_response_lock = threading.Lock()
+_upgrade_responses = 0
+
+# Status-surface cache for installed-version discovery: (read_at, version).
+_version_lock = threading.Lock()
+_version_cache: tuple[float, str] | None = None
+
+
+class _UpgradeResponseState(threading.local):
+    """Lifecycle work owned by one upgrade-handler thread."""
+
+    depth: int = 0
+    lifecycle: tuple[str, float] | None = None
+
+
+_upgrade_response_state = _UpgradeResponseState()
+
+
+@contextmanager
+def defer_upgrade_restart_until_response():
+    """Prevent the package watcher from exiting until a response is flushed."""
+    global _upgrade_responses
+
+    state = _upgrade_response_state
+    state.depth += 1
+    with _upgrade_response_lock:
+        _upgrade_responses += 1
+    try:
+        yield
+    finally:
+        pending = None
+        state.depth = max(0, state.depth - 1)
+        if state.depth == 0:
+            pending = state.lifecycle
+            state.lifecycle = None
+        with _upgrade_response_lock:
+            _upgrade_responses = max(0, _upgrade_responses - 1)
+        # Native uv/pipx/pip upgrades request a lifecycle restart while this
+        # lease is active. Spawn it only after the handler's explicit flush;
+        # a fixed child-side sleep cannot prove a slow client received bytes.
+        if pending is not None:
+            _spawn_lifecycle(*pending)
+
+
+def upgrade_restart_deferred() -> bool:
+    """Whether an in-flight upgrade response still owns the daemon process."""
+    with _upgrade_response_lock:
+        return _upgrade_responses > 0
+
+
+def _pid_path() -> Path:
+    return paths.state_dir() / "applier.pid"
+
+
+def _info_path() -> Path:
+    return paths.state_dir() / "applier.info.json"
+
+
+def _write_info(runtime: dict | None = None) -> None:
+    """Record the running daemon's pid, version, and supervisor identity.
+
+    Additive to the pidfile (old/new CLI↔daemon combos still parse each other):
+    ``anyhop status`` reads the version here to warn about CLI↔daemon skew after
+    an upgrade, and the optional ``runtime`` dict is how the loop surfaces a
+    degraded sing-box (``{"singbox": <status>, "detail": …}``).
+    """
+    info = {"pid": os.getpid(), "version": __version__, "at": int(time.time())}
+    service_owner = os.environ.get("ANYHOP_SERVICE_OWNER")
+    service_prefix = os.environ.get("ANYHOP_SERVICE_PREFIX")
+    if service_owner:
+        info["service_owner"] = service_owner
+    if service_prefix:
+        info["service_prefix"] = service_prefix
+    if runtime is not None:
+        info["runtime"] = runtime
+    try:
+        _info_path().write_text(json.dumps(info))
+    except OSError:
+        pass
+
+
+def daemon_info() -> dict | None:
+    """The running daemon's version/runtime/supervisor info, or None if stopped.
+
+    Only trusts the file when its pid is the live daemon, so a stale info file
+    from a crashed daemon never reports a phantom version.
+    """
+    pid = running_pid()
+    if pid is None:
+        return None
+    try:
+        info = json.loads(_info_path().read_text())
+    except (OSError, ValueError):
+        return {"pid": pid, "version": None}
+    if info.get("pid") != pid:
+        return {"pid": pid, "version": None}
+    return info
+
+
+def installed_version() -> str:
+    """The anyhop version currently on disk, including a moved Homebrew keg.
+
+    Native uv/pipx/pip environments retain a stable site-packages path, so a
+    fresh metadata read differs from the import-time ``__version__`` after an
+    in-place upgrade. Homebrew changes the versioned Cellar path underneath a
+    running daemon; its service records the stable opt prefix, whose new shim
+    is the only reliable view of the active keg.
+    """
+    if os.environ.get("ANYHOP_SERVICE_OWNER") == "homebrew":
+        prefix = os.environ.get("ANYHOP_SERVICE_PREFIX", "")
+        shim = Path(prefix) / "bin" / "anyhop" if prefix else None
+        if shim is not None and shim.is_absolute():
+            try:
+                result = subprocess.run(
+                    [str(shim), "version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=VERSION_PROBE_TIMEOUT,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass  # retry on the next supervised version-check interval
+            else:
+                value = result.stdout.strip()
+                if result.returncode == 0 and value:
+                    return value
+
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("anyhop")
+    except PackageNotFoundError:
+        return __version__
+
+
+def cached_installed_version() -> str:
+    """:func:`installed_version` for the status surface, at most one read per
+    :data:`VERSION_CACHE_TTL`.
+
+    A Web-UI tab polls status every three seconds; under Homebrew each of those
+    polls used to start the ``opt/bin/anyhop`` shim — a whole interpreter, per
+    tab, forever. The value only changes when a package manager replaces the
+    install, so status may serve one that is up to a cache window old.
+
+    Deliberately *not* used by the supervised package watcher, which calls
+    :func:`installed_version` directly: status traffic must never be able to
+    postpone the upgrade handoff by refreshing this cache on its own schedule.
+    ``forget_installed_version()`` drops it after an upgrade so the very next
+    poll reports the new version instead of waiting out the window.
+
+    Discovery happens under the lock on purpose. It is single-flight: several
+    tabs polling a cold cache produce one shim start, not one each, and no
+    other work contends for this lock (the probe is bounded by
+    :data:`VERSION_PROBE_TIMEOUT`).
+    """
+    global _version_cache
+
+    with _version_lock:
+        cached = _version_cache
+        if cached is not None and time.monotonic() - cached[0] < VERSION_CACHE_TTL:
+            return cached[1]
+        value = installed_version()
+        _version_cache = (time.monotonic(), value)
+        return value
+
+
+def forget_installed_version() -> None:
+    """Drop the status cache — the installed package may have just changed."""
+    global _version_cache
+
+    with _version_lock:
+        _version_cache = None
+
+
+def _state_stamp() -> tuple[int, int]:
+    """Cheap change detector for state.json: ``(mtime_ns, size)``.
+
+    The 1 Hz poll compares this before parsing the file — every write replaces
+    state.json atomically (new inode, fresh mtime), so an unchanged stamp means
+    an unchanged file and the JSON parse + signature hash can be skipped.
+    """
+    from anyhop.state import _state_path
+
+    try:
+        st = os.stat(_state_path())
+    except OSError:
+        return (0, 0)
+    return (st.st_mtime_ns, st.st_size)
+
+
+def _self_command(*args: str) -> list[str]:
+    """Command for spawning this installed anyhop runtime.
+
+    Source/PyPI installs need ``python -m anyhop`` so the child imports the same
+    environment. Frozen/app-bundled installs cannot use ``-m`` or ``-c`` because
+    ``sys.executable`` is the bundled console executable, not a Python
+    interpreter; the app wrapper publishes ``ANYHOP_EXECUTABLE`` as the stable
+    command to re-enter.
+    """
+    exe = os.environ.get("ANYHOP_EXECUTABLE")
+    if exe:
+        return [exe, *args]
+    if getattr(sys, "frozen", False):
+        return [sys.executable, *args]
+    return [sys.executable, "-m", "anyhop", *args]
+
+
+def _lifecycle_run(action: str, delay: float) -> None:
+    """Hidden CLI target used by frozen/app-bundled delayed lifecycle work."""
+    if action not in {"stop", "restart"}:
+        raise ValueError(f"unsupported lifecycle action {action!r}")
+    time.sleep(max(0.0, delay))
+    from anyhop import service
+
+    getattr(service, action)()
+
+
+def running_pid() -> int | None:
+    # PID-recycling guard: believe the pidfile only if the process behind the
+    # number matches the identity recorded at spawn (kernel start time; see
+    # anyhop.proc), so a stale file can neither block a fresh start nor let
+    # stop() kill a stranger.
+    return proc.read_pidfile(_pid_path(), _MARKERS)
+
+
+def is_running() -> bool:
+    return running_pid() is not None
+
+
+def in_daemon_process() -> bool:
+    """True when code is running in the daemon that owns the Web UI."""
+    if not (os.environ.get("ANYHOP_APPLIER") or os.environ.get("ANYHOP_SERVICE")):
+        return False
+    return running_pid() == os.getpid()
+
+
+def spawn_detached(command: list[str]) -> None:
+    """Run ``command`` detached: its own session, output to the applier log,
+    daemon markers scrubbed — so the child outlives its spawner and never
+    mistakes itself for (or recurses into) the daemon."""
+    env = dict(os.environ)
+    env.pop("ANYHOP_APPLIER", None)
+    env.pop("ANYHOP_SERVICE", None)
+    env.pop("ANYHOP_SERVICE_OWNER", None)
+    env.pop("ANYHOP_SERVICE_PREFIX", None)
+    log = paths.state_dir() / "applier.log"
+    applog.rotate_if_needed(log, applog.MAX_LOG_BYTES)
+    with open(log, "ab") as lf:
+        subprocess.Popen(
+            command,
+            stdout=lf,
+            stderr=lf,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            env=env,
+        )
+
+
+def _spawn_lifecycle(action: str, delay: float) -> None:
+    """Spawn one delayed lifecycle action outside response bookkeeping."""
+    spawn_detached(_self_command("lifecycle-run", action, "--delay", str(delay)))
+
+
+def schedule_lifecycle(action: str, delay: float = 0.35) -> None:
+    """Run stop/restart after the current Web upgrade response is flushed."""
+    if action not in {"stop", "restart"}:
+        raise ValueError(f"unsupported lifecycle action {action!r}")
+    state = _upgrade_response_state
+    if state.depth > 0:
+        # Scope the queued action to the handler that owns this response lease.
+        # A concurrent ordinary lifecycle request is independent and must not
+        # overwrite—or become hostage to—the upgrade handler's pending work.
+        state.lifecycle = (action, delay)
+        return
+    _spawn_lifecycle(action, delay)
+
+
+def ensure_running() -> None:
+    """Start the applier detached if it isn't already running.
+
+    Called by every CLI mutation so configuring a channel is enough to get it
+    applied and probed — there is never a separate "apply" step.
+
+    When a login service owns the daemon (launchd/systemd), self-spawning would
+    fight the supervisor, so we ask the supervisor to (re)start it instead — it,
+    not us, keeps it alive.
+    """
+    if is_running():
+        return
+    if os.environ.get("ANYHOP_APPLIER") or os.environ.get("ANYHOP_SERVICE"):
+        return  # don't recurse from inside the daemon / supervised process
+    from anyhop import daemonctl
+
+    if daemonctl.is_installed():
+        daemonctl.start_service()
+        return
+    env = dict(os.environ, ANYHOP_APPLIER="1")
+    log = paths.state_dir() / "applier.log"
+    applog.rotate_if_needed(log, applog.MAX_LOG_BYTES)
+    with open(log, "ab") as lf:
+        child = subprocess.Popen(
+            _self_command("applier"),
+            stdout=lf,
+            stderr=lf,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            env=env,
+        )
+    proc.write_pidfile(_pid_path(), child.pid)
+    applog.log("applier started")
+
+
+def stop() -> bool:
+    """Stop the applier (SIGTERM, then SIGKILL). True if one was running.
+
+    When a supervisor owns the daemon, signalling it directly is futile —
+    KeepAlive/Restart would resurrect it — so route through the service manager,
+    which stops it for the session.
+    """
+    from anyhop import daemonctl
+
+    if daemonctl.is_installed():
+        was = is_running()
+        daemonctl.stop_service()
+        _info_path().unlink(missing_ok=True)
+        _pid_path().unlink(missing_ok=True)
+        applog.log("applier stopped (via service manager)")
+        return was
+    pid = running_pid()
+    if pid is None:
+        _pid_path().unlink(missing_ok=True)
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:  # exited between the liveness check and the signal
+        pass
+    for _ in range(40):
+        if running_pid() is None:
+            break
+        time.sleep(0.1)
+    else:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    _pid_path().unlink(missing_ok=True)
+    _info_path().unlink(missing_ok=True)
+    applog.log("applier stopped")
+    return True
+
+
+def run_applier(own_children: bool = False) -> None:
+    """Blocking reconcile + probe loop. Run inside the detached daemon process.
+
+    ``own_children`` marks **foreground ownership** (``anyhop run`` — a
+    container's PID 1, or an interactive terminal run): a stop signal then
+    means the whole deployment is going away, so shutdown stops and reaps
+    sing-box (whose exit tears down the TUN interface and its routes) and
+    removes the runtime identity files, all within Docker's stop grace
+    period. The supervised path (``anyhop applier`` under launchd/systemd) and
+    the upgrade self-exit keep the default: sing-box is deliberately left
+    running for adoption by the respawned daemon, so a daemon restart never
+    blips live tunnels."""
+    # Imported here so the lightweight lifecycle helpers above don't pull the
+    # engine/sing-box stack into every CLI invocation.
+    import fcntl
+
+    from anyhop import metrics, reconnect, singbox
+    from anyhop.engine import Engine
+    from anyhop.state import Store, StoreReadError, config_signature, _read_raw
+
+    # Exclusive instance lock: two CLI mutations racing through ensure_running()
+    # can both see "not running" and spawn two appliers — the flock makes the
+    # loser exit instead of fighting the winner over the one sing-box process.
+    # Held (not closed) for the daemon's lifetime; released by the OS on exit.
+    # The holder's pid is kept in the lock file so a losing duplicate can repair
+    # the pidfile its spawner just clobbered (otherwise `anyhop stop` would miss
+    # the real daemon).
+    instance_lock = open(paths.state_dir() / "applier.lock", "a+")  # noqa: SIM115
+    try:
+        fcntl.flock(instance_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        try:
+            instance_lock.seek(0)
+            holder = proc.parse_record(instance_lock.read())
+            if holder and proc.verify(holder, _MARKERS):
+                _pid_path().write_text(json.dumps(holder))
+        except OSError:
+            pass
+        applog.log("applier already running; duplicate exiting")
+        return
+    instance_lock.truncate(0)
+    instance_lock.write(json.dumps(proc.record(os.getpid())))
+    instance_lock.flush()
+
+    try:
+        # A compound setup change (token update, bundle apply, …) that crashed
+        # before its commit point leaves a rollback journal; heal it before
+        # the first reconcile reads a half-changed setup.
+        from anyhop import txn
+
+        txn.recover()
+    except Exception as e:  # noqa: BLE001 — recovery is best-effort at startup
+        applog.log(f"setup-journal recovery failed: {e}")
+
+    try:
+        # A TUN trial orphaned by power loss / container recreation must be
+        # settled BEFORE the first reconcile applies TUN: an expired
+        # unconfirmed trial reverts off now, a live one re-arms its watchdog
+        # for the remaining interval.
+        from anyhop import service
+
+        service.tun_trial_recover()
+    except Exception as e:  # noqa: BLE001 — recovery is best-effort at startup
+        applog.log(f"tun trial recovery failed: {e}")
+
+    try:
+        # The always-on router entrypoint's contract port: allocated once, here,
+        # so a fresh install gets its router on the first daemon start. The
+        # resulting state change is picked up by the first reconcile below.
+        Store.load().ensure_router_port()
+    except Exception as e:  # noqa: BLE001 — a full state dir must not kill the daemon
+        applog.log(f"router port allocation failed: {e}")
+
+    try:
+        # The control API server (REST API + Web UI) runs as a thread in this
+        # process, so it ships and runs with the daemon (nothing extra to deploy).
+        from anyhop.api import server as api_server
+
+        api_server.start_in_thread()
+    except Exception as e:  # noqa: BLE001 — the API is optional; never kill the daemon
+        applog.log(f"api failed to start: {e}")
+
+    accumulator = metrics.Accumulator()
+    stop_flag = {"stop": False}
+
+    def _handle(_sig, _frame):
+        stop_flag["stop"] = True
+
+    signal.signal(signal.SIGTERM, _handle)
+    signal.signal(signal.SIGINT, _handle)
+
+    proc.write_pidfile(_pid_path(), os.getpid())
+
+    runtime_state: dict = {"cur": None}
+
+    def _set_runtime(status: str, detail: str = "") -> None:
+        """Publish the sing-box runtime status into the info file (on change).
+
+        Read back by ``anyhop status`` / the Web UI via :func:`daemon_info` —
+        this is where "degraded" and "crash-looping" become visible outside
+        the log. Detail is clipped to one line; the full text is in applog.
+        """
+        detail = detail.splitlines()[0][:200] if detail else ""
+        if runtime_state["cur"] == (status, detail):
+            return
+        runtime_state["cur"] = (status, detail)
+        _write_info({"singbox": status, "detail": detail})
+
+    _set_runtime("starting")
+
+    def _probe_pass() -> None:
+        """One probe + reconnect pass. Runs on its own thread so a slow pass
+        (many dead channels) can never delay a reconcile — kill-switch and
+        config changes keep applying within one poll interval regardless."""
+        try:
+            eng = Engine(Store.load())
+            # Only enabled channels are probed/reconnected; when every channel
+            # is disabled the pass is a no-op (no empty probe log each cycle).
+            if any(ch.enabled for ch in eng.store.channels()):
+                eng.probe_all()
+                reconnect.run_pass(Store.load(), eng.runner)
+        except Exception as e:  # noqa: BLE001 — a bad pass must not kill the worker
+            applog.log(f"probe cycle failed: {e}")
+
+    probe_worker: dict = {"thread": None}
+    metrics_worker: dict = {"thread": None}
+    backup_worker: dict = {"thread": None}
+    metrics_error: dict = {"text": None, "at": float("-inf")}
+
+    def _backup_pass() -> None:
+        from anyhop import backup
+
+        backup.run_due()  # never raises; rate-limits its own failure logging
+
+    def _metrics_pass() -> None:
+        try:
+            runner = singbox.Runner()
+            # No preliminary is_running() pass: a non-null generation is
+            # already a verified live process, so the two reads bracketing the
+            # sample establish liveness *and* detect a reload between them —
+            # asking a third time only re-verified the same pid.
+            before = runner.generation()
+            if before is None:
+                return
+            connections = runner.connections()
+            after = runner.generation()
+            # A reload (or an exit) between the two identity reads makes the
+            # snapshot ambiguous: discard it without moving watermarks.
+            if before != after:
+                return
+            accumulator.observe(connections, generation=before)
+            metrics_error["text"] = None
+        except Exception as e:  # noqa: BLE001 — sampling is optional
+            message = str(e)
+            now = time.monotonic()
+            if message != metrics_error["text"] or now - metrics_error["at"] >= 60:
+                applog.log(f"metrics sample failed: {e}")
+                metrics_error.update(text=message, at=now)
+
+    # The self-exit-on-upgrade only makes sense when a supervisor respawns us
+    # onto *new code*. A container image is immutable — the installed version
+    # cannot change under a running container, and exiting would just make the
+    # restart policy relaunch the same code — so the check is skipped there.
+    from anyhop import runtime
+
+    supervised = bool(os.environ.get("ANYHOP_SERVICE")) and not runtime.in_container()
+    last_stamp: tuple[int, int] | None = None
+    sig = None
+    last_sig = None
+    last_probe = 0.0
+    last_metrics = 0.0
+    last_version_check = 0.0
+    last_backup_check = float("-inf")  # first due-ness check on the first tick
+    reconcile_ok = True
+    reconcile_retry_at = 0.0
+    read_error: str | None = None
+    expected_running = False  # a reconcile succeeded → sing-box should be up
+    last_supervise = float("-inf")
+    crashes = 0
+    last_crash_at = 0.0
+    next_restart_at = 0.0
+    try:
+        while not stop_flag["stop"]:
+            now = time.monotonic()
+            # Self-restart on in-place upgrade: only when a supervisor will
+            # respawn us on the new code — otherwise exiting would just leave
+            # the daemon down until the next CLI call.
+            if supervised and now - last_version_check >= VERSION_CHECK:
+                last_version_check = now
+                on_disk_version = installed_version()
+                if on_disk_version != __version__:
+                    # The API handler acquires this lease before it delegates
+                    # the manager command and releases it only after flushing
+                    # the JSON response. Re-check after the potentially slow
+                    # Homebrew opt-shim probe so the watcher cannot terminate
+                    # in the command-complete / response-pending window.
+                    if upgrade_restart_deferred():
+                        # Retry promptly after the handler releases its lease,
+                        # rather than delaying supervisor handoff for another
+                        # full VERSION_CHECK interval.
+                        last_version_check = now - VERSION_CHECK + POLL_SECONDS
+                    else:
+                        applog.log(
+                            f"applier: package upgraded {__version__} -> "
+                            f"{on_disk_version}; exiting for supervisor respawn"
+                        )
+                        # non-zero so even a Restart=on-failure unit (pre-
+                        # Restart=always installs) respawns onto the new code;
+                        # the finally block below still cleans up the pidfile
+                        raise SystemExit(UPGRADE_EXIT_CODE)
+            stamp = _state_stamp()
+            if stamp != last_stamp:
+                # An unreadable state file must not kill the loop (or be
+                # mistaken for an empty one — see StoreReadError): keep the
+                # previous signature and retry next poll, logging the failure
+                # once per distinct error rather than at 1 Hz.
+                try:
+                    sig = config_signature(_read_raw())
+                except StoreReadError as e:
+                    if str(e) != read_error:
+                        read_error = str(e)
+                        applog.log(f"state unreadable (will retry): {e}")
+                else:
+                    last_stamp = stamp
+                    read_error = None
+            # A failed reconcile is retried on a timer even when the state file
+            # hasn't moved — the failure may be environmental (binary download
+            # offline, stolen port) and heal without a user edit. A *rejected*
+            # config is deterministic (same state, same config, same refusal),
+            # so it is retried only on the next state change — never a storm.
+            if sig != last_sig or (not reconcile_ok and now >= reconcile_retry_at):
+                try:
+                    Engine(Store.load()).reconcile()
+                    reconcile_ok = True
+                    expected_running = True
+                    _set_runtime("ok")
+                except singbox.ConfigRejectedError as e:
+                    reconcile_ok = False
+                    reconcile_retry_at = float("inf")
+                    applog.log(
+                        "reconcile: sing-box rejected the generated config — "
+                        f"keeping the last known-good one until state changes: {e}"
+                    )
+                    print(f"applier: config rejected: {e}", file=sys.stderr, flush=True)
+                    _set_runtime("config_rejected", str(e))
+                except Exception as e:  # noqa: BLE001 — one bad state must not kill the loop
+                    reconcile_ok = False
+                    reconcile_retry_at = now + RECONCILE_RETRY
+                    applog.log(
+                        f"reconcile failed (retrying in {int(RECONCILE_RETRY)}s): {e}"
+                    )
+                    print(
+                        f"applier: reconcile failed: {e}", file=sys.stderr, flush=True
+                    )
+                    _set_runtime("degraded", str(e))
+                last_sig = sig
+
+            # Supervision: sing-box liveness independent of probes (which only
+            # *record* "stopped") — an unexpected exit is restarted with capped
+            # exponential backoff so a crash-looping config can't start a storm.
+            if now - last_supervise >= SUPERVISE_INTERVAL:
+                last_supervise = now
+                if singbox.Runner().is_running():
+                    if crashes and now - last_crash_at >= CRASH_RESET:
+                        crashes = 0  # stable again — forget the crash history
+                        _set_runtime("ok")
+                elif expected_running and now >= next_restart_at:
+                    crashes += 1
+                    last_crash_at = now
+                    delay = min(2.0 ** (crashes - 1), CRASH_BACKOFF_MAX)
+                    next_restart_at = now + delay
+                    _set_runtime(
+                        "crash_looping" if crashes >= 3 else "crashed",
+                        f"{crashes} unexpected exit(s); restarting",
+                    )
+                    applog.log(
+                        f"sing-box exited unexpectedly (crash {crashes}); "
+                        f"restarting (next attempt in {int(delay)}s if it "
+                        "crashes again)"
+                    )
+                    try:
+                        Engine(Store.load()).reconcile()
+                        applog.log("sing-box restarted after unexpected exit")
+                    except Exception as e:  # noqa: BLE001
+                        if singbox.Runner().is_running():
+                            applog.log(
+                                "sing-box restarted on the last known-good "
+                                f"config (desired config still failing: {e})"
+                            )
+                        else:
+                            applog.log(f"supervised restart failed: {e}")
+            # Traffic sampling runs on its own faster cadence than probing: the
+            # Clash API only reports live connections, so the more often we look
+            # the fewer short-lived connections slip through between samples.
+            if now - last_metrics >= METRICS_INTERVAL:
+                worker = metrics_worker["thread"]
+                if worker is None or not worker.is_alive():
+                    worker = threading.Thread(
+                        target=_metrics_pass, name="anyhop-metrics", daemon=True
+                    )
+                    metrics_worker["thread"] = worker
+                    worker.start()
+                last_metrics = now
+
+            if now - last_probe >= PROBE_INTERVAL:
+                worker = probe_worker["thread"]
+                if worker is None or not worker.is_alive():
+                    worker = threading.Thread(
+                        target=_probe_pass, name="anyhop-probe", daemon=True
+                    )
+                    probe_worker["thread"] = worker
+                    worker.start()
+                # else: the previous pass is still running — skip this tick
+                # rather than stack passes (each pass is internally bounded).
+                last_probe = now
+
+            if now - last_backup_check >= BACKUP_CHECK:
+                worker = backup_worker["thread"]
+                if worker is None or not worker.is_alive():
+                    worker = threading.Thread(
+                        target=_backup_pass, name="anyhop-backup", daemon=True
+                    )
+                    backup_worker["thread"] = worker
+                    worker.start()
+                last_backup_check = now
+
+            time.sleep(POLL_SECONDS)
+    finally:
+        worker = metrics_worker.get("thread")
+        if worker is not None and worker.is_alive():
+            worker.join(timeout=3)
+        if own_children and stop_flag["stop"]:
+            # Foreground ownership + stop signal: tear down the owned data
+            # plane. Stopping sing-box (SIGTERM, escalating to SIGKILL, then
+            # reaped) removes its TUN interface and routes with it — within
+            # Docker's stop grace period. Only the signal path: the upgrade
+            # self-exit and the supervised applier (own_children unset) leave
+            # sing-box running for deliberate adoption by the respawned
+            # daemon. The daemon's own identity files go below either way.
+            try:
+                singbox.Runner().stop()
+                applog.log(
+                    "foreground shutdown: sing-box stopped and reaped, "
+                    "data plane released"
+                )
+            except Exception as e:  # noqa: BLE001 — best-effort in the grace period
+                applog.log(f"foreground shutdown: sing-box stop failed: {e}")
+        if running_pid() == os.getpid():
+            _pid_path().unlink(missing_ok=True)
+            _info_path().unlink(missing_ok=True)

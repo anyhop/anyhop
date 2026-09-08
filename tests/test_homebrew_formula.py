@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-FORMULA = ROOT / "packaging" / "homebrew" / "alle.rb"
+FORMULA = ROOT / "packaging" / "homebrew" / "anyhop.rb"
 UPDATER = ROOT / "scripts" / "update-homebrew-formula.py"
 
 
@@ -47,18 +47,18 @@ def test_formula_pins_the_current_bottled_python(formula_text):
 
 def test_formula_has_native_service_and_caveats(formula_text):
     # Portable brew supervision (launchd on macOS, systemd --user on Linux) of
-    # the stable `alle applier` shim, plus a caveat steering to brew services.
+    # the stable `anyhop applier` shim, plus a caveat steering to brew services.
     assert re.search(r"service do\b", formula_text)
-    assert 'run [opt_bin/"alle", "applier"]' in formula_text
-    assert re.search(r'ALLE_SERVICE:\s+"1"', formula_text)
-    assert re.search(r'ALLE_SERVICE_OWNER:\s+"homebrew"', formula_text)
-    assert re.search(r"ALLE_SERVICE_PREFIX:\s+opt_prefix\.to_s", formula_text)
+    assert 'run [opt_bin/"anyhop", "applier"]' in formula_text
+    assert re.search(r'ANYHOP_SERVICE:\s+"1"', formula_text)
+    assert re.search(r'ANYHOP_SERVICE_OWNER:\s+"homebrew"', formula_text)
+    assert re.search(r"ANYHOP_SERVICE_PREFIX:\s+opt_prefix\.to_s", formula_text)
     assert re.search(r"PATH:\s+std_service_path_env", formula_text)
     assert "keep_alive true" in formula_text
     assert "def caveats" in formula_text
-    assert "brew services start alle" in formula_text
+    assert "brew services start anyhop" in formula_text
     # The caveat must actively steer away from the competing user unit.
-    assert "alle daemon install" in formula_text
+    assert "anyhop daemon install" in formula_text
 
 
 def test_formula_relies_on_the_shared_headless_wheel(formula_text):
@@ -96,7 +96,7 @@ def test_pinned_resources_match_the_lockfile(formula_text):
 
 def test_updater_rewrites_only_the_source_url_and_sha(formula_text):
     mod = _load_updater()
-    url = "https://files.pythonhosted.org/packages/ab/cd/alle_proxy-0.1.9.tar.gz"
+    url = "https://files.pythonhosted.org/packages/ab/cd/anyhop-0.1.9.tar.gz"
     sha = "a" * 64
     out = mod.rewrite_source(formula_text, url, sha)
 
@@ -113,7 +113,7 @@ def test_updater_rewrites_only_the_source_url_and_sha(formula_text):
 
 def test_updater_is_idempotent(formula_text):
     mod = _load_updater()
-    url = "https://example.invalid/alle_proxy-0.1.9.tar.gz"
+    url = "https://example.invalid/anyhop-0.1.9.tar.gz"
     sha = "b" * 64
     once = mod.rewrite_source(formula_text, url, sha)
     twice = mod.rewrite_source(once, url, sha)
@@ -123,4 +123,4 @@ def test_updater_is_idempotent(formula_text):
 def test_updater_rejects_a_mangled_formula():
     mod = _load_updater()
     with pytest.raises(mod.UpdateError, match="url/sha256"):
-        mod.rewrite_source("class Alle < Formula\nend\n", "u", "s")
+        mod.rewrite_source("class Anyhop < Formula\nend\n", "u", "s")

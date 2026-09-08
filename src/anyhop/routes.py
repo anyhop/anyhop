@@ -1,0 +1,454 @@
+"""Routing rule model: matcher validation, target parsing, and the shadow lint.
+
+A rule is **one matcher plus a target**, stored in ``state.json`` under
+``router.rules`` and compiled verbatim (in stored order) into sing-box
+``route.rules`` — order is law, first match wins, and anyhop never reorders by
+"specificity" (undefinable once richer matcher types arrive). The safety net
+for the ordering footgun is the shadow lint here: a rule that can never match
+because an earlier rule strictly covers it is flagged, not silently dead.
+
+Matcher vocabulary (one per rule): ``domain_suffix`` — the one domain matcher,
+matching the domain itself *and* its subdomains (dot-boundary, so
+``example.co.uk`` never bleeds into ``otherexample.co.uk``) — ``ip_cidr``,
+``geosite``/``geoip`` (community rule-set categories, compiled to sing-box
+``rule_set`` references; the data machinery lives in ``geodata``), and
+``all`` (the catch-all that makes "VPN by default" a one-liner). There is
+deliberately no exact-only domain type: one semantic keeps rules predictable,
+and the legacy ``domain`` (exact) type is read as ``domain_suffix`` wherever
+it can still appear (old state files, old bundles, explicit API type
+overrides). Targets are extensible strings: ``<provider>/<channel_id>``,
+``direct``, or ``block`` today; future forms (``group:…``) join without a
+state migration.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import re
+
+# Built-in default-direct destinations: private, link-local, loopback, and
+# multicast/broadcast ranges. Compiled ahead of all user rules (when the
+# ``lan_direct`` toggle is on) so LAN access — printers, NAS, router admin
+# pages, mDNS/SSDP discovery — keeps working under a "route everything through
+# VPN" catch-all. DNS is deliberately *not* here: sending plain DNS direct by
+# default would leak browsing activity outside the tunnel, so it stays subject
+# to user rules. mDNS/SSDP multicast is covered because their destinations
+# (224.0.0.251 / ff02::fb, 239.255.255.250) fall inside the multicast CIDRs;
+# their *unicast* legs ride the port list below.
+LAN_DIRECT_CIDRS = (
+    "10.0.0.0/8",  # IPv4 private # noqa: S1313
+    "172.16.0.0/12",  # noqa: S1313
+    "192.168.0.0/16",  # noqa: S1313
+    "169.254.0.0/16",  # IPv4 link-local # noqa: S1313
+    "127.0.0.0/8",  # IPv4 loopback
+    "224.0.0.0/4",  # IPv4 multicast (mDNS/SSDP/LAN discovery) # noqa: S1313
+    "255.255.255.255/32",  # IPv4 broadcast
+    "::1/128",  # IPv6 loopback
+    "fe80::/10",  # IPv6 link-local
+    "fc00::/7",  # IPv6 unique local (ULA)
+    "ff00::/8",  # IPv6 multicast
+)
+
+# The port half of the built-in LAN-direct block: LAN housekeeping protocols
+# whose *unicast* legs the CIDRs above cannot see — a DHCP renewal goes
+# unicast to the server, and mDNS/SSDP queriers answer unicast from a
+# well-known port. UDP-only (that is what these protocols speak), and a fixed
+# curated list on purpose: every direct-bypass port is a small tunnel-bypass
+# channel, so this is not user-extensible — custom port routing belongs to
+# user rules once the port matcher exists. Settled design (2026-07-18): one
+# toggle, fixed contents, full transparency; if a real network ever needs the
+# list changed and user rules cannot express it, the fallback is
+# subtractive-only overrides (disable entries, never add). Port 53 is
+# deliberately absent:
+# plain DNS stays subject to the hijack/user rules (see LAN_DIRECT_CIDRS'
+# comment on leaks). Rides the same ``lan_direct`` toggle as the CIDRs.
+LAN_DIRECT_UDP_PORTS = (
+    67,  # DHCP server (client -> server, incl. unicast renewals)
+    68,  # DHCP client
+    1900,  # SSDP / UPnP discovery
+    5353,  # mDNS
+)
+
+# One DNS label: alnum (plus inner hyphens/underscores), max 63 chars.
+_LABEL = r"(?!-)[a-z0-9_-]{1,63}(?<!-)"
+# A routable domain needs at least one dot (≥2 labels): a bare single label like
+# "xxx" is neither a usable domain nor an IP, so it is rejected rather than
+# silently becoming a one-label suffix match.
+_DOMAIN_RE = re.compile(rf"^{_LABEL}(\.{_LABEL})+$")
+
+# geosite/geoip category names as the upstreams spell them in filenames:
+# lowercase, may carry attribute forms (apple@cn) and list names
+# (category-ads-all). Kept permissive-but-bounded; existence is validated by
+# the fetch itself, not this regex.
+_GEO_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._@!+-]{0,127}$")
+GEO_TYPES = ("geosite", "geoip")
+
+
+class RuleError(Exception):
+    """A routing rule the user typed is not usable."""
+
+
+def normalize_domain(value: str) -> str:
+    v = value.strip().lower().rstrip(".")
+    if v.startswith("*."):
+        # domain matchers already cover subdomains — the wildcard is redundant
+        raise RuleError(f"{value!r}: use {v[2:]} — domains always match subdomains")
+    if not v or not _DOMAIN_RE.match(v):
+        raise RuleError(f"{value!r} is not a valid domain name")
+    return v
+
+
+def normalize_geo(kind: str, value: str) -> str:
+    """Canonicalize a geosite/geoip category name (forgiving the upstream
+    filename spelling ``geosite-netflix.srs``)."""
+    v = value.strip().lower()
+    prefix = f"{kind}-"
+    if v.startswith(prefix):
+        v = v[len(prefix) :]
+    if v.endswith(".srs"):
+        v = v[: -len(".srs")]
+    if not _GEO_NAME_RE.match(v):
+        raise RuleError(f"{value!r} is not a valid {kind} category name")
+    return v
+
+
+def normalize_value(matcher_type: str, value: str) -> str:
+    """Canonicalize a matcher value (or raise :class:`RuleError`)."""
+    if matcher_type == "all":
+        return ""
+    if matcher_type in GEO_TYPES:
+        return normalize_geo(matcher_type, value)
+    if matcher_type == "domain_suffix":
+        return normalize_domain(value)
+    if matcher_type == "ip_cidr":
+        try:
+            # strict=False forgives host bits (10.0.0.1/8 -> 10.0.0.0/8); a bare
+            # IP canonicalizes to /32 (or /128), so "match this one address" works.
+            return str(ipaddress.ip_network(value.strip(), strict=False))
+        except ValueError as e:
+            raise RuleError(f"{value!r} is not a valid IP or CIDR block") from e
+    raise RuleError(f"unknown matcher type {matcher_type!r}")
+
+
+def infer_matcher(value: str, matcher_type: str | None = None) -> tuple[str, str]:
+    """Infer and normalize a ruleset matcher from one user-facing entry.
+
+    Without an explicit ``matcher_type``, CIDR/IP-looking entries become
+    ``ip_cidr`` and everything else must be a domain — always
+    ``domain_suffix``, matching the domain *and* its subdomains (the common
+    intent, and the only domain semantic anyhop has). The legacy exact
+    ``domain`` type is accepted as an alias and normalized to
+    ``domain_suffix``, so old bundles and API clients keep working.
+    """
+    raw = value.strip()
+    if matcher_type == "domain":  # legacy exact type — one domain matcher now
+        matcher_type = "domain_suffix"
+    if matcher_type:
+        return matcher_type, normalize_value(matcher_type, raw)
+    if raw.lower() == "all":
+        return "all", ""
+    # the prefixed string spelling ("geosite:netflix") — how the Web UI's
+    # one-per-line matcher box and hand-written bundles express geo matchers
+    kind, _, rest = raw.partition(":")
+    if kind.lower() in GEO_TYPES and rest:
+        return kind.lower(), normalize_geo(kind.lower(), rest)
+    try:
+        return "ip_cidr", str(ipaddress.ip_network(raw, strict=False))
+    except ValueError:
+        pass
+    return "domain_suffix", normalize_domain(raw)
+
+
+def parse_target(target: str) -> tuple[str, tuple[str, str] | None]:
+    """``("direct"|"block"|"channel", (provider, channel_id) | None)``."""
+    t = target.strip()
+    if t in ("direct", "block"):
+        return t, None
+    provider, _, cid = t.partition("/")
+    if provider and cid and "/" not in cid:
+        return "channel", (provider, cid)
+    raise RuleError(
+        f"target {target!r} is not valid — use <provider>/<channel>, "
+        "'direct', or 'block'."
+    )
+
+
+def describe(rule: dict) -> str:
+    """Human one-liner for a rule's matcher (``domain_suffix netflix.com``)."""
+    if rule["type"] == "all":
+        return "all traffic"
+    return f"{rule['type']} {rule['value']}"
+
+
+def matcher_token(rule: dict) -> str:
+    """The canonical one-token form of a matcher: ``geosite:netflix``,
+    ``geoip:us``, a bare domain (``netflix.com``), a CIDR (``10.0.0.0/8``),
+    or ``all traffic``. The form surfaced in trace output and the Web UI."""
+    mtype = rule["type"]
+    if mtype == "all":
+        return "all traffic"
+    if mtype in GEO_TYPES:
+        return f"{mtype}:{rule['value']}"
+    return str(rule["value"])
+
+
+# ---- destination matching ----------------------------------------------------
+
+
+def domain_suffix_matches(suffix: str, domain: str) -> bool:
+    """anyhop's one domain semantic: ``suffix`` matches the domain itself and
+    its subdomains, on a dot boundary. The single implementation behind both
+    the shadow lint (:func:`covers`) and the tracer (:func:`match_destination`)."""
+    return domain == suffix or domain.endswith("." + suffix)
+
+
+def match_destination(
+    rule: dict,
+    domain: str | None = None,
+    ips: tuple | list = (),
+    geo: dict | None = None,
+) -> bool:
+    """Would ``rule`` match a destination? — the tracer's core primitive.
+
+    The destination is a ``domain`` and/or its resolved ``ips``
+    (:mod:`ipaddress` address objects; for a literal-IP destination pass just
+    the address). ``geo`` maps ``(kind, category)`` to a parsed rule-set
+    (:class:`anyhop.srs.RuleSet`) for geosite/geoip rules; a geo rule whose
+    category is missing from ``geo`` matches nothing (the caller decides how
+    to disclose that).
+
+    Same first-match-wins table semantics as the compiled sing-box config:
+    this answers one rule's verdict, the caller walks the order.
+    """
+    mtype = rule["type"]
+    if mtype == "all":
+        return True
+    if mtype == "domain_suffix":
+        return domain is not None and domain_suffix_matches(rule["value"], domain)
+    if mtype == "ip_cidr":
+        try:
+            net = ipaddress.ip_network(rule["value"])
+        except ValueError:
+            return False
+        return any(ip.version == net.version and ip in net for ip in ips)
+    if mtype in GEO_TYPES:
+        ruleset = (geo or {}).get((mtype, rule["value"]))
+        if ruleset is None:
+            return False
+        if mtype == "geosite":
+            return bool(domain) and ruleset.match(domain=domain)
+        return bool(ips) and ruleset.match(ips=list(ips))
+    return False
+
+
+# ---- shadow lint -------------------------------------------------------------
+
+
+def _subnet_of(inner, outer) -> bool:
+    """True iff ``inner`` is a subnet of ``outer``, same address family only.
+
+    Paired isinstance (not a version compare) so type checkers narrow the
+    ``IPv4Network | IPv6Network`` union that ``subnet_of()`` won't accept
+    mixed; mixed families never overlap.
+    """
+    if isinstance(inner, ipaddress.IPv4Network) and isinstance(
+        outer, ipaddress.IPv4Network
+    ):
+        return inner.subnet_of(outer)
+    if isinstance(inner, ipaddress.IPv6Network) and isinstance(
+        outer, ipaddress.IPv6Network
+    ):
+        return inner.subnet_of(outer)
+    return False
+
+
+def covers(a: dict, b: dict) -> bool:
+    """True if rule ``a`` matches a superset (or all) of what ``b`` matches —
+    i.e. an ``a`` evaluated earlier makes ``b`` unreachable.
+
+    Deliberately best-effort by type: only same-family containment is decided
+    (domains vs domains, CIDRs vs CIDRs, ``all`` vs anything); pairs it cannot
+    reason about are treated as non-overlapping, so future matcher types
+    degrade the lint, never break it.
+    """
+    ta, tb = a["type"], b["type"]
+    if ta == "all":
+        return True
+    if tb == "all":
+        return False
+    if ta in GEO_TYPES or tb in GEO_TYPES:
+        # opaque category contents: only an identical category provably covers
+        return ta == tb and a["value"] == b["value"]
+    if ta == "domain_suffix" and tb == "domain_suffix":
+        # a covers b iff a matches b's root — then every subdomain of b is
+        # a's subdomain too (the same dot-boundary primitive the tracer uses)
+        return domain_suffix_matches(a["value"], b["value"])
+    if ta == "ip_cidr" and tb == "ip_cidr":
+        return _subnet_of(
+            ipaddress.ip_network(b["value"]), ipaddress.ip_network(a["value"])
+        )
+    return False
+
+
+def _parse_network(value: str):
+    """``(version, prefixlen, network address as int)``, or ``None``.
+
+    ``None`` for anything :func:`covers` could not reason about either — the
+    lint degrades to "not shadowed" rather than raising, because a rule table
+    that cannot be linted must still render.
+    """
+    try:
+        net = ipaddress.ip_network(value)
+    except ValueError:
+        return None
+    return (net.version, net.prefixlen, int(net.network_address))
+
+
+class _Labels:
+    """One node of the reverse-label domain trie."""
+
+    __slots__ = ("children", "index")
+
+    def __init__(self) -> None:
+        self.children: dict[str, _Labels] = {}
+        self.index: int | None = None  # a rule ends here, at this position
+
+
+def _earliest(current: int | None, candidate: int | None) -> int | None:
+    if candidate is None:
+        return current
+    return candidate if current is None or candidate < current else current
+
+
+class _CoverIndex:
+    """Which of the rules added so far first covers a given matcher.
+
+    :func:`shadowed_by` walks the table once, asking this about each rule and
+    then adding it — so "added so far" is exactly "earlier in the table", and
+    the answer is the first-match identity the lint reports.
+
+    Each matcher family gets the narrowest index that answers its own
+    containment question, because the pairwise scan this replaces re-derived
+    every answer from scratch: 2,000 rules meant two million :func:`covers`
+    calls, and every CIDR/CIDR pair among them re-parsed both networks.
+    Semantics are unchanged — this is the same relation, looked up instead of
+    searched.
+    """
+
+    def __init__(self) -> None:
+        self._all: int | None = None
+        self._geo: dict[tuple[str, str], int] = {}
+        self._domains = _Labels()
+        self._networks: dict[tuple[int, int, int], int] = {}
+        # Only the prefix lengths actually present are probed on lookup: a real
+        # table uses a handful, and the loop stays bounded by 33/129 regardless.
+        self._prefixlens: dict[int, set[int]] = {4: set(), 6: set()}
+
+    def add(self, position: int, rule: dict) -> None:
+        """Remember that ``rule`` sits at ``position`` and covers what it covers.
+
+        Only ever records the *earliest* position for a given key, so a
+        duplicate can never displace the rule that first claimed the ground.
+        A matcher type this cannot reason about is deliberately not indexed:
+        :func:`covers` says such a rule covers nothing, so it must stay
+        invisible here too.
+        """
+        mtype = rule["type"]
+        if mtype == "all":
+            if self._all is None:
+                self._all = position
+        elif mtype in GEO_TYPES:
+            self._geo.setdefault((mtype, rule["value"]), position)
+        elif mtype == "domain_suffix":
+            node = self._domains
+            for label in reversed(str(rule["value"]).split(".")):
+                node = node.children.setdefault(label, _Labels())
+            if node.index is None:
+                node.index = position
+        elif mtype == "ip_cidr":
+            parsed = _parse_network(rule["value"])
+            if parsed is not None:
+                version, prefixlen, address = parsed
+                self._networks.setdefault((version, prefixlen, address), position)
+                self._prefixlens[version].add(prefixlen)
+
+    def first_cover(self, rule: dict) -> int | None:
+        """Position of the earliest added rule that makes ``rule`` unreachable."""
+        best = self._all  # `all` covers everything, another `all` included
+        if best == 0:
+            return 0  # nothing can be earlier, so no index needs consulting
+        mtype = rule["type"]
+        if mtype in GEO_TYPES:
+            # Category contents are opaque: only the identical category covers.
+            best = _earliest(best, self._geo.get((mtype, rule["value"])))
+        elif mtype == "domain_suffix":
+            node = self._domains
+            for label in reversed(str(rule["value"]).split(".")):
+                child = node.children.get(label)
+                if child is None:
+                    break
+                # Every rule terminating on this path is a suffix of the domain
+                # on a dot boundary — the containment `covers` computes, walked
+                # instead of tested. The last label reached is the domain
+                # itself, so an exact duplicate is found here too.
+                best = _earliest(best, child.index)
+                node = child
+        elif mtype == "ip_cidr":
+            parsed = _parse_network(rule["value"])
+            if parsed is not None:
+                version, prefixlen, address = parsed
+                bits = 32 if version == 4 else 128
+                for length in self._prefixlens[version]:
+                    if length > prefixlen:
+                        continue  # a longer prefix is a smaller net: can't contain
+                    supernet = address & (((1 << length) - 1) << (bits - length))
+                    best = _earliest(
+                        best, self._networks.get((version, length, supernet))
+                    )
+        # Anything else — a future matcher type, the legacy `domain` spelling —
+        # is undecidable and therefore covered only by `all`, as before.
+        return best
+
+
+def shadowed_by(rules: list[dict]) -> dict[str, str]:
+    """Map each unreachable rule's id to the earliest earlier rule covering it."""
+    out: dict[str, str] = {}
+    index = _CoverIndex()
+    for position, rule in enumerate(rules):
+        covering = index.first_cover(rule)
+        if covering is not None:
+            out[rule["id"]] = rules[covering]["id"]
+        index.add(position, rule)
+    return out
+
+
+# The marker placed in a rule's ``shadowed_by`` when it is covered by the
+# built-in priority-zero LAN-direct block (not a user rule id). Distinct from
+# any real id (``r…``/``rs…``) so the renderer can name the built-in block.
+LAN_DIRECT_SHADOW = "lan-direct"
+
+
+def shadowed_by_lan_direct(rule: dict) -> bool:
+    """True if an ``ip_cidr`` rule is wholly inside a built-in LAN-direct range.
+
+    The LAN-direct block sits at priority zero (ahead of every user rule), so a
+    user rule targeting a private/link-local/multicast range it covers can never
+    match while ``lan_direct`` is on — its traffic already went direct. Domain
+    rules are never affected (a domain never resolves into a fixed private
+    range the lint could see). Returns False for anything but a covered CIDR.
+    """
+    if rule.get("type") != "ip_cidr":
+        return False
+    try:
+        net = ipaddress.ip_network(rule["value"])
+    except ValueError:
+        return False
+    return any(_subnet_of(net, ipaddress.ip_network(cidr)) for cidr in LAN_DIRECT_CIDRS)
+
+
+def shadow_label(shadowed_by: str) -> str:
+    """Human wording for a ``shadowed_by`` marker — names the built-in LAN-direct
+    block specially, otherwise the covering user rule's id."""
+    if shadowed_by == LAN_DIRECT_SHADOW:
+        return "the built-in LAN-direct rule"
+    return f"earlier rule {shadowed_by}"

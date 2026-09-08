@@ -12,7 +12,7 @@ import urllib.error
 
 import pytest
 
-from alle import probe
+from anyhop import probe
 
 
 class _FakeResponse:
@@ -261,7 +261,7 @@ def test_ipv6_lookup_is_skipped_when_no_budget_remains(monkeypatch, budget):
 def _v6_channel(port: int = 8888):
     """A channel the engine considers v6-capable: a provider that carries v6
     and a global v6 interface address of its own."""
-    from alle.state import Channel
+    from anyhop.state import Channel
 
     return Channel(
         provider="protonvpn",
@@ -272,7 +272,7 @@ def _v6_channel(port: int = 8888):
 
 
 def _probe_one(ch):
-    from alle.engine import Engine
+    from anyhop.engine import Engine
 
     return Engine._probe_one(ch)
 
@@ -323,7 +323,7 @@ def test_an_exhausted_deadline_skips_the_ipv6_lookup_entirely(monkeypatch):
 
 
 def test_a_v4_only_channel_never_runs_the_ipv6_lookup(monkeypatch):
-    from alle.state import Channel
+    from anyhop.state import Channel
 
     _clock, opener = _patch_timed(monkeypatch, [(0.1, b"ip=8.8.8.8\n")])
     v4_only = Channel(provider="nordvpn", id="wg_us_1", port=8888, wg=WG_V4_ONLY)

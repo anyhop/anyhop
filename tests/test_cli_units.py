@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from alle import cli, service
+from anyhop import cli, service
 
 
 def test_routes_mv_parses_trailing_destination_after_variadic_ids():
@@ -88,10 +88,10 @@ def test_start_stop_restart_and_logs_are_thin_adapters(monkeypatch, capsys):
     cli.cmd_logs(SimpleNamespace(follow=False, lines=7))
 
     assert capsys.readouterr().out.splitlines() == [
-        "Alle started; channels are being applied and probed. See: alle status",
-        "Web UI: http://127.0.0.1:9999  (open it: alle ui)",
-        "Alle stopped (channels kept in config).",
-        "Alle restarted. See: alle status",
+        "Anyhop started; channels are being applied and probed. See: anyhop status",
+        "Web UI: http://127.0.0.1:9999  (open it: anyhop ui)",
+        "Anyhop stopped (channels kept in config).",
+        "Anyhop restarted. See: anyhop status",
         "tail 7",
     ]
     assert restarted == [True]

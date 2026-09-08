@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from alle import singbox
+from anyhop import singbox
 
 
 def _runner() -> singbox.Runner:
@@ -199,7 +199,7 @@ def test_apply_still_reloads_a_tun_to_tun_config_change_on_linux(monkeypatch):
 
 
 class _FakeHelper:
-    """A stateful stand-in for alle.helper: tracks whether it 'owns' sing-box
+    """A stateful stand-in for anyhop.helper: tracks whether it 'owns' sing-box
     and records the request stream, so apply's on/off transitions can be
     asserted without a real helper or sing-box. Speaks the v2 (home-scoped)
     protocol, serving whatever home the test process currently uses."""
@@ -210,7 +210,7 @@ class _FakeHelper:
         self.calls: list[str] = []
 
     def _home(self) -> str:
-        from alle import paths
+        from anyhop import paths
 
         return str(paths.state_dir())
 
@@ -253,7 +253,7 @@ class _FakeHelper:
 
 
 def _wire_helper(monkeypatch, fake):
-    import alle.helper as helper_mod
+    import anyhop.helper as helper_mod
 
     monkeypatch.setattr(helper_mod, "reachable", fake.reachable)
     monkeypatch.setattr(helper_mod, "probe", fake.probe)
@@ -349,9 +349,9 @@ def test_helper_owned_generation_comes_from_one_status_round_trip(monkeypatch):
 def test_a_helper_without_a_generation_still_reports_its_pid(monkeypatch):
     """A response with no generation leaves the process addressable and the
     instance marker unknown — the pre-v2 helper's behaviour, unchanged."""
-    import alle.helper as helper_mod
+    import anyhop.helper as helper_mod
 
-    from alle import paths
+    from anyhop import paths
 
     r = _runner()
     home = str(paths.state_dir())
@@ -495,7 +495,7 @@ def test_failed_atomic_config_publish_preserves_previous_bytes(monkeypatch):
 
 
 def test_clash_api_endpoint_is_generated_once_and_private():
-    from alle import paths
+    from anyhop import paths
 
     a = singbox.clash_api()
     assert a["address"].startswith("127.0.0.1:")
@@ -506,7 +506,7 @@ def test_clash_api_endpoint_is_generated_once_and_private():
 
 
 def test_clash_api_regenerates_after_corruption():
-    from alle import paths
+    from anyhop import paths
 
     (paths.state_dir() / "clash_api.json").write_text("not json")
     a = singbox.clash_api()  # regenerable — rebuilt rather than crashing
@@ -515,7 +515,7 @@ def test_clash_api_regenerates_after_corruption():
 
 
 def test_clash_api_rejects_a_shape_wrong_file():
-    from alle import paths
+    from anyhop import paths
 
     # parses as JSON but the fields aren't usable strings — strict validation,
     # not a loose truthiness check, decides whether to regenerate
@@ -617,7 +617,7 @@ def test_generation_identifies_the_verified_instance(monkeypatch):
     import json as _json
     import os
 
-    from alle import paths, proc
+    from anyhop import paths, proc
 
     runner = singbox.Runner()
     pid_path = paths.state_dir() / "singbox.pid"
@@ -675,7 +675,7 @@ def test_prune_is_a_noop_with_only_the_current_binary(tmp_path):
 def test_ensure_binary_repairs_mode_on_a_valid_cached_binary(monkeypatch):
     import hashlib
 
-    monkeypatch.delenv("ALLE_SINGBOX")
+    monkeypatch.delenv("ANYHOP_SINGBOX")
     content = b"#!/bin/sh\nexit 0\n"
     key = singbox.host_platform()
     monkeypatch.setitem(
@@ -693,7 +693,7 @@ def test_ensure_binary_repairs_mode_on_a_valid_cached_binary(monkeypatch):
 def test_ensure_binary_rejects_a_foreign_owned_cached_binary(monkeypatch):
     import hashlib
 
-    monkeypatch.delenv("ALLE_SINGBOX")
+    monkeypatch.delenv("ANYHOP_SINGBOX")
     content = b"binary"
     key = singbox.host_platform()
     monkeypatch.setitem(
@@ -708,6 +708,6 @@ def test_ensure_binary_rejects_a_foreign_owned_cached_binary(monkeypatch):
 
 
 def test_ps_command_is_an_absolute_path():
-    from alle import proc
+    from anyhop import proc
 
     assert proc.PS.startswith("/")

@@ -8,7 +8,7 @@ import plistlib
 
 import pytest
 
-from alle import daemonctl
+from anyhop import daemonctl
 
 
 @pytest.fixture
@@ -39,9 +39,9 @@ def recorded_run(monkeypatch):
 @pytest.fixture(autouse=True)
 def stub_binary(monkeypatch):
     """Don't actually download sing-box during install()."""
-    import alle.singbox
+    import anyhop.singbox
 
-    monkeypatch.setattr(alle.singbox, "ensure_binary", lambda: None)
+    monkeypatch.setattr(anyhop.singbox, "ensure_binary", lambda: None)
 
 
 # ---- launchd (macOS) -----------------------------------------------------------
@@ -49,9 +49,9 @@ def stub_binary(monkeypatch):
 
 def test_launchd_plist_execs_the_stable_shim(fake_home):
     plist = plistlib.loads(daemonctl.LaunchdManager()._plist_bytes())
-    assert plist["Label"] == "io.github.zydo.alle"
-    assert plist["ProgramArguments"][-1] == "applier"  # `<alle> applier`
-    assert plist["EnvironmentVariables"]["ALLE_SERVICE"] == "1"
+    assert plist["Label"] == "io.github.anyhop.anyhop"
+    assert plist["ProgramArguments"][-1] == "applier"  # `<anyhop> applier`
+    assert plist["EnvironmentVariables"]["ANYHOP_SERVICE"] == "1"
     assert plist["EnvironmentVariables"]["PATH"].split(daemonctl.os.pathsep)[0] == str(
         daemonctl.Path(plist["ProgramArguments"][0]).parent
     )
@@ -92,7 +92,7 @@ def test_launchd_linger_is_rejected(fake_home, recorded_run):
 def test_systemd_unit_execs_shim_with_service_env_and_restart(fake_home):
     text = daemonctl.SystemdManager()._unit_text()
     assert "ExecStart=" in text and "applier" in text
-    assert 'Environment="ALLE_SERVICE=1"' in text
+    assert 'Environment="ANYHOP_SERVICE=1"' in text
     assert 'Environment="PATH=' in text
     # always, not on-failure: the self-restart-on-upgrade exit must respawn
     assert "Restart=always" in text
@@ -105,7 +105,7 @@ def test_systemd_install_enables_now(fake_home, recorded_run, monkeypatch):
     m = daemonctl.SystemdManager()
     m.install()
     assert m.is_installed()
-    assert ["systemctl", "--user", "enable", "--now", "alle.service"] in recorded_run
+    assert ["systemctl", "--user", "enable", "--now", "anyhop.service"] in recorded_run
     assert ["systemctl", "--user", "daemon-reload"] in recorded_run
 
 
@@ -143,7 +143,7 @@ def _failing_run(monkeypatch, fail: dict[str, str]):
 
 
 def test_systemd_start_failure_is_raised(monkeypatch, fake_home):
-    _failing_run(monkeypatch, {"start": "Failed to start alle.service"})
+    _failing_run(monkeypatch, {"start": "Failed to start anyhop.service"})
     with pytest.raises(daemonctl.DaemonCtlError, match="systemctl start failed"):
         daemonctl.SystemdManager().start()
 
@@ -163,7 +163,7 @@ def test_systemd_stop_failure_raises_only_when_still_active(monkeypatch, fake_ho
 def test_systemd_restart_is_one_noblock_job(monkeypatch, fake_home):
     calls = _failing_run(monkeypatch, {})
     daemonctl.SystemdManager().restart()
-    assert calls == [["systemctl", "--user", "restart", "--no-block", "alle.service"]]
+    assert calls == [["systemctl", "--user", "restart", "--no-block", "anyhop.service"]]
 
 
 def test_systemd_restart_failure_is_raised(monkeypatch, fake_home):
@@ -234,19 +234,19 @@ def test_restart_service_requires_an_installed_unit(monkeypatch, fake_home):
     assert daemonctl.restart_service() is False  # no unit file → nothing to ask
 
 
-# ---- ALLE_HOME carry-through ---------------------------------------------------
+# ---- ANYHOP_HOME carry-through ---------------------------------------------------
 
 
 def test_service_env_carries_overridden_alle_home(monkeypatch, tmp_path):
-    monkeypatch.setenv("ALLE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("ANYHOP_HOME", str(tmp_path / "state"))
     env = daemonctl._service_env()
-    assert env["ALLE_SERVICE"] == "1"
-    assert env["ALLE_HOME"].endswith("state")
+    assert env["ANYHOP_SERVICE"] == "1"
+    assert env["ANYHOP_HOME"].endswith("state")
 
 
 def test_service_env_omits_alle_home_when_default(monkeypatch):
-    monkeypatch.delenv("ALLE_HOME", raising=False)
-    assert "ALLE_HOME" not in daemonctl._service_env()
+    monkeypatch.delenv("ANYHOP_HOME", raising=False)
+    assert "ANYHOP_HOME" not in daemonctl._service_env()
 
 
 def test_service_env_leads_with_shim_dir_and_drops_unsafe_path_entries(monkeypatch):
@@ -256,7 +256,7 @@ def test_service_env_leads_with_shim_dir_and_drops_unsafe_path_entries(monkeypat
             ["/usr/bin", "", "relative", "/home/user/.local/bin", "/usr/bin"]
         ),
     )
-    command = ["/home/user/.local/bin/alle", "applier"]
+    command = ["/home/user/.local/bin/anyhop", "applier"]
 
     env = daemonctl._service_env(command)
 
@@ -267,34 +267,36 @@ def test_service_env_leads_with_shim_dir_and_drops_unsafe_path_entries(monkeypat
 
 
 def test_service_env_preserves_safe_app_bundle_env(monkeypatch, tmp_path):
-    executable = tmp_path / "Alle.app" / "Contents" / "Resources" / "bin" / "alle"
-    singbox = tmp_path / "Alle.app" / "Contents" / "Resources" / "sing-box" / "sing-box"
-    prefix = tmp_path / "Alle.app" / "Contents" / "Resources"
-    monkeypatch.setenv("ALLE_EXECUTABLE", str(executable))
-    monkeypatch.setenv("ALLE_SINGBOX", str(singbox))
-    monkeypatch.setenv("ALLE_SERVICE_PREFIX", str(prefix))
-    monkeypatch.setenv("ALLE_SERVICE_OWNER", "macos-app")
+    executable = tmp_path / "Anyhop.app" / "Contents" / "Resources" / "bin" / "anyhop"
+    singbox = (
+        tmp_path / "Anyhop.app" / "Contents" / "Resources" / "sing-box" / "sing-box"
+    )
+    prefix = tmp_path / "Anyhop.app" / "Contents" / "Resources"
+    monkeypatch.setenv("ANYHOP_EXECUTABLE", str(executable))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(singbox))
+    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", str(prefix))
+    monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "macos-app")
 
     env = daemonctl._service_env([str(executable), "applier"])
 
-    assert env["ALLE_EXECUTABLE"] == str(executable)
-    assert env["ALLE_SINGBOX"] == str(singbox)
-    assert env["ALLE_SERVICE_PREFIX"] == str(prefix)
-    assert env["ALLE_SERVICE_OWNER"] == "macos-app"
+    assert env["ANYHOP_EXECUTABLE"] == str(executable)
+    assert env["ANYHOP_SINGBOX"] == str(singbox)
+    assert env["ANYHOP_SERVICE_PREFIX"] == str(prefix)
+    assert env["ANYHOP_SERVICE_OWNER"] == "macos-app"
 
 
 def test_service_env_omits_unsafe_app_bundle_env(monkeypatch):
-    monkeypatch.setenv("ALLE_EXECUTABLE", "relative/alle")
-    monkeypatch.setenv("ALLE_SINGBOX", "sing-box")
-    monkeypatch.setenv("ALLE_SERVICE_PREFIX", "relative/prefix")
-    monkeypatch.setenv("ALLE_SERVICE_OWNER", "bad\nowner")
+    monkeypatch.setenv("ANYHOP_EXECUTABLE", "relative/anyhop")
+    monkeypatch.setenv("ANYHOP_SINGBOX", "sing-box")
+    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", "relative/prefix")
+    monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "bad\nowner")
 
-    env = daemonctl._service_env(["/usr/bin/alle", "applier"])
+    env = daemonctl._service_env(["/usr/bin/anyhop", "applier"])
 
-    assert "ALLE_EXECUTABLE" not in env
-    assert "ALLE_SINGBOX" not in env
-    assert "ALLE_SERVICE_PREFIX" not in env
-    assert "ALLE_SERVICE_OWNER" not in env
+    assert "ANYHOP_EXECUTABLE" not in env
+    assert "ANYHOP_SINGBOX" not in env
+    assert "ANYHOP_SERVICE_PREFIX" not in env
+    assert "ANYHOP_SERVICE_OWNER" not in env
 
 
 # ---- platform dispatch ---------------------------------------------------------
@@ -322,12 +324,12 @@ def test_systemd_unit_escapes_percent_and_quotes_values(fake_home, monkeypatch):
     # `%` is a systemd specifier and spaces split arguments: a home like
     # "/tmp/my %state dir" must round-trip through the unit file literally.
     home = str(fake_home / "my %state dir")
-    monkeypatch.setenv("ALLE_HOME", home)
+    monkeypatch.setenv("ANYHOP_HOME", home)
     monkeypatch.setattr(
-        daemonctl, "_service_exec", lambda: ["/usr/bin/alle", "applier"]
+        daemonctl, "_service_exec", lambda: ["/usr/bin/anyhop", "applier"]
     )
     text = daemonctl.SystemdManager()._unit_text()
-    assert 'Environment="ALLE_HOME=' in text
+    assert 'Environment="ANYHOP_HOME=' in text
     assert home.replace("%", "%%") in text
     # every % is escaped: no occurrence of the token with a single (bare) %
     assert text.count("%state") == text.count("%%state")
@@ -335,17 +337,17 @@ def test_systemd_unit_escapes_percent_and_quotes_values(fake_home, monkeypatch):
 
 def test_systemd_unit_quotes_exec_arguments(fake_home, monkeypatch):
     monkeypatch.setattr(
-        daemonctl, "_service_exec", lambda: ["/opt/od d/alle 100%", "applier"]
+        daemonctl, "_service_exec", lambda: ["/opt/od d/anyhop 100%", "applier"]
     )
-    monkeypatch.delenv("ALLE_HOME", raising=False)
+    monkeypatch.delenv("ANYHOP_HOME", raising=False)
     text = daemonctl.SystemdManager()._unit_text()
     line = next(ln for ln in text.splitlines() if ln.startswith("ExecStart="))
-    assert '"/opt/od d/alle 100%%"' in line
+    assert '"/opt/od d/anyhop 100%%"' in line
     assert '"applier"' in line
 
 
 def test_systemd_refuses_values_a_unit_cannot_represent(fake_home, monkeypatch):
-    monkeypatch.setenv("ALLE_HOME", str(fake_home) + "/bad\nname")
+    monkeypatch.setenv("ANYHOP_HOME", str(fake_home) + "/bad\nname")
     with pytest.raises(daemonctl.DaemonCtlError, match="newline"):
         daemonctl.SystemdManager()._unit_text()
 
@@ -412,7 +414,7 @@ def test_launchd_failed_fresh_install_leaves_no_plist(fake_home, monkeypatch):
 
 
 def test_service_daemon_install_restores_manual_daemon_on_failure(monkeypatch):
-    from alle import service
+    from anyhop import service
 
     monkeypatch.setattr(service.daemonctl, "require_backend", lambda: None)
     monkeypatch.setattr(service.daemon, "is_running", lambda: True)

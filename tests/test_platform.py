@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import pytest
 
-from alle import singbox
-from alle.singbox import SingBoxError
+from anyhop import singbox
+from anyhop.singbox import SingBoxError
 
 
 @pytest.mark.parametrize(
@@ -46,7 +46,7 @@ def test_unsupported_hosts_hard_error(monkeypatch, system, machine):
 
 def test_every_supported_key_has_a_checksum():
     # the allowlist and the checksum table must stay in lockstep
-    from alle.constants import SINGBOX_SHA256
+    from anyhop.constants import SINGBOX_SHA256
 
     for key in ("darwin-arm64", "darwin-amd64", "linux-amd64", "linux-arm64"):
         assert key in SINGBOX_SHA256

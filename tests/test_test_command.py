@@ -1,4 +1,4 @@
-"""`alle test`: the service.test() probe + optional
+"""`anyhop test`: the service.test() probe + optional
 --speed path and its rendering. The real transfers (throughput.run) are stubbed so
 tests stay hermetic and offline; here we check orchestration: which channels get
 probed vs. speed-tested, filtering, the not-running path, latency reuse, and output."""
@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from alle import cli, service
+from anyhop import cli, service
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -141,7 +141,7 @@ def test_test_unambiguous_bare_id_still_works(two_channels, stub_probe):
 
 
 def test_test_rows_carry_traffic_totals(same_id_under_two_providers, monkeypatch):
-    # `alle test` is the one per-channel table, so the durable counters ride
+    # `anyhop test` is the one per-channel table, so the durable counters ride
     # along on every row (the metrics command/endpoint are gone).
     monkeypatch.setattr(
         service.metrics,
@@ -256,7 +256,7 @@ def test_cli_stopped_message(two_channels, monkeypatch, capsys):
     monkeypatch.setattr(service.singbox, "Runner", Runner)
     cli.main(["test", "--speed"])
     out = capsys.readouterr().out
-    assert "Stopped" in out  # failure reason folds into STATE, like `alle status`
+    assert "Stopped" in out  # failure reason folds into STATE, like `anyhop status`
 
 
 def test_cli_json(two_channels, stub_running, stub_probe, stub_throughput, capsys):

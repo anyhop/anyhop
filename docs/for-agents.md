@@ -1,24 +1,24 @@
-# alle for coding agents
+# anyhop for coding agents
 
 Click "Copy" on the block below and paste the whole thing into your coding
 agent's context.
 
 ````markdown
-# alle for coding agents
+# anyhop for coding agents
 
-Entry point for integrating **alle** into a project. Read this, then fetch only
+Entry point for integrating **anyhop** into a project. Read this, then fetch only
 the pages you need — every link below is a raw URL you can retrieve.
 
-alle keeps **several VPN exits live at once** and picks one **per request** from
+anyhop keeps **several VPN exits live at once** and picks one **per request** from
 a rule table. A single background daemon owns the state; the CLI, Web UI, and
 REST API are three faces of it. Use it when a program needs traffic to leave
 from different countries at the same time.
 
 **Wrong tool if** your provider is not NordVPN or Proton VPN (the common case —
-[compare with gluetun](https://raw.githubusercontent.com/zydo/alle/main/docs/gluetun-comparison.md)),
+[compare with gluetun](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/gluetun-comparison.md)),
 you need OpenVPN today, one exit for everything is enough, or you want
 per-process namespace isolation on Linux rather than per-request routing
-([compare with vopono](https://raw.githubusercontent.com/zydo/alle/main/docs/vopono-comparison.md)).
+([compare with vopono](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/vopono-comparison.md)).
 
 ## The model
 
@@ -45,10 +45,10 @@ Pick one, depending on where the code you're writing will run:
 - **Native host (macOS/Linux) — CLI, Web UI, and REST API together:**
 
   ```bash
-  curl -LsSf https://github.com/zydo/alle/releases/latest/download/install.sh | sh
+  curl -LsSf https://github.com/anyhop/anyhop/releases/latest/download/install.sh | sh
   ```
 
-  Installs a pinned `uv` if needed, that release's exact `alle-proxy` version,
+  Installs a pinned `uv` if needed, that release's exact `anyhop` version,
   and the user-level login service. Never invokes `sudo`. Refuses containers
   and WSL — use the Docker image there instead. On Linux, run after logout
   too by replacing the trailing `sh` with `sh -s -- --linger`.
@@ -56,27 +56,27 @@ Pick one, depending on where the code you're writing will run:
 - **Docker — sibling containers, compose stacks, CI:**
 
   ```bash
-  docker pull ziyudo/alle:latest
-  docker run -d --name alle --restart unless-stopped \
-    --mount type=volume,src=alle-state,dst=/var/lib/alle \
-    --mount type=bind,src="$PWD/bundle.yaml",dst=/etc/alle/bundle.yaml,readonly \
-    ziyudo/alle:latest
-  docker exec alle alle status        # manage with the same CLI, via exec
+  docker pull ghcr.io/anyhop/anyhop:latest
+  docker run -d --name anyhop --restart unless-stopped \
+    --mount type=volume,src=anyhop-state,dst=/var/lib/anyhop \
+    --mount type=bind,src="$PWD/bundle.yaml",dst=/etc/anyhop/bundle.yaml,readonly \
+    ghcr.io/anyhop/anyhop:latest
+  docker exec anyhop anyhop status        # manage with the same CLI, via exec
   ```
 
-  `latest` is a mutable tag; pin the digest (`ziyudo/alle@sha256:…`) when the
+  `latest` is a mutable tag; pin the digest (`ghcr.io/anyhop/anyhop@sha256:…`) when the
   deployment must select identical bytes. Image:
-  <https://hub.docker.com/r/ziyudo/alle>.
+  <https://github.com/anyhop/anyhop/pkgs/container/anyhop>.
 
-Both are the exact same `alle-proxy` release — same CLI, same REST contract.
+Both are the exact same `anyhop` release — same CLI, same REST contract.
 Pick the native installer for a host process, Docker for anything already
 containerized.
 
 ## Facts that change how you write the code
 
 - The REST base URL is **per-install, not a fixed port** — read `rest_api` from
-  `GET /api/v1/status` (or `alle status --json`). Bearer auth, loopback unless
-  `ALLE_API_LISTEN` opts in. `GET /health?nonce=` is unauthenticated: use it as
+  `GET /api/v1/status` (or `anyhop status --json`). Bearer auth, loopback unless
+  `ANYHOP_API_LISTEN` opts in. `GET /health?nonce=` is unauthenticated: use it as
   the readiness gate.
 - **Channel proxy ports are OS-assigned** unless explicitly declared. Read them;
   never hardcode.
@@ -99,16 +99,16 @@ containerized.
 
 | Page                                                                                                                                                                                | When                                              |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| [REST API](https://raw.githubusercontent.com/zydo/alle/main/docs/api.md) · [openapi.yaml](https://raw.githubusercontent.com/zydo/alle/main/docs/openapi.yaml)                       | Writing any code against alle                     |
-| [CLI reference](https://raw.githubusercontent.com/zydo/alle/main/docs/cli-reference.md)                                                                                             | Shelling out instead of using REST                |
-| [Rule-based routing](https://raw.githubusercontent.com/zydo/alle/main/docs/routing.md)                                                                                              | Designing the rule table, kill switch, LAN bypass |
-| [Declarative setup](https://raw.githubusercontent.com/zydo/alle/main/docs/declarative-config.md) · [bundle format](https://raw.githubusercontent.com/zydo/alle/main/docs/bundle.md) | Reproducible setup, CI, rebuilds                  |
-| [Docker](https://raw.githubusercontent.com/zydo/alle/main/docs/docker.md) · [Compose walkthrough](https://raw.githubusercontent.com/zydo/alle/main/docs/docker-compose.md)          | Containers, sibling services, secrets             |
-| [How it works](https://raw.githubusercontent.com/zydo/alle/main/docs/how-it-works.md)                                                                                               | Debugging surprising behaviour                    |
-| [Security model](https://raw.githubusercontent.com/zydo/alle/main/docs/security.md)                                                                                                 | Exposing the API beyond loopback                  |
-| [Getting started](https://raw.githubusercontent.com/zydo/alle/main/docs/getting-started.md)                                                                                         | Installing on a host                              |
-| [Current status](https://raw.githubusercontent.com/zydo/alle/main/docs/status.md)                                                                                                   | Is this provider or platform supported            |
-| [TUN runbook](https://raw.githubusercontent.com/zydo/alle/main/docs/tun-runbook.md)                                                                                                 | Whole-machine capture and rollback                |
+| [REST API](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/api.md) · [openapi.yaml](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/openapi.yaml)                       | Writing any code against anyhop                     |
+| [CLI reference](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/cli-reference.md)                                                                                             | Shelling out instead of using REST                |
+| [Rule-based routing](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/routing.md)                                                                                              | Designing the rule table, kill switch, LAN bypass |
+| [Declarative setup](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/declarative-config.md) · [bundle format](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/bundle.md) | Reproducible setup, CI, rebuilds                  |
+| [Docker](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/docker.md) · [Compose walkthrough](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/docker-compose.md)          | Containers, sibling services, secrets             |
+| [How it works](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/how-it-works.md)                                                                                               | Debugging surprising behaviour                    |
+| [Security model](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/security.md)                                                                                                 | Exposing the API beyond loopback                  |
+| [Getting started](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/getting-started.md)                                                                                         | Installing on a host                              |
+| [Current status](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/status.md)                                                                                                   | Is this provider or platform supported            |
+| [TUN runbook](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/tun-runbook.md)                                                                                                 | Whole-machine capture and rollback                |
 
 Read `GET /api/v1/status` before acting — most mistakes are a stale assumption
 about what exists and what is healthy.

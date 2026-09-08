@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from alle import geo
+from anyhop import geo
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 // Opt-in evidence for the dashboard's polling cost at scale — never a gate.
 //
-//   ALLE_BENCH=1 npx playwright test dashboard-scale
-//   ALLE_BENCH=1 ALLE_BENCH_CHANNELS=500 npx playwright test dashboard-scale
+//   ANYHOP_BENCH=1 npx playwright test dashboard-scale
+//   ANYHOP_BENCH=1 ANYHOP_BENCH_CHANNELS=500 npx playwright test dashboard-scale
 //
 // Browser timings depend on the machine, the display, and what else is
 // rendering, so this prints numbers for a human to read instead of asserting
@@ -9,10 +9,10 @@
 // poll must replace no nodes at all, at any fleet size.
 import { test, expect, STATUS_TICK_MS } from "./support/fixtures.mjs";
 
-const CHANNELS = Number(process.env.ALLE_BENCH_CHANNELS || 200);
+const CHANNELS = Number(process.env.ANYHOP_BENCH_CHANNELS || 200);
 
 test.describe("dashboard render at scale", () => {
-  test.skip(!process.env.ALLE_BENCH, "opt-in: set ALLE_BENCH=1");
+  test.skip(!process.env.ANYHOP_BENCH, "opt-in: set ANYHOP_BENCH=1");
   test.setTimeout(180_000);
 
   test(`unchanged polls over ${CHANNELS} channels`, async ({ app }) => {

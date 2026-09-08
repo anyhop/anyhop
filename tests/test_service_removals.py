@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from alle import service
+from anyhop import service
 
 
 WG = {"private_key": "x", "peer": {}}

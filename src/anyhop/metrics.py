@@ -1,0 +1,351 @@
+"""Durable per-channel traffic counters in ``~/.anyhop/metrics.db`` (SQLite).
+
+This is the one place anyhop uses SQLite: cumulative sent/received byte totals per
+channel are append-heavy time-series data that outlives any single sing-box
+process, so a tiny database beats hammering ``state.json``. Everything else
+(state, credentials) stays in human-readable files.
+
+The Clash API only reports *live* connections, each with a lifetime-cumulative
+``upload``/``download`` counter that vanishes when the connection closes and
+resets when sing-box restarts. So there is no running total to read — the daemon
+samples ``/connections`` every couple of seconds (``daemon.METRICS_INTERVAL``)
+and the :class:`Accumulator` turns the per-connection counters into monotonic
+deltas, which it folds into the durable per-channel totals here. Short-lived
+connections that open and close entirely between two samples are missed; for
+cumulative usage that approximation is fine.
+
+Two correctness rules keep the totals monotonic:
+
+* **An unavailable sample is not an empty sample.** ``observe(None)`` (the API
+  couldn't be read) keeps every watermark; only a real snapshot may drop
+  closed connections. And a snapshot from a *different sing-box generation*
+  (or the accumulator's first ever) re-baselines the watermarks without
+  banking — counters that predate our watch may already be partly banked by a
+  previous daemon, so banking them again would double-count.
+* **Deleted rows stay deleted.** Removing a channel/provider writes a
+  tombstone in the same SQLite transaction that deletes the rows;
+  ``add_delta`` refuses tombstoned refs, so a daemon sample racing the
+  removal cannot resurrect the row. A legitimate re-creation of the same
+  identity calls :func:`revive_channel` / :func:`revive_provider` to lift it.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+from anyhop import paths
+from anyhop.state import tag_to_ref
+
+
+def _db_path() -> Path:
+    return paths.state_dir() / "metrics.db"
+
+
+def _ensure_schema(conn: sqlite3.Connection) -> None:
+    """Initialize a fresh metrics database; established files skip DDL."""
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version >= 1:
+        return
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS channel_traffic (
+            provider   TEXT    NOT NULL,
+            channel    TEXT    NOT NULL,
+            sent       INTEGER NOT NULL DEFAULT 0,
+            received   INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (provider, channel)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS deleted_channels (
+            provider   TEXT    NOT NULL,
+            channel    TEXT    NOT NULL,  -- '*' covers the whole provider
+            deleted_at INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (provider, channel)
+        )
+        """
+    )
+    conn.execute("PRAGMA user_version = 1")
+
+
+@contextmanager
+def _db():
+    conn = sqlite3.connect(str(_db_path()))
+    try:
+        _ensure_schema(conn)
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _tombstoned(conn, provider: str, channel: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM deleted_channels WHERE provider = ? AND channel IN (?, '*')",
+        (provider, channel),
+    ).fetchone()
+    return row is not None
+
+
+def add_delta(provider: str, channel: str, sent: int, received: int) -> None:
+    """Fold a (non-negative) byte delta into a channel's cumulative totals.
+
+    A ref with a tombstone is dropped: the channel was removed, and a late
+    daemon sample must not recreate its row (checked in the same SQLite
+    transaction as the insert, so it cannot race the removal either).
+    """
+    add_deltas({(provider, channel): (sent, received)})
+
+
+def add_deltas(deltas: dict[tuple[str, str], tuple[int, int]]) -> None:
+    """Fold a complete sample into SQLite in one all-or-nothing transaction."""
+    deltas = {
+        ref: (max(0, sent), max(0, received))
+        for ref, (sent, received) in deltas.items()
+        if sent > 0 or received > 0
+    }
+    if not deltas:
+        return
+    now = int(time.time())
+    with _db() as conn:
+        for (provider, channel), (sent, received) in deltas.items():
+            if _tombstoned(conn, provider, channel):
+                continue
+            conn.execute(
+                """
+                INSERT INTO channel_traffic
+                    (provider, channel, sent, received, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(provider, channel) DO UPDATE SET
+                    sent       = sent + excluded.sent,
+                    received   = received + excluded.received,
+                    updated_at = excluded.updated_at
+                """,
+                (provider, channel, sent, received, now),
+            )
+
+
+def total(provider: str, channel: str) -> dict:
+    """One channel's stored totals, or zeros when it has none.
+
+    The read a streaming speed test wants: it needs each row's counters as that
+    row lands, and :func:`totals` loads every stored row — an all-rows scan per
+    completed channel. ``(provider, channel)`` is the primary key, so this is an
+    index lookup instead.
+
+    Zeros cover both "never banked anything" and "tombstoned" — a removed
+    channel's row is deleted, so there is nothing to find either way.
+    """
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT sent, received, updated_at FROM channel_traffic"
+            " WHERE provider = ? AND channel = ?",
+            (provider, channel),
+        ).fetchone()
+    if row is None:
+        return {"sent": 0, "received": 0, "updated_at": 0}
+    return {"sent": row[0], "received": row[1], "updated_at": row[2]}
+
+
+def totals() -> dict[tuple[str, str], dict]:
+    """All stored totals, keyed by ``(provider, channel)``."""
+    with _db() as conn:
+        rows = conn.execute(
+            "SELECT provider, channel, sent, received, updated_at FROM channel_traffic"
+        ).fetchall()
+    return {
+        (provider, channel): {
+            "sent": sent,
+            "received": received,
+            "updated_at": updated_at,
+        }
+        for provider, channel, sent, received, updated_at in rows
+    }
+
+
+def remove_channel(provider: str, channel: str) -> None:
+    """Forget a channel's totals and tombstone the ref (one transaction), so a
+    late daemon sample cannot recreate the row (called when the channel is
+    removed)."""
+    with _db() as conn:
+        conn.execute(
+            "DELETE FROM channel_traffic WHERE provider = ? AND channel = ?",
+            (provider, channel),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO deleted_channels (provider, channel, deleted_at)"
+            " VALUES (?, ?, ?)",
+            (provider, channel, int(time.time())),
+        )
+
+
+def remove_provider(provider: str) -> None:
+    """Forget every channel's totals under a provider and tombstone the whole
+    provider (one transaction; called on provider removal)."""
+    with _db() as conn:
+        conn.execute("DELETE FROM channel_traffic WHERE provider = ?", (provider,))
+        # the '*' tombstone subsumes any per-channel ones under this provider
+        conn.execute("DELETE FROM deleted_channels WHERE provider = ?", (provider,))
+        conn.execute(
+            "INSERT OR REPLACE INTO deleted_channels (provider, channel, deleted_at)"
+            " VALUES (?, '*', ?)",
+            (provider, int(time.time())),
+        )
+
+
+def revive_channel(provider: str, channel: str) -> None:
+    """Lift a channel's tombstone — the identity was legitimately re-created
+    (channel add, bundle import/restore), so its traffic counts again."""
+    with _db() as conn:
+        conn.execute(
+            "DELETE FROM deleted_channels WHERE provider = ? AND channel = ?",
+            (provider, channel),
+        )
+
+
+def revive_provider(provider: str) -> None:
+    """Lift a provider's whole-provider tombstone (the provider was re-added).
+
+    Per-channel tombstones under it stay: each lifts when its channel is
+    re-created.
+    """
+    with _db() as conn:
+        conn.execute(
+            "DELETE FROM deleted_channels WHERE provider = ? AND channel = '*'",
+            (provider,),
+        )
+
+
+def reconcile_tombstones(
+    *,
+    removed_providers: tuple[str, ...] | list[str] = (),
+    removed_channels: tuple[tuple[str, str], ...] | list[tuple[str, str]] = (),
+    revived_providers: tuple[str, ...] | list[str] = (),
+    revived_channels: tuple[tuple[str, str], ...] | list[tuple[str, str]] = (),
+) -> None:
+    """Apply one bundle operation's tombstone changes in one transaction."""
+    if not any(
+        (removed_providers, removed_channels, revived_providers, revived_channels)
+    ):
+        return
+    now = int(time.time())
+    removed_provider_set = set(removed_providers)
+    with _db() as conn:
+        for provider in removed_providers:
+            conn.execute("DELETE FROM channel_traffic WHERE provider = ?", (provider,))
+            conn.execute("DELETE FROM deleted_channels WHERE provider = ?", (provider,))
+            conn.execute(
+                "INSERT INTO deleted_channels (provider, channel, deleted_at)"
+                " VALUES (?, '*', ?)",
+                (provider, now),
+            )
+        for provider, channel in removed_channels:
+            if provider in removed_provider_set:
+                continue
+            conn.execute(
+                "DELETE FROM channel_traffic WHERE provider = ? AND channel = ?",
+                (provider, channel),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO deleted_channels"
+                " (provider, channel, deleted_at) VALUES (?, ?, ?)",
+                (provider, channel, now),
+            )
+        for provider in revived_providers:
+            conn.execute(
+                "DELETE FROM deleted_channels WHERE provider = ? AND channel = '*'",
+                (provider,),
+            )
+        for provider, channel in revived_channels:
+            conn.execute(
+                "DELETE FROM deleted_channels WHERE provider = ? AND channel = ?",
+                (provider, channel),
+            )
+
+
+class Accumulator:
+    """Turns successive Clash ``/connections`` snapshots into durable deltas.
+
+    Held for the daemon's lifetime. Each connection's cumulative counters only
+    grow while it is alive; we remember the last value seen per connection ``id``
+    and persist the increase since then. A connection we stop seeing has closed —
+    we simply drop it (its bytes were already banked). A counter that goes
+    *backwards* within one generation (an id anomaly) is treated as a fresh
+    connection so we bank the new value rather than a negative delta.
+
+    ``observe`` takes the sing-box **generation** the snapshot came from
+    (:meth:`anyhop.singbox.Runner.generation`). The first snapshot of a
+    generation — including the accumulator's very first — only *baselines*
+    the watermarks: those connections may predate this daemon (a daemon
+    restart under a live sing-box), so their counters may already be banked
+    and banking them again would double-count. At most one sample interval of
+    traffic is skipped per sing-box start; correctness beats completeness.
+    """
+
+    _UNSTARTED = object()  # distinct from None (= generation unknown)
+
+    def __init__(self) -> None:
+        self._seen: dict[str, tuple[int, int]] = {}  # conn id -> (upload, download)
+        self._generation: object = self._UNSTARTED
+
+    @staticmethod
+    def _ref(conn: dict) -> tuple[str, str] | None:
+        for tag in conn.get("chains") or []:
+            ref = tag_to_ref(tag)
+            if ref:
+                return ref
+        return None
+
+    def observe(
+        self, connections: list[dict] | None, *, generation: str | None = None
+    ) -> dict[tuple[str, str], tuple[int, int]]:
+        """Bank deltas from one snapshot and return them, keyed by channel ref.
+
+        ``connections is None`` means the sample *failed* (API unreachable,
+        malformed payload): nothing is banked and — crucially — the watermarks
+        survive, so the next good sample banks only real increments instead of
+        re-banking whole lifetime counters.
+        """
+        if connections is None:
+            return {}
+        if generation != self._generation:
+            # First sight of this sing-box instance: baseline, don't bank.
+            candidate: dict[str, tuple[int, int]] = {}
+            for conn in connections:
+                cid = conn.get("id")
+                if cid and self._ref(conn) is not None:
+                    up = int(conn.get("upload") or 0)
+                    down = int(conn.get("download") or 0)
+                    candidate[cid] = (up, down)
+            self._generation = generation
+            self._seen = candidate
+            return {}
+        deltas: dict[tuple[str, str], list[int]] = {}
+        candidate = {}
+        for conn in connections:
+            cid = conn.get("id")
+            ref = self._ref(conn)
+            if not cid or ref is None:
+                continue
+            up = int(conn.get("upload") or 0)
+            down = int(conn.get("download") or 0)
+            last_up, last_down = self._seen.get(cid, (0, 0))
+            d_up = up - last_up if up >= last_up else up
+            d_down = down - last_down if down >= last_down else down
+            candidate[cid] = (up, down)
+            acc = deltas.setdefault(ref, [0, 0])
+            acc[0] += d_up
+            acc[1] += d_down
+        banked = {ref: (up, down) for ref, (up, down) in deltas.items() if up or down}
+        # Persist the whole sample before advancing live watermarks. If SQLite
+        # fails, the prior snapshot remains intact and a retry cannot lose the
+        # uncommitted bytes.
+        add_deltas(banked)
+        self._seen = candidate
+        return banked

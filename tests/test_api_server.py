@@ -13,9 +13,9 @@ import urllib.request
 
 import pytest
 
-from alle import daemon, service, upgrade
-from alle.state import Store
-from alle.api import auth, server
+from anyhop import daemon, service, upgrade
+from anyhop.state import Store
+from anyhop.api import auth, server
 from conftest import start_test_server, stop_test_server, wg_config
 
 WG = wg_config("1.2.3.4")
@@ -455,7 +455,7 @@ def test_reupload_identical_conf_reports_unchanged(live):
 def test_add_channel_response_never_leaks_the_private_key(live, monkeypatch):
     # the add/import response must project the channel (public fields only),
     # never the raw dataclass — wg carries the WireGuard private key
-    from alle import service
+    from anyhop import service
 
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
@@ -475,7 +475,7 @@ def test_add_channel_response_never_leaks_the_private_key(live, monkeypatch):
 
 
 def test_replace_token_endpoint_reresolves_and_hides_token(live, monkeypatch):
-    from alle import service
+    from anyhop import service
 
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
@@ -545,7 +545,7 @@ def test_replace_token_on_config_provider_is_400(live):
 
 
 def test_post_existing_token_provider_updates(live, monkeypatch):
-    from alle import service
+    from anyhop import service
 
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
@@ -601,7 +601,7 @@ def test_relabel_channel(live):
 
 
 def test_toggle_channel_enabled(live):
-    from alle.state import Store
+    from anyhop.state import Store
 
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
@@ -817,7 +817,7 @@ def test_revision_from_before_control_server_restart_still_matches():
 
 
 def test_disable_channel_blocked_by_rule_returns_verbatim_message(live):
-    from alle.state import Store
+    from anyhop.state import Store
 
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
@@ -852,13 +852,13 @@ def test_disable_channel_blocked_by_rule_returns_verbatim_message(live):
     # never flat rule ids or CLI commands
     error = json.loads(body)["error"]
     assert "Cannot disable" in error and "“protonvpn/wg_de_1”" in error
-    assert "alle routes" not in error and "r1" not in error
+    assert "anyhop routes" not in error and "r1" not in error
     ch = Store.load().get_channel("protonvpn", "wg_de_1")
     assert ch is not None and ch.enabled is True
 
 
 def test_remove_channel_blocked_by_rule_returns_verbatim_message(live):
-    from alle.state import Store
+    from anyhop.state import Store
 
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
@@ -888,7 +888,7 @@ def test_remove_channel_blocked_by_rule_returns_verbatim_message(live):
     assert st == 400
     error = json.loads(body)["error"]
     assert "Cannot remove" in error and "“protonvpn/wg_de_1”" in error
-    assert "alle routes" not in error
+    assert "anyhop routes" not in error
 
     Store.load().remove_rules(["r1"])
     st, _, _ = _req(
@@ -1577,7 +1577,7 @@ def test_upgrade_post_calls_service_and_surfaces_refusals(live, monkeypatch):
         "upgrade_run",
         lambda *, prerelease=False: {
             "channel": "homebrew",
-            "command": ["/opt/homebrew/bin/brew", "upgrade", "alle"],
+            "command": ["/opt/homebrew/bin/brew", "upgrade", "anyhop"],
             "before": "0.1.8",
             "after": "0.1.9",
             "latest": "0.1.9",
@@ -1591,11 +1591,11 @@ def test_upgrade_post_calls_service_and_surfaces_refusals(live, monkeypatch):
     result = json.loads(body)
     assert result["changed"] is True
     assert result["latest"] == "0.1.9"
-    assert result["command"][-1] == "alle"
+    assert result["command"][-1] == "anyhop"
     assert result["restart_owner"] == "homebrew"
 
     def refuse(*, prerelease=False):
-        raise service.ServiceError("this alle is a git checkout — upgrade with git")
+        raise service.ServiceError("this anyhop is a git checkout — upgrade with git")
 
     monkeypatch.setattr(service, "upgrade_run", refuse)
     st, body, _ = _req(base + "/api/v1/upgrade", method="POST", headers=origin, data={})
@@ -1615,7 +1615,7 @@ def test_upgrade_post_defers_daemon_exit_through_response_flush(live, monkeypatc
         "upgrade_run",
         lambda *, prerelease=False: {
             "channel": "homebrew",
-            "command": ["/opt/homebrew/bin/brew", "upgrade", "alle"],
+            "command": ["/opt/homebrew/bin/brew", "upgrade", "anyhop"],
             "before": "0.1.8",
             "after": "0.1.9",
             "latest": "0.1.9",
@@ -1672,7 +1672,7 @@ def test_upgrade_post_defers_native_restart_until_response_flush(live, monkeypat
         daemon.schedule_lifecycle("restart", delay=0.0)
         return {
             "channel": "uv-tool",
-            "command": ["/usr/bin/uv", "tool", "install", "alle-proxy"],
+            "command": ["/usr/bin/uv", "tool", "install", "anyhop"],
             "before": "0.1.8",
             "after": "0.1.9",
             "latest": "0.1.9",
@@ -1982,7 +1982,7 @@ def test_health_reports_the_data_plane(live, monkeypatch):
     assert payload["sing_box"] == "stopped"
     assert "runtime" in payload
 
-    monkeypatch.setattr("alle.singbox.Runner.is_running", lambda self: True)
+    monkeypatch.setattr("anyhop.singbox.Runner.is_running", lambda self: True)
     st, body, _ = _req(base + "/health?nonce=n2")
     payload = json.loads(body)
     assert payload["ok"] is True
@@ -2023,7 +2023,7 @@ def test_control_api_concurrent_callers_agree_on_one_endpoint():
 
 
 def test_control_api_rejects_a_shape_wrong_file():
-    from alle import paths
+    from anyhop import paths
 
     # parses as JSON but the fields aren't usable strings → strict validation
     # regenerates rather than returning a half-formed endpoint
@@ -2045,17 +2045,17 @@ def test_control_api_rejects_a_shape_wrong_file():
         ("secret", "x" * 64),
         ("secret", "a" * 16),
         ("host", "localhost"),
-        ("host", "alle-bad host.localhost"),
-        ("host", "alle-123.localhost"),
+        ("host", "anyhop-bad host.localhost"),
+        ("host", "anyhop-123.localhost"),
     ],
 )
 def test_control_api_regenerates_semantically_unsafe_fields(field, value):
-    from alle import paths
+    from anyhop import paths
 
     original = {
         "address": "127.0.0.1:8080",
         "secret": "a" * 64,
-        "host": "alle-deadbeef.localhost",
+        "host": "anyhop-deadbeef.localhost",
     }
     original[field] = value
     (paths.state_dir() / "control_api.json").write_text(json.dumps(original))
@@ -2072,7 +2072,7 @@ def test_login_url_is_minted_only_for_the_live_verified_endpoint(live):
     parsed = urllib.parse.urlparse(url)
     token = urllib.parse.parse_qs(parsed.query)["token"][0]
 
-    assert parsed.hostname is not None and parsed.hostname.startswith("alle-")
+    assert parsed.hostname is not None and parsed.hostname.startswith("anyhop-")
     assert auth.verify_login_token(secret, token) is True
 
 
@@ -2099,7 +2099,7 @@ def test_every_response_carries_security_headers(live):
 def test_server_banner_does_not_leak_the_python_version(live):
     base, _ = live
     _, _, headers = _req(base + "/", headers={"Host": _canon()})
-    assert headers["Server"] == "alle-api"
+    assert headers["Server"] == "anyhop-api"
     assert "Python" not in headers["Server"]
 
 
@@ -2279,7 +2279,7 @@ def test_exact_route_and_method_win_before_malformed_body(live):
 
 
 def test_unexpected_handler_error_is_bounded_and_secret_free(live, monkeypatch):
-    from alle import applog
+    from anyhop import applog
 
     base, secret = live
     monkeypatch.setattr(

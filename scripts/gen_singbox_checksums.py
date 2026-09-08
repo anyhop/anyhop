@@ -4,7 +4,7 @@
 Downloads the mainstream (macOS/Linux x amd64/arm64) release tarballs for a given
 sing-box version, extracts each ``sing-box`` binary, and prints the
 ``SINGBOX_SHA256`` dict (hashes of the *extracted binaries*, matching how
-``singbox.ensure_binary`` verifies them) to paste into ``src/alle/constants.py``.
+``singbox.ensure_binary`` verifies them) to paste into ``src/anyhop/constants.py``.
 Run on a version bump; mainstream-only by design (see the README platform decision).
 
     python scripts/gen_singbox_checksums.py 1.14.0

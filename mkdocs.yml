@@ -1,8 +1,8 @@
-site_name: alle
+site_name: anyhop
 site_description: A universal VPN client that manages multiple VPN connections with rule-based routing.
-site_url: https://zydo.github.io/alle/
-repo_url: https://github.com/zydo/alle
-repo_name: zydo/alle
+site_url: https://anyhop.github.io/anyhop/
+repo_url: https://github.com/anyhop/anyhop
+repo_name: anyhop/anyhop
 edit_uri: edit/main/docs/
 docs_dir: docs
 
@@ -69,5 +69,5 @@ nav:
       - Docker Compose walkthrough: docker-compose.md
   - TUN runbook: tun-runbook.md
   - Compare with alternatives:
-      - alle and gluetun: gluetun-comparison.md
-      - alle and vopono: vopono-comparison.md
+      - anyhop and gluetun: gluetun-comparison.md
+      - anyhop and vopono: vopono-comparison.md

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from alle import service
-from alle.providers import ProviderError
+from anyhop import service
+from anyhop.providers import ProviderError
 
 
 WG = {"private_key": "x", "peer": {}}
@@ -64,7 +64,7 @@ def test_validate_provider_credentials_delegates_to_provider(monkeypatch):
 def test_channel_add_validation_errors_and_provider_error(monkeypatch):
     with pytest.raises(service.ServiceError) as exc:
         service.channel_add("nordvpn", "Japan", None)
-    assert "run `alle providers add nordvpn` first" in str(exc.value)
+    assert "run `anyhop providers add nordvpn` first" in str(exc.value)
 
     store = service.Store.load()
     store.add_provider("protonvpn")
@@ -75,7 +75,7 @@ def test_channel_add_validation_errors_and_provider_error(monkeypatch):
     store.add_provider("nordvpn")
     with pytest.raises(service.ServiceError) as exc:
         service.channel_add("nordvpn", None, None)
-    assert "usage: alle channels add nordvpn" in str(exc.value)
+    assert "usage: anyhop channels add nordvpn" in str(exc.value)
 
     def reject_location(provider, country, city):
         raise ProviderError("country 'Atlantis' is not a nordvpn location.")
@@ -83,7 +83,7 @@ def test_channel_add_validation_errors_and_provider_error(monkeypatch):
     monkeypatch.setattr(service, "provider_wg", reject_location)
     with pytest.raises(service.ServiceError) as exc:
         service.channel_add("nordvpn", "Atlantis", None)
-    assert "See available locations: alle locations nordvpn" in str(exc.value)
+    assert "See available locations: anyhop locations nordvpn" in str(exc.value)
 
 
 def test_channel_add_rejects_nonfunctional_token_provider(monkeypatch):

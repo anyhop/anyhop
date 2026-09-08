@@ -1,37 +1,37 @@
 # TUN mode — recovery runbook, testing tiers, and the manual e2e checklist
 
 This document must stay usable **without network access**: read the runbook
-before the first live `alle tun on` on any machine, not after something broke.
+before the first live `anyhop tun on` on any machine, not after something broke.
 
 ## Recovery runbook
 
 TUN mode means sing-box owns the machine's default route. Everything below is
 ordered from gentlest to bluntest; start at 1.
 
-1. **`alle tun off`** — flips the flag in state.json; the daemon reconciles
+1. **`anyhop tun off`** — flips the flag in state.json; the daemon reconciles
    sing-box without the tun within a second or two. This is the one command
    that always expresses the right intent.
-2. **If the CLI is broken:** `alle stop` — stops the daemon *and* sing-box. A
+2. **If the CLI is broken:** `anyhop stop` — stops the daemon *and* sing-box. A
    cleanly terminated sing-box restores everything it took: the utun device,
    its routes, and the kill-switch all die with the process.
 3. **Never `pkill sing-box` as recovery.** Supervision restarts it with the
    same tun config within ~2 seconds — the network comes back and then
-   vanishes again. Kill the *owner* (`alle stop`) or flip the *state*
-   (`alle tun off`), never the process.
+   vanishes again. Kill the *owner* (`anyhop stop`) or flip the *state*
+   (`anyhop tun off`), never the process.
 4. **Verify the routes are back:** `netstat -rn` (or `route -n get 1.1.1.1`)
    — the default route must sit on the physical interface (`en0`, `eth0`),
-   with no `utun*`/`alle-tun` owning `0.0.0.0/1` + `128.0.0.0/1`.
+   with no `utun*`/`anyhop-tun` owning `0.0.0.0/1` + `128.0.0.0/1`.
 5. **Flush DNS** (macOS): `sudo dscacheutil -flushcache && sudo killall -HUP
    mDNSResponder` — cached answers from the hijack window can otherwise
    outlive it.
 6. **Worst case: reboot.** Nothing persists across a reboot — the utun and
    routes are process-lifetime. But state.json still says `tun: true`, so run
-   `alle tun off` before the next `alle start`, or the daemon will
+   `anyhop tun off` before the next `anyhop start`, or the daemon will
    re-activate it.
 
-**Pending trial?** If tun was enabled with `alle tun on --trial <seconds>`
+**Pending trial?** If tun was enabled with `anyhop tun on --trial <seconds>`
 and never confirmed, the detached watchdog reverts it automatically at the
-deadline — losing your SSH session *is* the recovery. `alle tun` shows the
+deadline — losing your SSH session *is* the recovery. `anyhop tun` shows the
 pending trial and its remaining time.
 
 ## The three-tier testing map
@@ -73,11 +73,11 @@ scripts/tier3-macos/run.sh guest-probe.sh    # just report what the guest can do
 VM=scratch scripts/tier3-macos/run.sh        # use a different clone
 ```
 
-`run.sh` clones the base image, boots it headless, installs alle from the
+`run.sh` clones the base image, boots it headless, installs anyhop from the
 checkout, and runs the named guest script over SSH — everything privileged
 happens in the guest. `guest-v6.sh` imports a v6-capable and a v4-only
 WireGuard `.conf` (generated fresh by `make-confs.py`, never committed:
-alle validates them as real keys), activates a real `utun225` under a trial,
+anyhop validates them as real keys), activates a real `utun225` under a trial,
 and checks that no v6 escapes unencapsulated while it is up — against a
 baseline that proves the same probe *does* escape with the tun down.
 
@@ -85,7 +85,7 @@ It cleans up after itself on entry, which matters: killing sing-box alone
 never sticks (a stray applier's supervision restarts it within a second, and
 the binary is version-suffixed, so `pkill -x sing-box` does not match), and
 an orphaned tun makes the next run fail with `configure tun interface:
-Connect: resource busy`. Note also that `alle tun off` is a reconcile, not a
+Connect: resource busy`. Note also that `anyhop tun off` is a reconcile, not a
 synchronous unplug — the interface clears in about two seconds, so poll for
 it rather than sleeping a fixed amount.
 
@@ -102,9 +102,9 @@ Tier 3 connect / reset recipe (verified 2026-07-11 against
 tart run tahoe-base --no-graphics &          # boot headless; wait for IP + port 22
 IP=$(tart ip tahoe-base)
 sshpass -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null admin@$IP
-# guest install: rsync the checkout to ~/alle (exclude .git/.venv/caches),
+# guest install: rsync the checkout to ~/anyhop (exclude .git/.venv/caches),
 #   curl -LsSf https://astral.sh/uv/install.sh | sh
-#   ~/.local/bin/uv tool install ~/alle
+#   ~/.local/bin/uv tool install ~/anyhop
 # reset (fresh guest): tart delete <clone> && tart clone tahoe-base <clone>
 # stop: tart stop tahoe-base
 ```
@@ -112,8 +112,8 @@ sshpass -p admin ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
 Guest facts that matter for the checklist: the vmnet NAT subnet
 (`192.168.64.0/24`) stays on-link, so the **SSH session survives tun
 activation** (auto_route's `0/1`+`128/1` split never captures it); and the
-privilege gate will (correctly) refuse `sudo alle tun on` while an
-admin-owned daemon is running — `alle stop` first, exactly as checklist
+privilege gate will (correctly) refuse `sudo anyhop tun on` while an
+admin-owned daemon is running — `anyhop stop` first, exactly as checklist
 step 1 says.
 
 ## Manual e2e checklist (Darwin)
@@ -122,39 +122,39 @@ Run top to bottom in the Tier 3 VM first; on the dev host only as final
 acceptance. **"Tested" for TUN mode v1 = the config-shape tests in CI plus
 this checklist executed on Darwin — both, explicitly.**
 
-Preconditions: alle installed, at least one healthy channel (`alle test`), at
+Preconditions: anyhop installed, at least one healthy channel (`anyhop test`), at
 least one domain rule targeting it, this runbook read.
 
-1. **Bring-up under trial.** `alle stop`, then
-   `sudo ALLE_HOME="$HOME/.alle" alle tun on --trial 120`.
-   Expect: `alle status` shows the `TUN` line; `ifconfig` shows the utun
+1. **Bring-up under trial.** `anyhop stop`, then
+   `sudo ANYHOP_HOME="$HOME/.anyhop" anyhop tun on --trial 120`.
+   Expect: `anyhop status` shows the `TUN` line; `ifconfig` shows the utun
    (engine emits `utun225` on Darwin — if creation fails because the name is
    taken, that is a finding: record it); `route -n get 1.1.1.1` resolves via
    the utun.
 2. **Traffic flows.** `curl https://1.1.1.1/cdn-cgi/trace` (IP literal) and a
    domain fetch both succeed; a domain matching a channel rule exits with the
-   channel's IP (compare against `alle test`).
+   channel's IP (compare against `anyhop test`).
 3. **DNS hijack.** `dig @9.9.9.9 example.com` returns an answer (a query
    aimed at a foreign resolver was hijacked and answered by sing-box);
    ordinary app resolution (Safari/curl by hostname) works; `scutil --dns`
    still lists resolvers without errors.
-4. **LAN direct.** With `alle routes lan on` (default), a LAN device
+4. **LAN direct.** With `anyhop routes lan on` (default), a LAN device
    (printer, router admin page) is reachable.
-5. **Kill-switch scope.** `alle routes killswitch on`: unmatched egress is
+5. **Kill-switch scope.** `anyhop routes killswitch on`: unmatched egress is
    blocked (`curl` to an unruled IP fails), rule-matched traffic still flows,
-   and loopback services stay reachable (open the Web UI). Expect alle's own
+   and loopback services stay reachable (open the Web UI). Expect anyhop's own
    provider API calls to be blocked in this posture (documented limitation).
-   `alle routes killswitch off` restores.
-6. **Confirm + clean disable.** `alle tun confirm` keeps it on past the
-   window. Then `alle tun off`: default route returns to the physical
+   `anyhop routes killswitch off` restores.
+6. **Confirm + clean disable.** `anyhop tun confirm` keeps it on past the
+   window. Then `anyhop tun off`: default route returns to the physical
    interface (`route -n get 1.1.1.1` → `en0`), connectivity intact, utun
    gone.
 7. **Crash drill (fails open — verify, don't assume).**
    TUN on again, then `sudo pkill -9 sing-box`: connectivity returns on the
    physical route within a beat, and supervision restarts sing-box with the
-   tun (~2s window). Confirm the restart re-seizes routes, then `alle tun
+   tun (~2s window). Confirm the restart re-seizes routes, then `anyhop tun
    off`. This is the documented crash-window behavior.
-8. **Trial auto-revert drill.** `alle tun on --trial 30`, do **not** confirm:
+8. **Trial auto-revert drill.** `anyhop tun on --trial 30`, do **not** confirm:
    at the deadline the watchdog flips tun off and the log shows
    `TUN trial expired without confirmation`.
 9. **mDNSResponder interplay (Tier 3 focus).** After steps 1–8, Bonjour
@@ -172,5 +172,5 @@ least one domain rule targeting it, this runbook read.
       v6 address): `curl -6` to a v6 destination that matches a rule → routes
       through the capable channel; to a destination matching no rule → fails
       (the trailing `::/0` reject, not a leak); through a v4-only channel's
-      rule → fails (the per-rule v6 guard). Verify with `alle test` — the
+      rule → fails (the per-rule v6 guard). Verify with `anyhop test` — the
       IPV6 column shows the channel's v6 exit when carried.

@@ -7,8 +7,8 @@ import json
 
 import pytest
 
-from alle import credentials, paths, state, txn
-from alle.state import Store
+from anyhop import credentials, paths, state, txn
+from anyhop.state import Store
 
 
 def _journal():

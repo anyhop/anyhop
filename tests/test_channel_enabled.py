@@ -13,10 +13,10 @@ from typing import cast
 
 import pytest
 
-from alle import bundle, cli, credentials, reconnect, service, singbox
-from alle.engine import Engine
-from alle.providers import ProviderError
-from alle.state import ReferencedError, Store, config_signature
+from anyhop import bundle, cli, credentials, reconnect, service, singbox
+from anyhop.engine import Engine
+from anyhop.providers import ProviderError
+from anyhop.state import ReferencedError, Store, config_signature
 from conftest import wg_config
 
 WG = wg_config("1.2.3.4")
@@ -473,7 +473,7 @@ def test_merge_with_unstated_enabled_keeps_the_adhoc_state(monkeypatch):
     )
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {
@@ -512,7 +512,7 @@ def test_import_never_resolves_or_probes_a_disabled_channel(monkeypatch):
     )
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {
@@ -543,7 +543,7 @@ def test_import_keeps_the_snapshot_of_a_disabled_channel(monkeypatch):
     )
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {
@@ -574,7 +574,7 @@ def test_import_checks_a_disabled_channels_location_against_the_catalog(monkeypa
     )
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {
@@ -605,7 +605,7 @@ def test_import_enabled_channels_skip_the_catalog_check(monkeypatch):
     )
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {"channels": {"wg_us_1": {"country": "United States"}}}
@@ -620,7 +620,7 @@ def test_bundle_ruleset_cannot_target_a_channel_it_disables():
     credentials.set_("nordvpn", {"token": "tok-123"})
     text = bundle.dumps(
         {
-            "kind": "alle-bundle",
+            "kind": "anyhop-bundle",
             "bundle_version": 1,
             "providers": {
                 "nordvpn": {

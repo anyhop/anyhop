@@ -177,10 +177,15 @@ def test_supply_chain_scans_lockfile_and_secrets():
     assert "uv.lock" in osv["with"]["scan-args"], (
         "osv must scan uv.lock (pinned versions, not resolved)"
     )
-    assert any(
-        s.get("uses", "").startswith("gitleaks/gitleaks-action")
-        for s in wf["jobs"]["gitleaks"]["steps"]
-    ), "no gitleaks secret-scan step"
+    steps = wf["jobs"]["gitleaks"]["steps"]
+    scan = next(
+        (s for s in steps if "gitleaks" in s.get("run", "")),
+        None,
+    )
+    assert scan is not None, "no gitleaks secret-scan step"
+    # Pinned by version + checksum, like the SHA-pinned Actions.
+    assert "GITLEAKS_SHA256" in scan["env"]
+    assert "sha256sum -c" in scan["run"]
 
 
 def test_every_environment_checks_and_uses_the_lock():

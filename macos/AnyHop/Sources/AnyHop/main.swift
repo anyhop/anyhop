@@ -12,7 +12,7 @@ import SwiftUI
 // the process that took it and has to be broken by hand.) The descriptor is
 // deliberately never closed — holding it open is what holds the lock.
 let lockPath = (NSTemporaryDirectory() as NSString)
-    .appendingPathComponent("io.github.zydo.alle.app.lock")
+    .appendingPathComponent("io.github.anyhop.anyhop.app.lock")
 let lockDescriptor = open(lockPath, O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
 // A descriptor we could not open means no guard, not no app: fail open, so a
 // locked-down temp dir cannot stop the app from starting at all.

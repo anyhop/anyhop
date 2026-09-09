@@ -99,7 +99,7 @@ struct DashboardView: View {
 
     /// Helper ownership as a first-class state, not an error toast.
     ///
-    /// There is one privileged helper per machine, bound to one ALLE_HOME. When
+    /// There is one privileged helper per machine, bound to one ANYHOP_HOME. When
     /// a CLI install owns it, TUN simply cannot work here until it is taken
     /// over — so say that, and offer the one action that resolves it.
     @ViewBuilder private var helperNotice: some View {
@@ -118,7 +118,7 @@ struct DashboardView: View {
                 accent: theme.warn, action: ("Reinstall", { Task { await model.takeOverHelper() } }))
         case .foreign(let home):
             noticeBox(
-                text: "TUN is owned by another alle install\(home.map { " at \($0)" } ?? ""). "
+                text: "TUN is owned by another anyhop install\(home.map { " at \($0)" } ?? ""). "
                     + "Taking it over gives this app control; the other install loses TUN until "
                     + "it reinstalls. Turn TUN off there first — a takeover is refused while it "
                     + "is holding a tunnel up.",

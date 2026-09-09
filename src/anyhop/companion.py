@@ -2,7 +2,7 @@
 
 This is the non-GUI core of the desktop companion (menu-bar app / tray). It is
 deliberately a *client*: it holds no business logic, talks to the already
-running ``alled`` daemon over its loopback control API, and treats ``/api/v1``
+running the ``anyhop`` daemon over its loopback control API, and treats ``/api/v1``
 as a **versioned contract** it can skew against — so it degrades gracefully on
 unknown fields and unknown endpoints (404) rather than crashing when it runs a
 version ahead of or behind the daemon.
@@ -28,7 +28,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 
-from alle.api import auth, server
+from anyhop.api import auth, server
 
 
 class CompanionError(RuntimeError):
@@ -59,7 +59,7 @@ class TrayState:
 
 
 class CompanionClient:
-    """A thin, reconnect-tolerant client of one alled's ``/api/v1``.
+    """A thin, reconnect-tolerant client of the anyhop daemon's ``/api/v1``.
 
     Construct cheaply; every call re-reads the endpoint so a daemon restart
     (new port/secret) is picked up without reconstructing the client.
@@ -75,8 +75,8 @@ class CompanionClient:
         Reads ``control_api.json`` fresh each time, **read-only**: a client
         never mints the daemon's secret. A missing/invalid file means the
         daemon has never generated its endpoint (never started). The same env
-        overrides the daemon honors (``ALLE_API_LISTEN``,
-        ``ALLE_API_SECRET[_FILE]``) are applied on top, so a companion in the
+        overrides the daemon honors (``ANYHOP_API_LISTEN``,
+        ``ANYHOP_API_SECRET[_FILE]``) are applied on top, so a companion in the
         same environment reaches the same server with the same credential."""
         try:
             cfg = server._read_control_api()
@@ -84,8 +84,8 @@ class CompanionClient:
             cfg = None
         if cfg is None:
             raise DaemonUnavailable(
-                "alle daemon is not configured yet (no control endpoint). "
-                "Start it: alle start"
+                "anyhop daemon is not configured yet (no control endpoint). "
+                "Start it: anyhop start"
             )
         try:
             return {
@@ -100,7 +100,7 @@ class CompanionClient:
         """True only if *our* daemon is behind the contract port (HMAC proof).
 
         A bare TCP connect is insufficient — the port could be squatted — so
-        readiness is the same challenge ``alle ui`` uses. Never sends the
+        readiness is the same challenge ``anyhop ui`` uses. Never sends the
         secret; never raises."""
         try:
             api = self._endpoint()
@@ -142,9 +142,9 @@ class CompanionClient:
         api = self._endpoint()
         if not self._challenge_ok(api):
             raise DaemonUnavailable(
-                f"no alle daemon is answering the health challenge at "
+                f"no anyhop daemon is answering the health challenge at "
                 f"{api['address']} (not running, or a foreign process holds "
-                "the port). Start it: alle start"
+                "the port). Start it: anyhop start"
             )
         url = f"http://{api['address']}/api/v1/{path.lstrip('/')}"  # noqa: S5332
         data = json.dumps(body).encode() if body is not None else None
@@ -171,7 +171,7 @@ class CompanionClient:
                 raise CompanionError(f"endpoint /{path} not available on this daemon")
             raise CompanionError(msg) from e
         except (OSError, ValueError) as e:
-            raise DaemonUnavailable(f"cannot reach the alle daemon: {e}") from e
+            raise DaemonUnavailable(f"cannot reach the anyhop daemon: {e}") from e
 
     # -- read ----------------------------------------------------------------
     def status(self) -> dict:
@@ -205,7 +205,7 @@ class CompanionClient:
         api = self._endpoint()
         if not self._challenge_ok(api):
             raise DaemonUnavailable(
-                f"no alle daemon is answering the health challenge at {api['address']}"
+                f"no anyhop daemon is answering the health challenge at {api['address']}"
             )
         return server._login_url_for(api)
 

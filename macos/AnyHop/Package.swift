@@ -11,23 +11,23 @@ let testingMacros = "\(developerDir)/usr/lib/swift/host/plugins/testing/libTesti
 let testingInterop = "\(developerDir)/Library/Developer/usr/lib"
 
 let package = Package(
-    name: "Alle",
+    name: "AnyHop",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "Alle", targets: ["Alle"])
+        .executable(name: "AnyHop", targets: ["AnyHop"])
     ],
     targets: [
         .executableTarget(
-            name: "Alle",
-            path: "Sources/Alle",
+            name: "AnyHop",
+            path: "Sources/AnyHop",
             resources: [.copy("Resources")]
         ),
         .testTarget(
-            name: "AlleTests",
-            dependencies: ["Alle"],
-            path: "Tests/AlleTests",
+            name: "AnyHopTests",
+            dependencies: ["AnyHop"],
+            path: "Tests/AnyHopTests",
             swiftSettings: [
                 .unsafeFlags([
                     "-F", developerFrameworks,

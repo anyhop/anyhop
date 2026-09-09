@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build a hermetic macOS .pkg installer for alle.
+"""Build a hermetic macOS .pkg installer for anyhop.
 
-Ships a self-contained Alle.app (native tray + bundled core + pinned sing-box)
+Ships a self-contained AnyHop.app (native tray + bundled core + pinned sing-box)
 to /Applications. The pkg is hermetic and user-level: no curl|sh, no root
 helper, no system login LaunchAgent — everything the app needs lives in the
-bundle, and its state lives under ~/Library/Application Support/Alle. The TUN
+bundle, and its state lives under ~/Library/Application Support/AnyHop. The TUN
 helper is an opt-in the tray installs (with an admin prompt) on first use; run
 the bundled uninstall.sh to remove everything.
 """
@@ -31,17 +31,17 @@ IDENTIFIER = build_app.BUNDLE_ID
 
 
 def pkg_name(version: str, arch: str) -> str:
-    return f"Alle-{version}-macos-{arch}.pkg"
+    return f"AnyHop-{version}-macos-{arch}.pkg"
 
 
 def build_pkg(out: Path, version: str, arch: str) -> Path:
     pkg = out / pkg_name(version, arch)
     if pkg.exists():
         pkg.unlink()
-    with tempfile.TemporaryDirectory(prefix="alle-pkg-build-") as base_str:
+    with tempfile.TemporaryDirectory(prefix="anyhop-pkg-build-") as base_str:
         base = Path(base_str)
-        # Payload root holds Alle.app directly; install-location /Applications
-        # lands it at /Applications/Alle.app. (install-location / is refused by
+        # Payload root holds AnyHop.app directly; install-location /Applications
+        # lands it at /Applications/AnyHop.app. (install-location / is refused by
         # modern macOS — / is the read-only Signed System Volume.) The scripts
         # dir is a sibling of the payload root so pkgbuild does not ship it as
         # payload content.
@@ -86,7 +86,7 @@ def build_pkg(out: Path, version: str, arch: str) -> Path:
     )
     # Structural smoke: expanding a flat pkg fails if it is malformed. pkgutil
     # refuses to expand into an existing dir, so target a fresh subdir.
-    with tempfile.TemporaryDirectory(prefix="alle-pkg-expand-") as expand_str:
+    with tempfile.TemporaryDirectory(prefix="anyhop-pkg-expand-") as expand_str:
         run(["pkgutil", "--expand", str(pkg), str(Path(expand_str) / "expanded")])
     return pkg
 

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  alle menu-bar template icon — RUNNING (daemon up, per-app routing, no TUN).
+  anyhop menu-bar template icon — RUNNING (daemon up, per-app routing, no TUN).
 
   Template image: pure black ink + alpha (NSImage.isTemplate = true). Same A
   silhouette as status-stopped.svg, at full weight, with the three exit nodes
   filled solid — the client is connected to its exits. The mark fills ~70% of
   the canvas to land at ~16pt optical weight at menu-bar height.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="alle — running">
-  <title>alle — running</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="anyhop — running">
+  <title>anyhop — running</title>
   <g fill="none" stroke="#000000" stroke-width="152"
      stroke-linecap="round" stroke-linejoin="round">
     <!-- the ∀ A: apex (client) at the bottom, two exit tips at the top -->

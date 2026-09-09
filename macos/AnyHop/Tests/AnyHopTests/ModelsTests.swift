@@ -1,6 +1,6 @@
 import Testing
 
-@testable import Alle
+@testable import AnyHop
 
 /// The version-skew contract is the reason these models decode defensively, so
 /// the tests are mostly about payloads a strict decoder would reject.

@@ -10,7 +10,7 @@ import SwiftUI
 /// fixed in Info.plist.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    static let showWindowNotification = Notification.Name("io.github.zydo.alle.showWindow")
+    static let showWindowNotification = Notification.Name("io.github.anyhop.anyhop.showWindow")
 
     private var statusItem: NSStatusItem?
     private var window: NSWindow?
@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
 
         let open = NSMenuItem(
-            title: "Open Alle", action: #selector(showWindow), keyEquivalent: "")
+            title: "Open AnyHop", action: #selector(showWindow), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
         menu.addItem(.separator())
@@ -87,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         let quit = NSMenuItem(
-            title: "Quit Alle", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            title: "Quit AnyHop", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
         return menu
     }
@@ -143,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let hosting = NSHostingController(
                 rootView: RootView().environmentObject(model))
             let created = NSWindow(contentViewController: hosting)
-            created.title = "Alle"
+            created.title = "AnyHop"
             created.setContentSize(NSSize(width: 1_020, height: 680))
             created.contentMinSize = NSSize(width: 720, height: 480)
             created.styleMask = [.titled, .closable, .miniaturizable, .resizable]

@@ -1,7 +1,7 @@
 #!/bin/bash
-# alle macOS .pkg postinstall (runs as root during Apple Installer).
+# anyhop macOS .pkg postinstall (runs as root during Apple Installer).
 #
-# The payload placed a hermetic, self-contained /Applications/Alle.app (native
+# The payload placed a hermetic, self-contained /Applications/AnyHop.app (native
 # tray + bundled core + pinned sing-box). Nothing else is needed at install
 # time: no curl|sh, no root helper, no system login item. The tray:
 #   - launches at login via a per-user (SMAppService) login item it registers,
@@ -10,7 +10,7 @@
 #     enabled.
 # Here we just launch it for the installing user.
 
-TRAY_APP="/Applications/Alle.app"
+TRAY_APP="/Applications/AnyHop.app"
 
 console_user=$(stat -f%Su /dev/console 2>/dev/null || true)
 if [ -n "$console_user" ] && [ "$console_user" != "root" ]; then

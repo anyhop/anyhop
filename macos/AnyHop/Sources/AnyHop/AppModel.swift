@@ -89,7 +89,7 @@ final class AppModel: ObservableObject {
             if let upgrade, upgrade.available, let latest = upgrade.latest {
                 toast = Toast(kind: .info, message: "Version \(latest) is available.")
             } else {
-                toast = Toast(kind: .info, message: "alle is up to date.")
+                toast = Toast(kind: .info, message: "anyhop is up to date.")
             }
         }
     }
@@ -120,7 +120,7 @@ final class AppModel: ObservableObject {
                 toast = Toast(
                     kind: .error,
                     message:
-                        "TUN is owned by another alle install\(home.map { " (\($0))" } ?? ""). "
+                        "TUN is owned by another anyhop install\(home.map { " (\($0))" } ?? ""). "
                         + "Take it over from the TUN panel first.")
                 return
             }

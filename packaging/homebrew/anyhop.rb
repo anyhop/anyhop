@@ -88,7 +88,7 @@ class Anyhop < Formula
     # Product boundary: no GUI/tray/companion surface ships in this channel.
     refute_path_exists "#{site}/tray.py"
     refute_path_exists "#{site}/companion.py"
-    refute_path_exists bin/"alle-tray"
-    refute_path_exists libexec/"bin/alle-tray"
+    refute_path_exists bin/"anyhop-tray"
+    refute_path_exists libexec/"bin/anyhop-tray"
   end
 end

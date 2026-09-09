@@ -29,7 +29,7 @@ UPDATER = ROOT / "scripts" / "update-homebrew-formula.py"
 UV = shutil.which("uv") or ""
 
 GUI_MODULES = {"tray.py", "companion.py"}
-GUI_SCRIPT = "alle-tray"
+GUI_SCRIPT = "anyhop-tray"
 
 
 @pytest.fixture(scope="module")
@@ -78,7 +78,7 @@ def test_formula_relies_on_the_shared_headless_wheel(formula_text):
     test_block = formula_text.split("test do", 1)[1]
     assert 'refute_path_exists "#{site}/tray.py"' in test_block
     assert 'refute_path_exists "#{site}/companion.py"' in test_block
-    assert 'refute_path_exists bin/"alle-tray"' in test_block
+    assert 'refute_path_exists bin/"anyhop-tray"' in test_block
 
 
 def test_formula_never_installs_the_tray_extra(formula_text):
@@ -118,7 +118,7 @@ def test_pinned_resources_match_the_lockfile(formula_text):
 @pytest.mark.skipif(not UV, reason="uv not installed")
 def test_base_wheel_is_headless(formula_text):
     """The uv, pipx, and Homebrew channels share one headless artifact."""
-    tmp = Path(tempfile.mkdtemp(prefix="alle-brew-"))
+    tmp = Path(tempfile.mkdtemp(prefix="anyhop-brew-"))
     try:
         subprocess.run(
             [UV, "build", "--wheel", "--out-dir", str(tmp)],
@@ -135,7 +135,7 @@ def test_base_wheel_is_headless(formula_text):
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-    top_modules = {Path(n).name for n in names if re.fullmatch(r"alle/[^/]+\.py", n)}
+    top_modules = {Path(n).name for n in names if re.fullmatch(r"anyhop/[^/]+\.py", n)}
     assert GUI_MODULES.isdisjoint(top_modules)
     assert GUI_SCRIPT not in entry_points
     assert "rumps" not in entry_points.lower()

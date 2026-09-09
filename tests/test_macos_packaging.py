@@ -41,13 +41,13 @@ def test_normalize_arch():
 def test_info_plist_template_has_menu_bar_app_shape():
     raw = build_app.render_template(
         "Info.plist.template",
-        bundle_id="com.example.Alle",
+        bundle_id="com.example.AnyHop",
         version="1.2.3",
     )
     plist = plistlib.loads(raw.encode())
 
-    assert plist["CFBundleIdentifier"] == "com.example.Alle"
-    assert plist["CFBundleExecutable"] == "Alle"
+    assert plist["CFBundleIdentifier"] == "com.example.AnyHop"
+    assert plist["CFBundleExecutable"] == "AnyHop"
     assert plist["CFBundleShortVersionString"] == "1.2.3"
     assert plist["CFBundleIconFile"] == "AppIcon"
     assert plist["LSMinimumSystemVersion"] == "13.0"
@@ -55,25 +55,25 @@ def test_info_plist_template_has_menu_bar_app_shape():
 
 
 def test_wrapper_points_at_bundled_core_and_exports_service_env():
-    wrapper = (build_app.PACKAGING / "alle-wrapper.sh.template").read_text()
+    wrapper = (build_app.PACKAGING / "anyhop-wrapper.sh.template").read_text()
 
-    assert 'CORE="$RESOURCES/alle-core/alle"' in wrapper
-    assert 'export ALLE_EXECUTABLE="$SELF"' in wrapper
-    assert 'export ALLE_SERVICE_OWNER="macos-app"' in wrapper
-    assert 'export ALLE_SERVICE_PREFIX="$RESOURCES"' in wrapper
-    assert 'export ALLE_SINGBOX="$SINGBOX"' in wrapper
+    assert 'CORE="$RESOURCES/anyhop-core/anyhop"' in wrapper
+    assert 'export ANYHOP_EXECUTABLE="$SELF"' in wrapper
+    assert 'export ANYHOP_SERVICE_OWNER="macos-app"' in wrapper
+    assert 'export ANYHOP_SERVICE_PREFIX="$RESOURCES"' in wrapper
+    assert 'export ANYHOP_SINGBOX="$SINGBOX"' in wrapper
     assert 'exec "$CORE" "$@"' in wrapper
 
 
 def test_packaging_lives_outside_python_package():
-    assert "src/alle" not in build_app.PACKAGING.relative_to(build_app.ROOT).parts
+    assert "src/anyhop" not in build_app.PACKAGING.relative_to(build_app.ROOT).parts
 
 
 def test_tray_status_icons_present():
     # The Swift tray loads status-{stopped,running,tun}.pdf as template glyphs.
     # build_app.copy_tray_status_icons copies these into the .app, so the source
     # PDFs must exist alongside their SVG sources under the SPM target.
-    resources = build_app.ROOT / "macos" / "Alle" / "Sources" / "Alle" / "Resources"
+    resources = build_app.ROOT / "macos" / "AnyHop" / "Sources" / "AnyHop" / "Resources"
     for kind in ("stopped", "running", "tun"):
         assert (resources / f"status-{kind}.pdf").is_file(), (
             f"missing status-{kind}.pdf"
@@ -94,14 +94,14 @@ def test_postinstall_is_valid_bash_and_executable():
 
 
 def test_pkg_name_is_deterministic():
-    assert build_pkg.pkg_name("0.1.13", "arm64") == "Alle-0.1.13-macos-arm64.pkg"
+    assert build_pkg.pkg_name("0.1.13", "arm64") == "AnyHop-0.1.13-macos-arm64.pkg"
 
 
 def test_postinstall_is_hermetic_and_just_launches():
     # The hermetic pkg carries everything in the app; postinstall must NOT reach
     # out to curl|sh, install a root helper, or write a system login item.
     text = (build_pkg.PKG_SCRIPTS / "postinstall").read_text()
-    assert "/Applications/Alle.app" in text
+    assert "/Applications/AnyHop.app" in text
     assert "open" in text  # launch the tray for the installing user
     assert "install.sh" not in text
     assert "helper install" not in text
@@ -119,8 +119,8 @@ def test_uninstall_script_is_valid_bash_and_covers_everything():
         "daemon uninstall",
         "Library/LaunchAgents",
         "helper uninstall",
-        "Application Support/Alle",
-        "/Applications/Alle.app",
+        "Application Support/AnyHop",
+        "/Applications/AnyHop.app",
     ):
         assert needle in text, f"uninstall.sh missing {needle!r}"
     result = subprocess.run(
@@ -132,14 +132,14 @@ def test_uninstall_script_is_valid_bash_and_covers_everything():
 def test_wrapper_is_valid_posix_sh():
     # Every CLI invocation in the app bundle goes through this wrapper, and it
     # is #!/bin/sh — check it against sh, not bash, so a bashism cannot ship.
-    wrapper = build_app.PACKAGING / "alle-wrapper.sh.template"
+    wrapper = build_app.PACKAGING / "anyhop-wrapper.sh.template"
     result = subprocess.run(["sh", "-n", str(wrapper)], capture_output=True, text=True)
-    assert result.returncode == 0, f"alle-wrapper.sh syntax error: {result.stderr}"
+    assert result.returncode == 0, f"anyhop-wrapper.sh syntax error: {result.stderr}"
 
 
 def test_wrapper_scopes_state_to_app_data_dir():
     # The hermetic app keeps its state out of the read-only bundle and out of the
-    # CLI install's ~/.alle, so the two can coexist.
-    wrapper = (build_app.PACKAGING / "alle-wrapper.sh.template").read_text()
-    assert "ALLE_HOME" in wrapper
-    assert "Library/Application Support/Alle" in wrapper
+    # CLI install's ~/.anyhop, so the two can coexist.
+    wrapper = (build_app.PACKAGING / "anyhop-wrapper.sh.template").read_text()
+    assert "ANYHOP_HOME" in wrapper
+    assert "Library/Application Support/AnyHop" in wrapper

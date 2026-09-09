@@ -1,11 +1,11 @@
-"""Planned macOS menu-bar companion prototype over :mod:`alle.companion`.
+"""Planned macOS menu-bar companion prototype over :mod:`anyhop.companion`.
 
 Deliberately tiny and rendering-only: every action delegates to
-:class:`alle.companion.CompanionClient` through one coalescing background
+:class:`anyhop.companion.CompanionClient` through one coalescing background
 worker, so the tray adds no capability the client does not already expose and
 never blocks the AppKit callback thread. This source is retained for in-tree
 development, but the released wheel deliberately excludes it and provides no
-``tray`` extra or ``alle-tray`` launcher. ``rumps`` must therefore be installed
+``tray`` extra or ``anyhop-tray`` launcher. ``rumps`` must therefore be installed
 separately when exercising the prototype from a checkout.
 
 Scope (hard contract — nothing richer ever lives here): status line, channel
@@ -15,7 +15,7 @@ and everything else stays in the CLI and Web UI.
 Not unit-tested through a live GUI (rumps drives a real NSStatusItem); the
 client and worker concurrency logic are tested without AppKit. Quitting the tray
 deactivates TUN mode (a machine-wide route table should not outlive the app
-that turned it on) but never stops alled unless the user explicitly asks.
+that turned it on) but never stops the daemon unless the user explicitly asks.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from alle.companion import CompanionClient, DaemonUnavailable
+from anyhop.companion import CompanionClient, DaemonUnavailable
 
 REFRESH_SECONDS = 5
 
@@ -112,7 +112,7 @@ def _require_rumps():
         raise SystemExit(
             "the menu-bar companion is a source-only prototype (macOS).\n"
             "For in-tree development, install rumps in the checkout environment;\n"
-            "released alle installations use the CLI and Web UI."
+            "released anyhop installations use the CLI and Web UI."
         ) from e
     return rumps
 
@@ -130,7 +130,7 @@ def build_app():
             # quit_button=None is rumps' documented way to remove the default
             # Quit item (its annotation says str, hence the ignore) — ours
             # below deactivates tun before quitting.
-            super().__init__("alle", quit_button=None)  # type: ignore[arg-type]
+            super().__init__("anyhop", quit_button=None)  # type: ignore[arg-type]
             self.status_item = rumps.MenuItem("Starting…")
             self.channels_item = rumps.MenuItem("")
             self.tun_item = rumps.MenuItem("System VPN (TUN)", callback=self.toggle_tun)
@@ -148,7 +148,7 @@ def build_app():
                 None,
                 rumps.MenuItem("Open Web UI…", callback=self.open_web_ui),
                 None,
-                rumps.MenuItem("Quit alle tray", callback=self.on_quit),
+                rumps.MenuItem("Quit anyhop tray", callback=self.on_quit),
             ]
             self.worker = CoalescingWorker(_dispatch_main)
             self._refresh(None)
@@ -161,8 +161,8 @@ def build_app():
         def _status_done(self, ok, value):
             if not ok:
                 if isinstance(value, DaemonUnavailable):
-                    self.title = "alle ○"
-                    self.status_item.title = "Daemon not running — alle start"
+                    self.title = "anyhop ○"
+                    self.status_item.title = "Daemon not running — anyhop start"
                     self.channels_item.title = ""
                     self.tun_item.state = self.ks_item.state = False
                 else:
@@ -171,7 +171,7 @@ def build_app():
             self._render(value)
 
         def _render(self, st):
-            self.title = "alle ●" if st.running else "alle ○"
+            self.title = "anyhop ●" if st.running else "anyhop ○"
             ver = f" v{st.installed_version}" if st.installed_version else ""
             self.status_item.title = ("Running" if st.running else "Stopped") + ver
             self.channels_item.title = f"Channels: {st.channel_summary}"
@@ -190,7 +190,7 @@ def build_app():
                 if ok:
                     self._render(value)
                 else:
-                    _require_rumps().alert("alle", str(value))
+                    _require_rumps().alert("anyhop", str(value))
 
             self.worker.submit(work, done)
 
@@ -217,13 +217,13 @@ def build_app():
                 if ok:
                     webbrowser.open(value)
                 else:
-                    _require_rumps().alert("alle", str(value))
+                    _require_rumps().alert("anyhop", str(value))
 
             self.worker.submit(client.web_ui_login_url, done)
 
         def on_quit(self, _):
             # Deactivating tun is best-effort: a machine-wide route table must
-            # not outlive the app that armed it. alled itself is left running.
+            # not outlive the app that armed it. the daemon itself is left running.
             self.worker.finish(lambda: client.set_tun(False), timeout=2.0)
             self.worker.close()
             _require_rumps().quit_application()

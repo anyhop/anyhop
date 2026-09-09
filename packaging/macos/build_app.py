@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a sideloadable, self-contained macOS Alle.app bundle.
+"""Build a sideloadable, self-contained macOS AnyHop.app bundle.
 
 The bundle carries the native tray, the frozen Python core, and the pinned
 sing-box. `build_pkg.py` wraps the same bundle into the shipping `.pkg`.
@@ -23,8 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGING = ROOT / "packaging" / "macos"
 DIST = ROOT / "dist" / "macos"
-BUNDLE_ID = "io.github.zydo.alle"
-APP_NAME = "Alle.app"
+BUNDLE_ID = "io.github.anyhop.anyhop"
+APP_NAME = "AnyHop.app"
 
 
 class BuildError(RuntimeError):
@@ -76,18 +76,18 @@ def app_paths(out: Path) -> dict[str, Path]:
         "macos": contents / "MacOS",
         "resources": resources,
         "bin": resources / "bin",
-        "core": resources / "alle-core",
+        "core": resources / "anyhop-core",
         "singbox": resources / "sing-box",
     }
 
 
 def build_swift(configuration: str) -> Path:
-    run(["swift", "build", "--package-path", "macos/Alle", "-c", configuration])
-    return ROOT / "macos" / "Alle" / ".build" / configuration / "Alle"
+    run(["swift", "build", "--package-path", "macos/AnyHop", "-c", configuration])
+    return ROOT / "macos" / "AnyHop" / ".build" / configuration / "AnyHop"
 
 
 def build_pyinstaller(work: Path) -> Path:
-    spec = PACKAGING / "pyinstaller" / "alle.spec"
+    spec = PACKAGING / "pyinstaller" / "anyhop.spec"
     run(
         [
             sys.executable,
@@ -102,9 +102,9 @@ def build_pyinstaller(work: Path) -> Path:
             str(spec),
         ]
     )
-    core = work / "pyinstaller-dist" / "alle"
-    if not (core / "alle").exists():
-        raise BuildError(f"PyInstaller did not produce {core / 'alle'}")
+    core = work / "pyinstaller-dist" / "anyhop"
+    if not (core / "anyhop").exists():
+        raise BuildError(f"PyInstaller did not produce {core / 'anyhop'}")
     return core
 
 
@@ -118,7 +118,7 @@ def _sha256(path: Path) -> str:
 
 def embed_singbox(dest: Path, key: str) -> None:
     sys.path.insert(0, str(ROOT / "src"))
-    from alle.constants import SINGBOX_SHA256, SINGBOX_VERSION
+    from anyhop.constants import SINGBOX_SHA256, SINGBOX_VERSION
 
     expected = SINGBOX_SHA256[key]
     asset = f"sing-box-{SINGBOX_VERSION}-{key}.tar.gz"
@@ -193,7 +193,7 @@ def copy_tray_status_icons(resources: Path) -> None:
     and renders them as template images. PDFs are committed alongside their SVG
     sources under the SPM target's Resources dir.
     """
-    src = ROOT / "macos" / "Alle" / "Sources" / "Alle" / "Resources"
+    src = ROOT / "macos" / "AnyHop" / "Sources" / "AnyHop" / "Resources"
     icons = sorted(src.glob("status-*.pdf"))
     if not icons:
         raise BuildError(f"no status-*.pdf tray icons found under {src}")
@@ -203,10 +203,10 @@ def copy_tray_status_icons(resources: Path) -> None:
 
 def build_app_icon(resources: Path) -> None:
     """Convert the in-repo SVG mark into a macOS .icns app icon."""
-    svg = ROOT / "src" / "alle" / "assets" / "icon.svg"
+    svg = ROOT / "src" / "anyhop" / "assets" / "icon.svg"
     if not svg.exists():
         raise BuildError(f"missing app icon source: {svg}")
-    with tempfile.TemporaryDirectory(prefix="alle-iconset-") as td:
+    with tempfile.TemporaryDirectory(prefix="anyhop-iconset-") as td:
         iconset = Path(td) / "AppIcon.iconset"
         iconset.mkdir()
         sizes = [
@@ -236,7 +236,7 @@ def build_app_icon(resources: Path) -> None:
 
 
 def _write_tray_skeleton(paths: dict, version: str, swift_binary: Path) -> None:
-    """The shell of Alle.app: Info.plist, app icon, menu-bar status glyphs, the
+    """The shell of AnyHop.app: Info.plist, app icon, menu-bar status glyphs, the
     native tray executable, README, uninstall.sh, and third-party notices. The
     bundled build then adds core/sing-box/wrapper on top."""
     (paths["contents"] / "Info.plist").write_text(
@@ -244,8 +244,8 @@ def _write_tray_skeleton(paths: dict, version: str, swift_binary: Path) -> None:
     )
     build_app_icon(paths["resources"])
     copy_tray_status_icons(paths["resources"])
-    shutil.copy2(swift_binary, paths["macos"] / "Alle")
-    chmod_exec(paths["macos"] / "Alle")
+    shutil.copy2(swift_binary, paths["macos"] / "AnyHop")
+    chmod_exec(paths["macos"] / "AnyHop")
     (paths["resources"] / "README.txt").write_text(
         (PACKAGING / "README.txt.template").read_text()
     )
@@ -274,8 +274,8 @@ def construct_app(
 
     _write_tray_skeleton(paths, version, swift_binary)
     copy_tree(core_dir, paths["core"])
-    wrapper = paths["bin"] / "alle"
-    wrapper.write_text((PACKAGING / "alle-wrapper.sh.template").read_text())
+    wrapper = paths["bin"] / "anyhop"
+    wrapper.write_text((PACKAGING / "anyhop-wrapper.sh.template").read_text())
     chmod_exec(wrapper)
     if embed_engine:
         embed_singbox(paths["singbox"], singbox_key(arch))
@@ -288,19 +288,19 @@ def sign_path(path: Path, identity: str) -> None:
 
 def sign_app(app: Path, identity: str) -> None:
     # Sign inside-out, never letting --deep reach the pinned sing-box. Its exact
-    # bytes are SHA-256-verified at runtime (alle.singbox); re-signing rewrites
+    # bytes are SHA-256-verified at runtime (anyhop.singbox); re-signing rewrites
     # them, so the daemon would reject the bundled copy as "not the pinned
     # sing-box" and stay degraded. So:
     #  - sign the PyInstaller launcher. --deep only recurses into nested
-    #    *bundles*, and alle-core/ is a plain directory, so this signs the
+    #    *bundles*, and anyhop-core/ is a plain directory, so this signs the
     #    launcher itself and any framework bundle beside it — it stays within
-    #    Resources/alle-core/ and never touches sibling Resources/sing-box/.
+    #    Resources/anyhop-core/ and never touches sibling Resources/sing-box/.
     #    The dylibs PyInstaller collects under _internal/ keep the ad-hoc
     #    signatures PyInstaller gave them;
     #  - sign the native tray;
     #  - seal the bundle root WITHOUT --deep (--deep would re-walk and re-sign
     #    sing-box too). sing-box is left with its original linker-signed bytes.
-    launcher = app / "Contents" / "Resources" / "alle-core" / "alle"
+    launcher = app / "Contents" / "Resources" / "anyhop-core" / "anyhop"
     if launcher.exists():
         run(
             [
@@ -313,7 +313,7 @@ def sign_app(app: Path, identity: str) -> None:
                 str(launcher),
             ]
         )
-    sign_path(app / "Contents" / "MacOS" / "Alle", identity)
+    sign_path(app / "Contents" / "MacOS" / "AnyHop", identity)
     run(["codesign", "--force", "--sign", identity, "--timestamp=none", str(app)])
     run(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)])
 
@@ -327,13 +327,13 @@ def build_bundled_app(
     embed_engine: bool = True,
     sign_identity: str = "-",
 ) -> Path:
-    """Build the self-contained Alle.app (tray + bundled core + sing-box).
+    """Build the self-contained AnyHop.app (tray + bundled core + sing-box).
 
     Shared by the standalone `build_app.py` entrypoint and the pkg builder
     (`build_pkg.py`): build the Swift tray, freeze the Python core, embed the
     pinned sing-box, assemble + ad-hoc sign the bundle.
     """
-    with tempfile.TemporaryDirectory(prefix="alle-macos-build-") as td:
+    with tempfile.TemporaryDirectory(prefix="anyhop-macos-build-") as td:
         work = Path(td)
         swift_binary = build_swift(configuration)
         core = build_pyinstaller(work)

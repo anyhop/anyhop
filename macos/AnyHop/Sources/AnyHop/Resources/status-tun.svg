@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  alle menu-bar template icon — RUNNING WITH TUN (system-wide VPN).
+  anyhop menu-bar template icon — RUNNING WITH TUN (system-wide VPN).
 
   Template image: pure black ink + alpha (NSImage.isTemplate = true). The
   running glyph plus a rounded base plate under the apex: the whole machine
   rides the tunnel (system-wide capture), versus per-app routing. The A occupies
   the same coordinates as the other states; the plate sits in the lower margin.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="alle — running (system VPN)">
-  <title>alle — running (system VPN)</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="anyhop — running (system VPN)">
+  <title>anyhop — running (system VPN)</title>
   <g fill="none" stroke="#000000" stroke-width="152"
      stroke-linecap="round" stroke-linejoin="round">
     <!-- the ∀ A: apex (client) at the bottom, two exit tips at the top -->

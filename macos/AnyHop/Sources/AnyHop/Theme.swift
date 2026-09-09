@@ -3,7 +3,7 @@ import SwiftUI
 /// The Web UI's design tokens, ported verbatim.
 ///
 /// Every value here is a transcription of a `--custom-property` in
-/// `src/alle/assets/style.css` — the `:root` block for light, `:root.dark` for
+/// `src/anyhop/assets/style.css` — the `:root` block for light, `:root.dark` for
 /// dark. Keeping the two surfaces token-for-token identical is what stops the
 /// native app and the Web UI drifting into two different-looking products, so
 /// prefer editing both together over inventing a value here.

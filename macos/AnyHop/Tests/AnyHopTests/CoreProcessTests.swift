@@ -1,12 +1,12 @@
 import Foundation
 import Testing
 
-@testable import Alle
+@testable import AnyHop
 
 @Test func shellQuotingSurvivesEmbeddedQuotes() {
-    #expect(shellQuoted("/Applications/Alle.app/x") == "'/Applications/Alle.app/x'")
+    #expect(shellQuoted("/Applications/AnyHop.app/x") == "'/Applications/AnyHop.app/x'")
     // A path containing a single quote must not be able to end the quoted run.
-    #expect(shellQuoted("/a/it's/alle") == #"'/a/it'\''s/alle'"#)
+    #expect(shellQuoted("/a/it's/anyhop") == #"'/a/it'\''s/anyhop'"#)
 }
 
 @Test func appleScriptQuotingEscapesBackslashAndQuote() {
@@ -26,25 +26,25 @@ import Testing
 }
 
 @Test func bundledExecutableIsNotResolvedFromPATH() {
-    // With no app bundle around, there must be no fallback to a PATH `alle` —
+    // With no app bundle around, there must be no fallback to a PATH `anyhop` —
     // that would drive a Homebrew/uv install's state directory.
     let core = CoreProcess(executable: nil, resourceURL: nil, environment: [:])
     #expect(!core.isAvailable)
 }
 
 @Test func processEnvironmentPinsTheAppIdentity() {
-    let resources = URL(fileURLWithPath: "/Applications/Alle.app/Contents/Resources")
+    let resources = URL(fileURLWithPath: "/Applications/AnyHop.app/Contents/Resources")
     let core = CoreProcess(
         executable: nil, resourceURL: resources, environment: ["PATH": "/usr/bin"])
     let env = core.processEnvironment()
-    #expect(env["ALLE_SERVICE_OWNER"] == "macos-app")
-    #expect(env["ALLE_SERVICE_PREFIX"] == resources.path)
-    #expect(env["ALLE_HOME"]?.hasSuffix("Library/Application Support/Alle") == true)
+    #expect(env["ANYHOP_SERVICE_OWNER"] == "macos-app")
+    #expect(env["ANYHOP_SERVICE_PREFIX"] == resources.path)
+    #expect(env["ANYHOP_HOME"]?.hasSuffix("Library/Application Support/AnyHop") == true)
 }
 
 @Test func explicitHomeIsNotOverridden() {
     let core = CoreProcess(
         executable: nil, resourceURL: URL(fileURLWithPath: "/tmp/R"),
-        environment: ["ALLE_HOME": "/custom/home"])
-    #expect(core.processEnvironment()["ALLE_HOME"] == "/custom/home")
+        environment: ["ANYHOP_HOME": "/custom/home"])
+    #expect(core.processEnvironment()["ANYHOP_HOME"] == "/custom/home")
 }

@@ -2,27 +2,27 @@
 set -eu
 
 SELF="$0"
-# Resolve a relative or symlinked invocation (e.g. an ~/.local/bin/alle
+# Resolve a relative or symlinked invocation (e.g. an ~/.local/bin/anyhop
 # convenience symlink) to the real wrapper inside the app bundle, so the
 # bundled core/sing-box paths below always point into that bundle.
 # readlink -f is available on macOS 13+, this app's deployment floor.
 SELF="$(readlink -f "$SELF")"
 RESOURCES="$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd -P)"
-CORE="$RESOURCES/alle-core/alle"
+CORE="$RESOURCES/anyhop-core/anyhop"
 SINGBOX="$RESOURCES/sing-box/sing-box"
 
-export ALLE_EXECUTABLE="$SELF"
-export ALLE_SERVICE_OWNER="macos-app"
-export ALLE_SERVICE_PREFIX="$RESOURCES"
+export ANYHOP_EXECUTABLE="$SELF"
+export ANYHOP_SERVICE_OWNER="macos-app"
+export ANYHOP_SERVICE_PREFIX="$RESOURCES"
 # Keep this hermetic app's state out of the read-only bundle and in the
-# per-user app-data location, so trashing /Applications/Alle.app leaves only
-# this one tidy dir behind (uninstall.sh removes it). ALLE_HOME is only set if
+# per-user app-data location, so trashing /Applications/AnyHop.app leaves only
+# this one tidy dir behind (uninstall.sh removes it). ANYHOP_HOME is only set if
 # the caller hasn't already chosen one.
-if [ -z "${ALLE_HOME:-}" ]; then
-  export ALLE_HOME="$HOME/Library/Application Support/Alle"
+if [ -z "${ANYHOP_HOME:-}" ]; then
+  export ANYHOP_HOME="$HOME/Library/Application Support/AnyHop"
 fi
 if [ -x "$SINGBOX" ]; then
-  export ALLE_SINGBOX="$SINGBOX"
+  export ANYHOP_SINGBOX="$SINGBOX"
 fi
 export PATH="$(dirname -- "$SELF"):$PATH"
 

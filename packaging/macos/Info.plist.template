@@ -5,11 +5,11 @@
     <key>CFBundleIdentifier</key>
     <string>{bundle_id}</string>
     <key>CFBundleName</key>
-    <string>Alle</string>
+    <string>AnyHop</string>
     <key>CFBundleDisplayName</key>
-    <string>Alle</string>
+    <string>AnyHop</string>
     <key>CFBundleExecutable</key>
-    <string>Alle</string>
+    <string>AnyHop</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>

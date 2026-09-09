@@ -47,12 +47,12 @@ struct CoreProcess: Sendable {
 
     /// The bundled wrapper, never a PATH lookup.
     ///
-    /// Resolving `alle` from PATH would find a Homebrew/uv CLI install and drive
+    /// Resolving `anyhop` from PATH would find a Homebrew/uv CLI install and drive
     /// *its* state directory — the exact cross-contamination the hermetic bundle
     /// exists to prevent.
     static func defaultExecutable() -> URL? {
         guard let resources = Bundle.main.resourceURL else { return nil }
-        let wrapper = resources.appendingPathComponent("bin/alle")
+        let wrapper = resources.appendingPathComponent("bin/anyhop")
         return FileManager.default.isExecutableFile(atPath: wrapper.path) ? wrapper : nil
     }
 
@@ -109,7 +109,7 @@ struct CoreProcess: Sendable {
     /// SMJobBless/SMAppService instead.
     func installHelper(takeover: Bool) async throws -> CoreProcessResult {
         guard let executable, isAvailable else {
-            throw CoreProcessError.unavailable("the bundled alle core is missing from this bundle")
+            throw CoreProcessError.unavailable("the bundled anyhop core is missing from this bundle")
         }
         let command =
             "\(shellQuoted(executable.path)) helper install" + (takeover ? " --takeover" : "")
@@ -124,7 +124,7 @@ struct CoreProcess: Sendable {
 
     private func run(_ args: [String], timeout: TimeInterval) async throws -> CoreProcessResult {
         guard let executable, isAvailable else {
-            throw CoreProcessError.unavailable("the bundled alle core is missing from this bundle")
+            throw CoreProcessError.unavailable("the bundled anyhop core is missing from this bundle")
         }
         return try await runProcess(
             executable: executable, args: args, timeout: timeout,
@@ -132,19 +132,19 @@ struct CoreProcess: Sendable {
     }
 
     private func stateDirectory() -> String {
-        if let home = environment["ALLE_HOME"], !home.isEmpty { return home }
+        if let home = environment["ANYHOP_HOME"], !home.isEmpty { return home }
         return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Alle").path
+            .appendingPathComponent("Library/Application Support/AnyHop").path
     }
 
     /// The environment a bundled child must inherit so it stays inside the app.
     func processEnvironment() -> [String: String] {
         var env = environment
         guard let resources = resourceURL else { return env }
-        env["ALLE_SERVICE_OWNER"] = "macos-app"
-        env["ALLE_SERVICE_PREFIX"] = resources.path
-        if env["ALLE_HOME"]?.isEmpty ?? true {
-            env["ALLE_HOME"] = stateDirectory()
+        env["ANYHOP_SERVICE_OWNER"] = "macos-app"
+        env["ANYHOP_SERVICE_PREFIX"] = resources.path
+        if env["ANYHOP_HOME"]?.isEmpty ?? true {
+            env["ANYHOP_HOME"] = stateDirectory()
         }
         return env
     }

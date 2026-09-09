@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  alle menu-bar template icon — STOPPED (daemon not running).
+  anyhop menu-bar template icon — STOPPED (daemon not running).
 
   Template image: pure black ink + alpha (NSImage.isTemplate = true); macOS
   recolors it to match the menu bar in light/dark. The mark fills ~70% of the
@@ -12,8 +12,8 @@
   images honor alpha, so the whole mark dims uniformly and snaps to full
   strength when the daemon is up.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="alle — not running">
-  <title>alle — not running</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="anyhop — not running">
+  <title>anyhop — not running</title>
   <g opacity="0.35">
     <g fill="none" stroke="#000000" stroke-width="152"
        stroke-linecap="round" stroke-linejoin="round">

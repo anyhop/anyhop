@@ -1,7 +1,7 @@
 import SwiftUI
 import Testing
 
-@testable import Alle
+@testable import AnyHop
 
 /// The theme is a transcription of style.css. These tests pin the values that
 /// carry meaning, so an accidental edit here shows up as a failure rather than

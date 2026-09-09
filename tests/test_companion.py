@@ -9,9 +9,9 @@ import urllib.request
 
 import pytest
 
-from alle import companion
-from alle.state import Store
-from alle.api import server
+from anyhop import companion
+from anyhop.state import Store
+from anyhop.api import server
 from conftest import start_test_server, stop_test_server
 
 
@@ -66,7 +66,7 @@ def test_health_challenge_rejects_hostile_json_shapes_and_oversize(
     api = {
         "address": "127.0.0.1:1",
         "secret": "a" * 64,
-        "host": "alle-deadbeef.localhost",
+        "host": "anyhop-deadbeef.localhost",
     }
 
     assert companion.CompanionClient._challenge_ok(api) is False
@@ -107,7 +107,7 @@ def test_tray_state_survives_unknown_and_missing_fields(live, monkeypatch):
 
 def test_tun_toggle_round_trips_through_the_api(live, monkeypatch):
     # Privileged path stubbed so the gate permits the flip in-test.
-    monkeypatch.setattr("alle.service._singbox_has_net_admin", lambda: True)
+    monkeypatch.setattr("anyhop.service._singbox_has_net_admin", lambda: True)
     out = live.set_tun(True)
     assert out["router"]["tun"] is True
     assert live.tray_state().tun is True
@@ -122,8 +122,8 @@ def test_killswitch_toggle_round_trips(live):
 
 def test_control_api_error_surfaces_verbatim(live, monkeypatch):
     # An unprivileged tun enable returns a 400 the tray shows verbatim.
-    monkeypatch.setattr("alle.service._singbox_has_net_admin", lambda: False)
-    monkeypatch.setattr("alle.service.daemon.daemon_info", lambda: None)
+    monkeypatch.setattr("anyhop.service._singbox_has_net_admin", lambda: False)
+    monkeypatch.setattr("anyhop.service.daemon.daemon_info", lambda: None)
     monkeypatch.setattr("os.geteuid", lambda: 501)
     with pytest.raises(companion.CompanionError, match="privileged helper"):
         live.set_tun(True)
@@ -151,7 +151,7 @@ def test_unreachable_daemon_raises_daemon_unavailable(monkeypatch, tmp_path):
             {
                 "address": "127.0.0.1:1",  # nothing listens on port 1
                 "secret": "a" * 64,
-                "host": "alle-deadbeef.localhost",
+                "host": "anyhop-deadbeef.localhost",
             }
         )
     )
@@ -189,7 +189,7 @@ def test_secret_never_sent_to_a_squatted_port(monkeypatch, tmp_path):
                 {
                     "address": f"127.0.0.1:{httpd.server_port}",
                     "secret": "a" * 64,
-                    "host": "alle-deadbeef.localhost",
+                    "host": "anyhop-deadbeef.localhost",
                 }
             )
         )

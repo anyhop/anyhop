@@ -10,7 +10,7 @@ extension URLSession: HTTPSession {
         let (data, response) = try await data(for: request, delegate: nil)
         guard let http = response as? HTTPURLResponse else {
             throw CompanionError.daemonUnavailable(
-                "cannot reach the alle daemon: non-HTTP response")
+                "cannot reach the anyhop daemon: non-HTTP response")
         }
         return (data, http)
     }
@@ -66,7 +66,7 @@ final class CompanionClient: Sendable {
     func endpoint() throws -> Endpoint {
         guard let cfg = readControlAPI() else {
             throw CompanionError.daemonUnavailable(
-                "alle daemon is not configured yet (no control endpoint). Start it: alle start"
+                "anyhop daemon is not configured yet (no control endpoint). Start it: anyhop start"
             )
         }
         let address = clientAddress(for: cfg)
@@ -354,8 +354,8 @@ final class CompanionClient: Sendable {
         let api = try endpoint()
         guard await challengeOK(api) else {
             throw CompanionError.daemonUnavailable(
-                "no alle daemon is answering the health challenge at \(api.address) "
-                    + "(not running, or a foreign process holds the port). Start it: alle start"
+                "no anyhop daemon is answering the health challenge at \(api.address) "
+                    + "(not running, or a foreign process holds the port). Start it: anyhop start"
             )
         }
         guard
@@ -391,13 +391,13 @@ final class CompanionClient: Sendable {
             }
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 throw CompanionError.daemonUnavailable(
-                    "cannot reach the alle daemon: invalid JSON response")
+                    "cannot reach the anyhop daemon: invalid JSON response")
             }
             return object
         } catch let error as CompanionError {
             throw error
         } catch {
-            throw CompanionError.daemonUnavailable("cannot reach the alle daemon: \(error)")
+            throw CompanionError.daemonUnavailable("cannot reach the anyhop daemon: \(error)")
         }
     }
 
@@ -428,10 +428,10 @@ final class CompanionClient: Sendable {
     }
 
     private func stateDirectory() -> URL {
-        if let raw = environment("ALLE_HOME"), !raw.isEmpty {
+        if let raw = environment("ANYHOP_HOME"), !raw.isEmpty {
             return URL(fileURLWithPath: raw)
         }
-        return homeDirectory().appendingPathComponent(".alle")
+        return homeDirectory().appendingPathComponent(".anyhop")
     }
 
     private func validControlAPI(_ object: [String: Any]) -> ControlAPI? {
@@ -455,7 +455,7 @@ final class CompanionClient: Sendable {
         guard secret.range(of: #"^[0-9a-f]{64}$"#, options: .regularExpression) != nil else {
             return nil
         }
-        guard host.range(of: #"^alle-[0-9a-f]{8}\.localhost$"#, options: .regularExpression) != nil
+        guard host.range(of: #"^anyhop-[0-9a-f]{8}\.localhost$"#, options: .regularExpression) != nil
         else {
             return nil
         }
@@ -465,12 +465,12 @@ final class CompanionClient: Sendable {
     /// The `host:port` to actually connect to.
     ///
     /// `control_api.json` records the contract address; an operator-set
-    /// `ALLE_API_LISTEN` can move the bind, and a wildcard bind is reached over
+    /// `ANYHOP_API_LISTEN` can move the bind, and a wildcard bind is reached over
     /// loopback. An unset or unparseable override leaves the contract address
     /// as-is.
     private func clientAddress(for api: ControlAPI) -> String {
         guard
-            let raw = environment("ALLE_API_LISTEN")?.trimmingCharacters(
+            let raw = environment("ANYHOP_API_LISTEN")?.trimmingCharacters(
                 in: .whitespacesAndNewlines), !raw.isEmpty,
             let parsed = parseListen(raw),
             let contractPort = api.address.split(separator: ":").last.flatMap({ Int($0) })
@@ -500,11 +500,11 @@ final class CompanionClient: Sendable {
     }
 
     private func apiSecret(for api: ControlAPI) throws -> String {
-        let env = environment("ALLE_API_SECRET")
-        let path = environment("ALLE_API_SECRET_FILE")
+        let env = environment("ANYHOP_API_SECRET")
+        let path = environment("ANYHOP_API_SECRET_FILE")
         if env != nil, path != nil {
             throw CompanionError.daemonUnavailable(
-                "API configuration error: both ALLE_API_SECRET and ALLE_API_SECRET_FILE are set — set exactly one"
+                "API configuration error: both ANYHOP_API_SECRET and ANYHOP_API_SECRET_FILE are set — set exactly one"
             )
         }
         let value: String
@@ -514,7 +514,7 @@ final class CompanionClient: Sendable {
                     in: .whitespacesAndNewlines)
             } catch {
                 throw CompanionError.daemonUnavailable(
-                    "API configuration error: ALLE_API_SECRET_FILE \(path) is unreadable: \(error)")
+                    "API configuration error: ANYHOP_API_SECRET_FILE \(path) is unreadable: \(error)")
             }
         } else if let env {
             value = env.trimmingCharacters(in: .whitespacesAndNewlines)

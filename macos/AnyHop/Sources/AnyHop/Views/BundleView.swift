@@ -77,7 +77,7 @@ struct BundleView: View {
     private func save() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "alle-config.json"
+        panel.nameFieldStringValue = "anyhop-config.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         try? draft.write(to: url, atomically: true, encoding: .utf8)
     }

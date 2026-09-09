@@ -308,7 +308,7 @@ struct UpgradeCheck: Equatable, Sendable {
 
 /// How the machine's single privileged TUN helper relates to *this* install.
 ///
-/// Mirrors `alle.helper.probe()`. `foreign` is the case the UI must name rather
+/// Mirrors `anyhop.helper.probe()`. `foreign` is the case the UI must name rather
 /// than swallow: another install (typically a CLI one) owns the helper, so TUN
 /// is unavailable here until it is explicitly taken over.
 enum HelperOwnership: Equatable, Sendable {

@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 import time
 
-from alle.tray import CoalescingWorker
+from anyhop.tray import CoalescingWorker
 
 
 def test_worker_callbacks_return_immediately_and_pending_work_coalesces():

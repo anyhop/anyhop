@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// The three menu-bar states alle's tray distinguishes.
+/// The three menu-bar states anyhop's tray distinguishes.
 enum StatusIconKind: Sendable {
     case stopped
     case running
@@ -11,7 +11,7 @@ enum StatusIconKind: Sendable {
 /// Loads the monochrome template glyphs for the status item.
 ///
 /// Two runtime contexts resolve the same assets:
-/// - the packaged ``Alle.app``: PDFs sit in ``Contents/Resources/`` and are
+/// - the packaged ``AnyHop.app``: PDFs sit in ``Contents/Resources/`` and are
 ///   found via ``Bundle.main``;
 /// - a raw ``swift run`` dev build: the PDFs are an SPM resource, found via
 ///   ``Bundle.module``.
@@ -29,7 +29,7 @@ enum StatusIcons {
     /// This gates the `Bundle.module` fallback, which *traps* instead of
     /// returning nil when the generated resource bundle is missing — and
     /// missing is exactly the packaged case: the build copies the PDFs into
-    /// `Contents/Resources` and never ships `Alle_Alle.bundle`. Reaching
+    /// `Contents/Resources` and never ships `AnyHop_AnyHop.bundle`. Reaching
     /// for it there would turn "assets absent" — the one case this type
     /// documents as returning nil — into a crash on launch.
     private static let isPackagedApp = Bundle.main.bundleURL.pathExtension == "app"

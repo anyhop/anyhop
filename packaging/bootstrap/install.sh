@@ -267,12 +267,12 @@ purge_state_and_receipt() {
 finish_tool_removal() {
 	uv_runnable "$uv" || die "recorded uv is missing or unusable at $uv; repair it before resuming uninstall."
 	uv_list=$(uv_tool_list) || die "recorded uv could not inspect its tool directory; no cleanup changes were made."
-	existing_alle=""
-	if have anyhop; then existing_alle=$(absolute_command anyhop); fi
+	existing_anyhop=""
+	if have anyhop; then existing_anyhop=$(absolute_command anyhop); fi
 	anyhop=$uv_bin_dir/anyhop
 	if printf '%s\n' "$uv_list" | grep -Eq '^anyhop[[:space:]]'; then
-		if [ -n "$existing_alle" ] && [ "$existing_alle" != "$anyhop" ]; then
-			die "PATH resolves anyhop to $existing_alle, not the recorded uv bootstrap at $anyhop; remove the conflict before resuming uninstall."
+		if [ -n "$existing_anyhop" ] && [ "$existing_anyhop" != "$anyhop" ]; then
+			die "PATH resolves anyhop to $existing_anyhop, not the recorded uv bootstrap at $anyhop; remove the conflict before resuming uninstall."
 		fi
 		say "removing uv-owned anyhop tool"
 		UV_TOOL_DIR=$uv_tools_dir UV_TOOL_BIN_DIR=$uv_bin_dir "$uv" tool uninstall anyhop ||
@@ -285,8 +285,8 @@ finish_tool_removal() {
 		if [ -e "$anyhop" ] || [ -L "$anyhop" ]; then
 			die "uv no longer owns anyhop, but an unowned shim remains at $anyhop; remove its owner before resuming bootstrap cleanup."
 		fi
-		if [ -n "$existing_alle" ]; then
-			die "uv no longer owns anyhop, but anyhop now resolves to $existing_alle; remove the foreign installation before resuming bootstrap cleanup."
+		if [ -n "$existing_anyhop" ]; then
+			die "uv no longer owns anyhop, but anyhop now resolves to $existing_anyhop; remove the foreign installation before resuming bootstrap cleanup."
 		fi
 		say "uv-owned anyhop tool was already removed; resuming bootstrap cleanup"
 	fi
@@ -312,8 +312,8 @@ uninstall_from_receipt() {
 		if [ -e "$phase_file" ] || [ -L "$phase_file" ]; then finish_orphaned_phase; fi
 		rmdir "$receipt_dir" 2>/dev/null || true
 		if have anyhop; then
-			existing_alle=$(absolute_command anyhop)
-			die "anyhop at $existing_alle is not owned by this uv bootstrap (no receipt); uninstall it with its package manager."
+			existing_anyhop=$(absolute_command anyhop)
+			die "anyhop at $existing_anyhop is not owned by this uv bootstrap (no receipt); uninstall it with its package manager."
 		fi
 		say "no uv bootstrap receipt was found; nothing to remove"
 		return
@@ -329,11 +329,11 @@ uninstall_from_receipt() {
 	uv_runnable "$uv" || die "recorded uv is missing or unusable at $uv; repair it before uninstalling."
 	uv_list=$(uv_tool_list) || die "recorded uv could not inspect its tool directory; no uninstall changes were made."
 	printf '%s\n' "$uv_list" | grep -Eq '^anyhop[[:space:]]' || die "recorded uv no longer owns anyhop; remove the stale service/state manually."
-	existing_alle=""
-	if have anyhop; then existing_alle=$(absolute_command anyhop); fi
+	existing_anyhop=""
+	if have anyhop; then existing_anyhop=$(absolute_command anyhop); fi
 	anyhop=$uv_bin_dir/anyhop
-	if [ -n "$existing_alle" ] && [ "$existing_alle" != "$anyhop" ]; then
-		die "PATH resolves anyhop to $existing_alle, not the recorded uv bootstrap at $anyhop; remove the conflict before uninstalling."
+	if [ -n "$existing_anyhop" ] && [ "$existing_anyhop" != "$anyhop" ]; then
+		die "PATH resolves anyhop to $existing_anyhop, not the recorded uv bootstrap at $anyhop; remove the conflict before uninstalling."
 	fi
 	[ -x "$anyhop" ] || die "uv owns anyhop, but its anyhop shim is missing at $anyhop; repair the uv tool before uninstalling."
 	if [ "$(uname -s)" = Darwin ]; then
@@ -459,8 +459,8 @@ fi
 
 # Establish whether an existing anyhop belongs to uv before downloading or
 # installing anything. Every other owner is a hard handoff, never overwritten.
-existing_alle=""
-if have anyhop; then existing_alle=$(absolute_command anyhop); fi
+existing_anyhop=""
+if have anyhop; then existing_anyhop=$(absolute_command anyhop); fi
 if have brew; then
 	brew=$(absolute_command brew)
 	if "$brew" list --versions anyhop >/dev/null 2>&1; then
@@ -470,13 +470,13 @@ fi
 if have pipx && pipx list --short 2>/dev/null | grep -Eq '^anyhop([[:space:]]|$)'; then
 	die "anyhop is already owned by pipx; use 'pipx upgrade anyhop' (or uninstall it) instead."
 fi
-uv_owns_alle=false
+uv_owns_anyhop=false
 if [ "$receipt_present" = true ]; then
 	uv=$recorded_uv
 	uv_tools_dir=$recorded_uv_tools_dir
 	uv_bin_dir=$recorded_uv_bin_dir
 	uv_compatible "$uv" || die "the recorded uv is missing or incompatible at $uv."
-	if uv_tool_list | grep -Eq '^anyhop[[:space:]]'; then uv_owns_alle=true; fi
+	if uv_tool_list | grep -Eq '^anyhop[[:space:]]'; then uv_owns_anyhop=true; fi
 else
 	select_compatible_uv
 fi
@@ -484,30 +484,30 @@ if [ -n "$uv" ] && [ "$receipt_present" != true ]; then
 	uv_bin_dir=$("$uv" tool dir --bin)
 	uv_tools_dir=$("$uv" tool dir)
 	if UV_TOOL_DIR=$uv_tools_dir UV_TOOL_BIN_DIR=$uv_bin_dir "$uv" tool list 2>/dev/null | grep -Eq '^anyhop[[:space:]]'; then
-		uv_owns_alle=true
+		uv_owns_anyhop=true
 	fi
 fi
 
-if [ -n "$existing_alle" ] && [ "$uv_owns_alle" != true ]; then
-	case "$existing_alle" in
+if [ -n "$existing_anyhop" ] && [ "$uv_owns_anyhop" != true ]; then
+	case "$existing_anyhop" in
 	*/Cellar/anyhop/* | */homebrew/*/anyhop/* | */linuxbrew/*/anyhop/*)
-		die "anyhop is already owned by Homebrew at $existing_alle; use 'brew upgrade anyhop' (or 'brew uninstall anyhop') instead."
+		die "anyhop is already owned by Homebrew at $existing_anyhop; use 'brew upgrade anyhop' (or 'brew uninstall anyhop') instead."
 		;;
 	esac
-	case "$existing_alle" in
+	case "$existing_anyhop" in
 	*/.venv/bin/anyhop | */venv/bin/anyhop)
-		die "anyhop resolves to a checkout or virtual environment at $existing_alle; deactivate it/remove it from PATH, then retry."
+		die "anyhop resolves to a checkout or virtual environment at $existing_anyhop; deactivate it/remove it from PATH, then retry."
 		;;
 	esac
-	die "anyhop already exists at $existing_alle and is not uv-owned; uninstall it with its Python/pip owner, then retry."
+	die "anyhop already exists at $existing_anyhop and is not uv-owned; uninstall it with its Python/pip owner, then retry."
 fi
-if [ "$uv_owns_alle" = true ] && [ -n "$existing_alle" ]; then
-	case "$existing_alle" in
+if [ "$uv_owns_anyhop" = true ] && [ -n "$existing_anyhop" ]; then
+	case "$existing_anyhop" in
 	"$uv_bin_dir"/anyhop) ;;
-	*) die "uv owns an anyhop tool, but PATH resolves anyhop to $existing_alle; remove the conflicting executable, then retry." ;;
+	*) die "uv owns an anyhop tool, but PATH resolves anyhop to $existing_anyhop; remove the conflicting executable, then retry." ;;
 	esac
 fi
-if [ -n "$uv" ] && [ "$uv_owns_alle" != true ] && { [ -e "$uv_bin_dir/anyhop" ] || [ -L "$uv_bin_dir/anyhop" ]; }; then
+if [ -n "$uv" ] && [ "$uv_owns_anyhop" != true ] && { [ -e "$uv_bin_dir/anyhop" ] || [ -L "$uv_bin_dir/anyhop" ]; }; then
 	die "the uv tool bin already contains a foreign anyhop shim at $uv_bin_dir/anyhop; remove its owner before installing."
 fi
 

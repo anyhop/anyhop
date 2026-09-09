@@ -15,6 +15,7 @@ Regression for the P1 'constrain package contents and complete notices' gate:
 
 from __future__ import annotations
 
+import configparser
 import re
 import shutil
 import subprocess
@@ -110,15 +111,17 @@ def test_all_served_assets_present_in_wheel(built):
 
 def test_only_safe_daemon_entrypoint_is_shipped(built):
     """The supported foreground path owns PID markers, API, signals, and
-    children; the old direct ``alled`` function entry point bypassed them."""
+    children; a direct daemon-function entry point would bypass them, so the
+    distribution must declare exactly the one supervised CLI script."""
     _, wheel = built
     with zipfile.ZipFile(wheel) as archive:
         entry_points = next(
             name for name in archive.namelist() if name.endswith("entry_points.txt")
         )
         text = archive.read(entry_points).decode()
-    assert "anyhop = anyhop.cli:main" in text
-    assert "alled" not in text
+    parser = configparser.ConfigParser()
+    parser.read_string(text)
+    assert dict(parser["console_scripts"]) == {"anyhop": "anyhop.cli:main"}
 
 
 def test_readme_images_render_on_pypi():

@@ -7,7 +7,7 @@ import runpy
 from anyhop import cli
 
 
-def test_python_m_alle_calls_cli_main(monkeypatch):
+def test_python_m_anyhop_calls_cli_main(monkeypatch):
     called = []
     monkeypatch.setattr(cli, "main", lambda: called.append(True))
 

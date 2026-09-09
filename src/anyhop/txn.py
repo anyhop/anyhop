@@ -39,7 +39,7 @@ from pathlib import Path
 from anyhop import applog, credentials, fsio, paths
 
 _ACTIVE_SETUP_ID: ContextVar[str | None] = ContextVar(
-    "alle_active_setup_id", default=None
+    "anyhop_active_setup_id", default=None
 )
 
 

@@ -236,7 +236,7 @@ def test_upgrade_lock_excludes_a_second_process():
     assert result.returncode == 75
 
 
-def test_upgrade_lock_inode_is_fixed_across_different_alle_homes(monkeypatch, tmp_path):
+def test_upgrade_lock_inode_is_fixed_across_different_anyhop_homes(monkeypatch, tmp_path):
     account = tmp_path / "account"
     account.mkdir(mode=0o700, exist_ok=True)
     account.chmod(0o770)  # legitimate shared-group home remains a usable inode
@@ -719,7 +719,7 @@ def test_uv_path_fallback_derives_bin_dir_from_the_validated_shim(
     assert env["UV_TOOL_BIN_DIR"] == str(bin_dir)
 
 
-def test_manager_environment_rejects_a_different_alle_shim(monkeypatch, tmp_path):
+def test_manager_environment_rejects_a_different_anyhop_shim(monkeypatch, tmp_path):
     prefix = tmp_path / "custom-pipx" / "venvs" / "anyhop"
     internal = prefix / "bin" / "anyhop"
     internal.parent.mkdir(parents=True)

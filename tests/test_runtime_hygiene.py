@@ -187,7 +187,7 @@ def test_cleanup_never_signals_a_pidfile_that_names_pytest(tmp_path):
     session.close()
 
 
-def test_cleanup_never_signals_an_alle_shaped_process_without_session_token(
+def test_cleanup_never_signals_an_anyhop_shaped_process_without_session_token(
     tmp_path,
 ):
     session = RuntimeSession(tmp_path / "sessions")

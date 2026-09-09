@@ -103,12 +103,12 @@ def _service_exec() -> list[str]:
     return [shutil.which("python3") or "python3", "-m", "anyhop", "helper-run"]
 
 
-def _plist_bytes(uid: int, alle_home: str) -> bytes:
-    log = str(Path(alle_home) / "helper.log")
+def _plist_bytes(uid: int, anyhop_home: str) -> bytes:
+    log = str(Path(anyhop_home) / "helper.log")
     env = {
         "ANYHOP_HELPER_ALLOWED_UID": str(uid),
         "ANYHOP_HELPER_SOCKET": HELPER_SOCKET_DEFAULT,
-        "ANYHOP_HOME": alle_home,
+        "ANYHOP_HOME": anyhop_home,
         # The helper runs as root out of the installing user's uv-tool
         # venv. Without this, root would write root-owned .pyc into that
         # venv and later `uv tool upgrade` would fail to remove them. A
@@ -159,34 +159,34 @@ def install(takeover: bool = False) -> dict:
     _require_darwin()
     _require_root("install")
     uid = _real_uid()
-    alle_home = str(paths.state_dir())
+    anyhop_home = str(paths.state_dir())
     already = is_installed()
     if already and not takeover:
         current_home = _installed_home()
-        if current_home and current_home != alle_home:
+        if current_home and current_home != anyhop_home:
             raise HelperCtlError(
                 f"the installed helper is bound to ANYHOP_HOME {current_home}, "
-                f"not {alle_home}. There is one helper per machine, so "
+                f"not {anyhop_home}. There is one helper per machine, so "
                 f"installing from here would take tun away from that install. "
                 f"To move it, re-run with --takeover."
             )
-        held = _serving_singbox_pid(current_home or alle_home)
+        held = _serving_singbox_pid(current_home or anyhop_home)
         if held is not None:
             raise HelperCtlError(
                 f"the installed helper is currently running sing-box "
-                f"(pid {held}) for {current_home or alle_home} — reinstalling "
+                f"(pid {held}) for {current_home or anyhop_home} — reinstalling "
                 f"would stop it and drop tun. Turn tun off first, or re-run "
                 f"with --takeover to accept the interruption."
             )
     rebound_from = _installed_home() if already else None
-    if rebound_from == alle_home:
+    if rebound_from == anyhop_home:
         rebound_from = None
     p = Path(LAUNCHD_PLIST)
     # Unload any prior generation first so the new plist's env takes effect
     # cleanly (launchctl keeps a stale job definition otherwise).
     if already:
         _run(["launchctl", "unload", "-w", LAUNCHD_PLIST])
-    p.write_bytes(_plist_bytes(uid, alle_home))
+    p.write_bytes(_plist_bytes(uid, anyhop_home))
     r = _run(["launchctl", "load", "-w", LAUNCHD_PLIST])
     if r.returncode != 0:
         # Don't leave a plist that failed to load — it would shadow nothing
@@ -207,7 +207,7 @@ def install(takeover: bool = False) -> dict:
         "rebound_from": rebound_from,
         "plist": LAUNCHD_PLIST,
         "serves_uid": uid,
-        "serves_home": alle_home,
+        "serves_home": anyhop_home,
         "socket": HELPER_SOCKET_DEFAULT,
     }
 

@@ -1,4 +1,4 @@
-"""The control API server: stdlib HTTP on loopback, served by alled.
+"""The control API server: stdlib HTTP on loopback, served by the daemon.
 
 Serves both the programmatic REST API (``/api/v1``, Bearer-authenticated) and
 the browser Web UI (static assets + cookie sessions) — one server, one
@@ -850,7 +850,7 @@ class _Handler(BaseHTTPRequestHandler):
         raw = self.headers.get("Cookie", "")
         for part in raw.split(";"):
             k, _, v = part.strip().partition("=")
-            if k == "alle_session":
+            if k == "anyhop_session":
                 return v
         return None
 
@@ -918,7 +918,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _cookie_header_value(self, cookie: str) -> str:
         return (
-            f"alle_session={cookie}; Path=/; HttpOnly; SameSite=Strict; "
+            f"anyhop_session={cookie}; Path=/; HttpOnly; SameSite=Strict; "
             f"Max-Age={auth.SESSION_IDLE}"
         )
 
@@ -1409,7 +1409,7 @@ class _Handler(BaseHTTPRequestHandler):
                 200,
                 {"ok": True},
                 {
-                    "Set-Cookie": "alle_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+                    "Set-Cookie": "anyhop_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
                 },
             )
         if method == "POST" and seg == ["validate"]:

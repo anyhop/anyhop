@@ -23,7 +23,17 @@ export ANYHOP_API_LISTEN=127.0.0.1:18080
 export ANYHOP_API_SECRET=release-artifact-smoke-secret
 "$work/venv/bin/anyhop" version
 "$work/venv/bin/anyhop" --help >/dev/null
-test ! -e "$work/venv/bin/alled" # the unsafe direct daemon entry point is absent
+# The dist must declare exactly one console script — the supervised CLI. A
+# direct daemon-function entry point would bypass the supervision wrappers.
+"$work/venv/bin/python" - <<'PY'
+import importlib.metadata as md
+eps = [
+    ep.name
+    for ep in md.distribution("anyhop").entry_points
+    if ep.group == "console_scripts"
+]
+assert eps == ["anyhop"], eps
+PY
 
 "$work/venv/bin/anyhop" run >"$work/daemon.log" 2>&1 &
 pid=$!

@@ -177,7 +177,7 @@ def _uv_receipt_owns(prefix: Path) -> bool:
     )
 
 
-def _uv_receipt_alle_entrypoint(prefix: Path) -> Path | None:
+def _uv_receipt_entrypoint(prefix: Path) -> Path | None:
     """The external ``anyhop`` path recorded by uv's owning receipt."""
     try:
         text = (prefix / "uv-receipt.toml").read_text()
@@ -249,7 +249,7 @@ def _owning_shim_dir(channel: str) -> Path | None:
     """Validate and return the external bin dir for this uv/pipx environment."""
     prefix = Path(sys.prefix)
     if channel == "uv-tool" and _uv_receipt_owns(prefix):
-        expected = _uv_receipt_alle_entrypoint(prefix)
+        expected = _uv_receipt_entrypoint(prefix)
         if expected is None:
             raise UpgradeError(
                 "uv's owning receipt records no usable anyhop entrypoint"

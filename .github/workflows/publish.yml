@@ -294,8 +294,6 @@ jobs:
           git clone --depth 1 git@github.com:anyhop/homebrew-tap.git "$RUNNER_TEMP/tap"
           install -m 644 packaging/homebrew/anyhop.rb "$RUNNER_TEMP/tap/Formula/anyhop.rb"
           cd "$RUNNER_TEMP/tap"
-          # Retire the pre-rename formula the first time anyhop.rb lands.
-          rm -f Formula/alle.rb
           git add -A
           if git diff --cached --quiet; then
             echo "tap already carries this formula — nothing to push"

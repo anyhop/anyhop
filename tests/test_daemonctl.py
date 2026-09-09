@@ -237,14 +237,14 @@ def test_restart_service_requires_an_installed_unit(monkeypatch, fake_home):
 # ---- ANYHOP_HOME carry-through ---------------------------------------------------
 
 
-def test_service_env_carries_overridden_alle_home(monkeypatch, tmp_path):
+def test_service_env_carries_overridden_anyhop_home(monkeypatch, tmp_path):
     monkeypatch.setenv("ANYHOP_HOME", str(tmp_path / "state"))
     env = daemonctl._service_env()
     assert env["ANYHOP_SERVICE"] == "1"
     assert env["ANYHOP_HOME"].endswith("state")
 
 
-def test_service_env_omits_alle_home_when_default(monkeypatch):
+def test_service_env_omits_anyhop_home_when_default(monkeypatch):
     monkeypatch.delenv("ANYHOP_HOME", raising=False)
     assert "ANYHOP_HOME" not in daemonctl._service_env()
 

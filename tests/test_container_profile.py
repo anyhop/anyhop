@@ -169,13 +169,13 @@ def test_listen_defaults_to_loopback():
     assert {i["listen"] for i in config["inbounds"]} == {"127.0.0.1"}
 
 
-def test_alle_listen_widens_every_proxy_inbound(monkeypatch):
+def test_anyhop_listen_widens_every_proxy_inbound(monkeypatch):
     monkeypatch.setenv("ANYHOP_LISTEN", "0.0.0.0")
     config, _ = Engine(_engine_store())._build_config()
     assert {i["listen"] for i in config["inbounds"]} == {"0.0.0.0"}
 
 
-def test_alle_listen_invalid_value_falls_back_to_loopback(monkeypatch):
+def test_anyhop_listen_invalid_value_falls_back_to_loopback(monkeypatch):
     monkeypatch.setenv("ANYHOP_LISTEN", "everywhere")
     assert _listen_addr() == "127.0.0.1"
     assert "not an IP address" in applog.tail()

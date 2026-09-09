@@ -1,4 +1,4 @@
-"""alled: anyhop's local background service.
+"""The anyhop daemon: the project's local background service.
 
 The daemon owns runtime reconciliation and probing for the CLI today and future
 Web UI / desktop clients. It keeps the single sing-box process matched to

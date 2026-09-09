@@ -337,11 +337,11 @@ def test_existing_owner_handoffs_precede_mutation(
     tmp_path: Path, owner: str, message: str
 ):
     env, home, _root, bin_dir = _base_host(tmp_path)
-    alle_dir = bin_dir
+    exe_dir = bin_dir
     if owner == "checkout":
-        alle_dir = tmp_path / "checkout/.venv/bin"
-        env["PATH"] = f"{alle_dir}:{env['PATH']}"
-    _write_executable(alle_dir / "anyhop", "exit 0\n")
+        exe_dir = tmp_path / "checkout/.venv/bin"
+        env["PATH"] = f"{exe_dir}:{env['PATH']}"
+    _write_executable(exe_dir / "anyhop", "exit 0\n")
     if owner == "homebrew":
         _write_executable(
             bin_dir / "brew",
@@ -501,7 +501,7 @@ def test_uninstall_purges_custom_recorded_state(tmp_path: Path):
     assert not custom.exists()
 
 
-def test_custom_state_rerun_uses_receipt_when_alle_home_is_unset(tmp_path: Path):
+def test_custom_state_rerun_uses_receipt_when_anyhop_home_is_unset(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _mock_uv(bin_dir, home)
     custom = home / "private/anyhop-state"
@@ -573,7 +573,7 @@ def test_uninstall_does_not_require_uv_install_or_shell_update_features(
     assert not (home / ".anyhop").exists()
 
 
-def test_uninstall_refuses_non_uv_owned_alle(tmp_path: Path):
+def test_uninstall_refuses_non_uv_owned_anyhop(tmp_path: Path):
     env, home, _root, bin_dir = _base_host(tmp_path)
     _write_executable(bin_dir / "anyhop", "exit 0\n")
     (home / ".anyhop").mkdir()
@@ -865,7 +865,7 @@ def test_profile_fallback_is_idempotent_and_service_sees_uv_bin(tmp_path: Path):
 
 
 @pytest.mark.parametrize("unsafe", ["/", "//", "/tmp/..", "/tmp"])
-def test_unsafe_alle_home_is_rejected_before_package_or_service(
+def test_unsafe_anyhop_home_is_rejected_before_package_or_service(
     tmp_path: Path, unsafe: str
 ):
     env, home, _root, bin_dir = _base_host(tmp_path)

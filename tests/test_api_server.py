@@ -188,7 +188,7 @@ def test_login_with_secret_sets_httponly_samesite_cookie(live):
     )
     assert status == 200
     cookie = headers.get("Set-Cookie", "")
-    assert "alle_session=" in cookie
+    assert "anyhop_session=" in cookie
     assert "HttpOnly" in cookie and "SameSite=Strict" in cookie
 
 
@@ -201,7 +201,7 @@ def test_one_time_token_redirects_and_is_single_use(live):
     status, headers = _get_no_redirect(
         base + f"/?token={token}", headers={"Host": _canon()}
     )
-    assert status == 302 and "alle_session=" in headers.get("Set-Cookie", "")
+    assert status == 302 and "anyhop_session=" in headers.get("Set-Cookie", "")
     assert headers["Location"] == "/"
 
     # second use of the same token: no redirect — it just serves the login page
@@ -240,7 +240,7 @@ def _session_cookie(base, secret) -> str:
         headers={"Origin": f"http://{_canon()}", "Host": _canon()},
         data={"token": secret},
     )
-    return headers["Set-Cookie"].split(";")[0]  # "alle_session=<value>"
+    return headers["Set-Cookie"].split(";")[0]  # "anyhop_session=<value>"
 
 
 def test_logout_revokes_every_session(live):
@@ -348,11 +348,11 @@ def test_aged_session_is_rolled_on_activity(live):
     aged = auth.make_session(secret, now=now - auth.SESSION_IDLE // 2 - 5)
     st, _, headers = _req(
         base + "/api/v1/status",
-        headers={"Host": _canon(), "Cookie": f"alle_session={aged}"},
+        headers={"Host": _canon(), "Cookie": f"anyhop_session={aged}"},
     )
     assert st == 200
     refreshed = headers.get("Set-Cookie", "")
-    assert "alle_session=" in refreshed  # rolled: a replacement cookie rides along
+    assert "anyhop_session=" in refreshed  # rolled: a replacement cookie rides along
     new_value = refreshed.split(";")[0].split("=", 1)[1]
     assert new_value != aged
     # the replacement keeps the original issue time (SESSION_MAX still caps)

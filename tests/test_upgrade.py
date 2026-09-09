@@ -236,7 +236,9 @@ def test_upgrade_lock_excludes_a_second_process():
     assert result.returncode == 75
 
 
-def test_upgrade_lock_inode_is_fixed_across_different_anyhop_homes(monkeypatch, tmp_path):
+def test_upgrade_lock_inode_is_fixed_across_different_anyhop_homes(
+    monkeypatch, tmp_path
+):
     account = tmp_path / "account"
     account.mkdir(mode=0o700, exist_ok=True)
     account.chmod(0o770)  # legitimate shared-group home remains a usable inode

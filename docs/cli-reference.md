@@ -5,8 +5,8 @@ surface for managing providers, channels, and the local runtime.
 
 From a checkout, prefix everything with `uv run` (e.g. `uv run anyhop status`). A
 native installation (one-command bootstrap, Homebrew, uv, pipx, or managed pip)
-exposes `anyhop` directly; see the README's Install section. The examples below
-omit the checkout prefix.
+exposes `anyhop` directly; see the README's Quick Start or
+[Getting started](getting-started.md). The examples below omit the checkout prefix.
 
 ## Contents
 
@@ -72,7 +72,9 @@ omit the checkout prefix.
 - **Help** — run `anyhop`, `anyhop <group>`, or any command with `-h/--help` to see usage.
   A group or command invoked with no action prints its help instead of erroring.
 - **`--json`** — read commands (`providers ls`, `channels ls`, `routes ls`,
-  `locations`, `status`, `upgrade --check`, `test`) accept `--json` for a stable,
+  `routes trace`, `routes reorder`, `routes geo`, `locations`, `status`,
+  `test`, `health`, `backup`, `daemon status`, `helper status`,
+  `upgrade --check`) accept `--json` for a stable,
   machine-readable projection of the same data. This is the scripting/cross-language interface (pipe to `jq`, etc.).
   It is **not** the programmatic API for `anyhop`'s own components — those call the core
   (`anyhop.service`) directly rather than shelling out. Human table output is for
@@ -247,10 +249,11 @@ image; see `docs/docker.md`.)
 ### `anyhop channels ls [--json|--ids|--refs]`
 
 List configured channels (static config only — no live status). Columns: `LABEL`,
-`ID`, `PORT`, `COUNTRY`, `CITY`, `STATUS`. `LABEL` is the friendly display name
+`ID`, `PORT`, `COUNTRY`, `CITY`, `IPV6`, `STATUS`. `LABEL` is the friendly display name
 (falls back to the id when unset); `ID` is the globally-unique,
 provider-qualified handle (`nordvpn/wg_jp_1`) — the same ref every command
-accepts, which is why no separate provider column is needed. `STATUS` is the
+accepts, which is why no separate provider column is needed. `IPV6` combines the
+per-provider policy with this server's own capability. `STATUS` is the
 administrative `enabled` / `disabled` state (see
 [`anyhop channels disable`](#anyhop-channels-enabledisable-channel)), distinct from
 probe liveness — this table stays the same whether anyhop is up or down.
@@ -1322,10 +1325,13 @@ sudo anyhop helper uninstall   # remove it (tun on then needs the sudo fallback)
 
 ## `anyhop version`
 
-Print the installed package version.
+Print the installed package version. `--singbox-path` prints the pinned
+sing-box binary path instead (e.g. for `setcap` on Linux — see the TUN
+runbook).
 
 ```bash
 anyhop version
+anyhop version --singbox-path
 ```
 
 ---

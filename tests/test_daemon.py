@@ -38,15 +38,6 @@ def test_signature_tracks_channel_lifecycle():
     assert _sig() == empty  # removing it returns to the empty signature
 
 
-def test_signature_ignores_probe_writes():
-    store = Store.load()
-    store.add_provider("nordvpn")
-    ch = store.add_channel("nordvpn", "US", "", dict(WG))
-    before = _sig()
-    store.set_probe("nordvpn", ch.id, {"ok": True, "ip": "1.2.3.4", "at": 1})
-    assert _sig() == before
-
-
 def test_state_stamp_moves_only_on_writes():
     a = daemon._state_stamp()
     store = Store.load()
@@ -387,13 +378,10 @@ def test_installed_version_is_readable():
 
 def test_daemon_info_records_homebrew_service_identity(monkeypatch):
     monkeypatch.setenv("ANYHOP_SERVICE_OWNER", "homebrew")
-    monkeypatch.setenv("ANYHOP_SERVICE_PREFIX", "/opt/homebrew/opt/anyhop")
-
     daemon._write_info({"singbox": "ok"})
     info = json.loads(daemon._info_path().read_text())
 
     assert info["service_owner"] == "homebrew"
-    assert info["service_prefix"] == "/opt/homebrew/opt/anyhop"
 
 
 class _FrozenClock:

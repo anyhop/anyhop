@@ -144,13 +144,10 @@ def _write_info(runtime: dict | None = None) -> None:
     an upgrade, and the optional ``runtime`` dict is how the loop surfaces a
     degraded sing-box (``{"singbox": <status>, "detail": …}``).
     """
-    info = {"pid": os.getpid(), "version": __version__, "at": int(time.time())}
+    info = {"pid": os.getpid(), "version": __version__}
     service_owner = os.environ.get("ANYHOP_SERVICE_OWNER")
-    service_prefix = os.environ.get("ANYHOP_SERVICE_PREFIX")
     if service_owner:
         info["service_owner"] = service_owner
-    if service_prefix:
-        info["service_prefix"] = service_prefix
     if runtime is not None:
         info["runtime"] = runtime
     try:
@@ -285,7 +282,8 @@ def _self_command(*args: str) -> list[str]:
 
 
 def _lifecycle_run(action: str, delay: float) -> None:
-    """Hidden CLI target used by frozen/app-bundled delayed lifecycle work."""
+    """Hidden CLI target: run a delayed stop/restart as a detached child (used
+    when stop/restart is requested from inside the daemon — Web UI / REST)."""
     if action not in {"stop", "restart"}:
         raise ValueError(f"unsupported lifecycle action {action!r}")
     time.sleep(max(0.0, delay))

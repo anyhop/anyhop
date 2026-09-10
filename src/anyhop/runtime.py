@@ -1,11 +1,11 @@
 """Where anyhop is running: bare host or container.
 
-Container mode is strictly additive (the Phase-invariant): nothing here ever
-changes binds, ports, or lifecycle by itself. ``ANYHOP_CONTAINER=1`` — set by
-the official image — is the authoritative signal; the ``/.dockerenv`` /
-``/run/.containerenv`` marker files are advisory detection used only to
-*refuse* host-only footguns (login-service install) and to phrase privilege
-hints for the container, never to silently switch behavior.
+Container mode is strictly additive: nothing here ever changes binds, ports,
+or lifecycle by itself. ``ANYHOP_CONTAINER=1`` — set by the official image —
+is the authoritative signal; the ``/.dockerenv`` / ``/run/.containerenv``
+marker files are advisory detection used only to *refuse* host-only footguns
+(login-service install) and to phrase privilege hints for the container, never
+to silently switch behavior.
 """
 
 from __future__ import annotations

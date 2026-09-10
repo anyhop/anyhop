@@ -214,9 +214,6 @@ class _FakeHelper:
 
         return str(paths.state_dir())
 
-    def reachable(self) -> bool:
-        return True
-
     def probe(self) -> dict:
         return {"state": "ok", "home": self._home(), "version": 2}
 
@@ -255,7 +252,6 @@ class _FakeHelper:
 def _wire_helper(monkeypatch, fake):
     import anyhop.helper as helper_mod
 
-    monkeypatch.setattr(helper_mod, "reachable", fake.reachable)
     monkeypatch.setattr(helper_mod, "probe", fake.probe)
     monkeypatch.setattr(helper_mod, "request", fake.request)
 

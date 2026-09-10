@@ -269,13 +269,20 @@ paths:
   /api/v1/upgrade/check:
     get:
       tags: [system]
-      summary: Check the owning channel for the latest stable release
+      summary: Check the owning channel for the latest release
       description: >-
         Contacts the Homebrew tap for a brew-owned install, or PyPI for uv,
         pipx, and pip, only when this endpoint is called. Anyhop never checks for
         updates in the background. Container, checkout, and unknown channels
-        refuse; explicit prerelease opt-in is CLI-only.
+        refuse. Pass prerelease=true to check for a prerelease instead of the
+        latest stable.
       operationId: upgradeCheck
+      parameters:
+        - name: prerelease
+          in: query
+          required: false
+          schema: { type: boolean }
+          description: Check for the latest prerelease instead of the latest stable.
       responses:
         "200":
           description: Current vs latest version
@@ -297,13 +304,25 @@ paths:
       tags: [system]
       summary: Upgrade anyhop via its install channel and report restart disposition
       description: >-
-        Delegates a newer stable release to the tool that installed anyhop
+        Delegates a newer release to the tool that installed anyhop
         (Homebrew / uv tool / pipx / pip) — anyhop never replaces its own files.
         Refuses (400) in a container image (pull a new tag instead), a git
         checkout, or an unknown channel; 503 while another upgrade is running.
-        Explicit prerelease opt-in is CLI-only.
+        Pass prerelease:true to upgrade to a prerelease instead of the latest
+        stable.
       operationId: upgradeRun
-      requestBody: { $ref: "#/components/requestBodies/EmptyObject" }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prerelease:
+                  type: boolean
+                  description: >-
+                    Upgrade to the latest prerelease instead of the latest
+                    stable.
       responses:
         "200":
           description: Upgrade result

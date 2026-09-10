@@ -362,6 +362,29 @@ def _state_from_error(c: dict) -> str:
     }.get(err, "Failed")
 
 
+def _result_cells(c: dict, *, speed: bool) -> list[str]:
+    """One `anyhop test` row: the base columns, then the probe result, then —
+    with ``speed`` — the DOWNLOAD/UPLOAD pair appended (``--speed`` strictly
+    extends the plain table). Shared by the final table and the streamed one
+    so both surfaces render a channel identically."""
+    speed_result = c.get("speed_result") or {}
+    cells = [
+        *_base_cells(c),
+        _state_cell(c),
+        _latency(c.get("latency_ms")),
+        c.get("ip") or "-",
+        c.get("ipv6_exit") or "-",
+        _bytes(c.get("sent", 0)),
+        _bytes(c.get("received", 0)),
+    ]
+    if speed:
+        cells += [
+            _mbps(speed_result.get("download_bps")),
+            _mbps(speed_result.get("upload_bps")),
+        ]
+    return cells
+
+
 def test_result(data: dict) -> str:
     channels = data["channels"]
     if not channels:
@@ -371,51 +394,11 @@ def test_result(data: dict) -> str:
             "No channels configured. Add one:  anyhop channels add nordvpn --country …"
         )
 
-    if data.get("speed"):
-        # --speed strictly APPENDS to the plain table: same columns in the
-        # same order, plus DOWNLOAD and UPLOAD at the end.
-        headers = [
-            *BASE_HEADERS,
-            "STATE",
-            "LATENCY",
-            "IPV4",
-            "IPV6",
-            "SENT",
-            "RECV",
-            "DOWNLOAD",
-            "UPLOAD",
-        ]
-        rows = []
-        for c in channels:
-            speed = c.get("speed_result") or {}
-            rows.append(
-                [
-                    *_base_cells(c),
-                    _state_cell(c),
-                    _latency(c.get("latency_ms")),
-                    c.get("ip") or "-",
-                    c.get("ipv6_exit") or "-",
-                    _bytes(c.get("sent", 0)),
-                    _bytes(c.get("received", 0)),
-                    _mbps(speed.get("download_bps")),
-                    _mbps(speed.get("upload_bps")),
-                ]
-            )
-        return "\n".join(_table(headers, rows))
-
+    speed = bool(data.get("speed"))
     headers = [*BASE_HEADERS, "STATE", "LATENCY", "IPV4", "IPV6", "SENT", "RECV"]
-    rows = [
-        [
-            *_base_cells(c),
-            _state_cell(c),
-            _latency(c.get("latency_ms")),
-            c.get("ip") or "-",
-            c.get("ipv6_exit") or "-",
-            _bytes(c.get("sent", 0)),
-            _bytes(c.get("received", 0)),
-        ]
-        for c in channels
-    ]
+    if speed:
+        headers += ["DOWNLOAD", "UPLOAD"]
+    rows = [_result_cells(c, speed=speed) for c in channels]
     return "\n".join(_table(headers, rows))
 
 
@@ -467,19 +450,7 @@ def test_stream_header(widths: list[int]) -> str:
 def test_stream_row(row: dict, widths: list[int]) -> str:
     """One aligned row for a just-completed channel (same columns as the final
     table from :func:`test_result`)."""
-    speed = row.get("speed_result") or {}
-    cells = [
-        *_base_cells(row),
-        _state_cell(row),
-        _latency(row.get("latency_ms")),
-        row.get("ip") or "-",
-        row.get("ipv6_exit") or "-",
-        _bytes(row.get("sent", 0)),
-        _bytes(row.get("received", 0)),
-        _mbps(speed.get("download_bps")),
-        _mbps(speed.get("upload_bps")),
-    ]
-    return _stream_line(cells, widths)
+    return _stream_line(_result_cells(row, speed=True), widths)
 
 
 def daemon_status(data: dict) -> str:

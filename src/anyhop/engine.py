@@ -174,7 +174,6 @@ class Engine:
     def __init__(self, store: Store):
         self.store = store
         self.runner = singbox.Runner()
-        self._errors: dict[str, str] = {}  # "<provider>/<id>" -> build error
         # Explicitly declared ports found taken by another process during
         # stolen-port recovery. A declaration is a contract with outside
         # configuration (compose wiring, firewalls), so it is never moved;
@@ -587,7 +586,6 @@ class Engine:
         config failed at runtime (environmental — worth retrying).
         """
         config, errors = self._build_config()
-        self._errors = errors
         for ref, err in sorted(errors.items()):
             applog.log(f"reconcile: {ref}: {err}")
         result = self.runner.apply(config)
@@ -607,7 +605,6 @@ class Engine:
             self._recover_stolen_ports(result.detail)
         ):
             config, errors = self._build_config()  # store reloaded with new ports
-            self._errors = errors
             result = self.runner.apply(config)
         if result.outcome is singbox.ApplyOutcome.REJECTED:
             raise singbox.ConfigRejectedError(

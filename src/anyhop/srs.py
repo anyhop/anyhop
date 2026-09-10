@@ -343,8 +343,10 @@ def _read_default_rule(r: io.BufferedIOBase) -> _DefaultRule:
         elif item in (_ITEM_NETWORK_IS_EXPENSIVE, _ITEM_NETWORK_IS_CONSTRAINED):
             rule.unsupported.append(_ITEM_NAMES[item])
         else:
-            # AdGuard matchers and any post-1.13 item types have payloads we
-            # cannot even skip safely — refuse the file rather than misread it
+            # AdGuard matchers (_ITEM_ADGUARD_DOMAIN above — named so the iota
+            # table stays complete) and any post-1.13 item types have payloads
+            # we cannot even skip safely — refuse the file rather than misread
+            # it.
             raise SrsError(f"unsupported rule item type {item}")
 
 

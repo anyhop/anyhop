@@ -97,13 +97,20 @@ def test_two_preinstantiated_stores_cannot_both_consume_one_token():
     assert sorted(results) == [False, True]
 
 
-def test_malformed_consumed_store_fails_closed_without_overwrite():
+def test_malformed_consumed_store_is_quarantined_and_login_heals():
     path = paths.state_dir() / "web_consumed.json"
     path.write_text('["recoverable", "evidence"]')
     tok = auth.mint_login_token(SECRET)
 
+    # The corrupt file is moved aside intact (evidence kept for inspection) and
+    # the login proceeds: entries are TTL-lived, so an empty store cannot
+    # resurrect a replayable token, while failing closed forever would lock
+    # every future one-time login out until the file is removed by hand.
+    assert _store().verify_and_consume(SECRET, tok) is True
+    backups = list(path.parent.glob("web_consumed.json.corrupt-*"))
+    assert [b.read_text() for b in backups] == ['["recoverable", "evidence"]']
+    # and the healed store tracks consumption as usual from here on
     assert _store().verify_and_consume(SECRET, tok) is False
-    assert path.read_text() == '["recoverable", "evidence"]'
 
 
 def test_consumed_token_is_pruned_after_ttl():

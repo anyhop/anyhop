@@ -826,3 +826,21 @@ def test_channel_id_standard_protocol_country_code_shape():
     assert _next_id(set(), "", "") == "channel_1"
     # config imports keep the filename-derived id (already the standard shape)
     assert _next_id(set(), "", "", id_hint="wg-JP-351") == "wg_jp_351_1"
+
+
+def test_rule_row_missing_target_is_quarantined_not_keyerror():
+    # Every writer stores type/value/target; the render layer indexes them
+    # directly, so a hand-edited row missing one must hit the same loud
+    # quarantine as any other corrupt store — not a KeyError mid-render.
+    store = Store.load()
+    store.add_provider("nordvpn")
+    store.add_channel("nordvpn", "US", "", dict(WG))
+    store.create_ruleset(
+        "Streaming", "nordvpn/wg_us_1", [("domain_suffix", "netflix.com")]
+    )
+    data = json.loads(_state_file().read_text())
+    del data["router"]["rules"][0]["target"]
+    _state_file().write_text(json.dumps(data))
+
+    assert Store.load().rules() == []
+    assert len(list(paths.state_dir().glob("state.json.corrupt-*"))) == 1

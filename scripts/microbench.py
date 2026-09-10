@@ -636,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _print_header(env: dict) -> None:
-    print("\nalle microbenchmarks — local evidence, not a CI gate\n")
+    print("\nanyhop microbenchmarks — local evidence, not a CI gate\n")
     for key, value in env.items():
         print(f"  {key:<14} {value}")
     print()

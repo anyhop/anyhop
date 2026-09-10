@@ -538,3 +538,41 @@ def test_service_returns_trace_result(no_dns, monkeypatch):
         "reject_v6",
         "killswitch",
     }
+
+
+# ---- minimal DNS client -------------------------------------------------------
+
+
+def _a_response(rid: int, rtype: int, rdata: bytes) -> bytes:
+    name = b"\x07example\x03com\x00"
+    header = rid.to_bytes(2, "big") + b"\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00"
+    question = name + b"\x00\x01\x00\x01"
+    answer = (
+        name
+        + rtype.to_bytes(2, "big")
+        + b"\x00\x01"  # class IN
+        + b"\x00\x00\x00\x0a"  # TTL
+        + len(rdata).to_bytes(2, "big")
+        + rdata
+    )
+    return header + question + answer
+
+
+def test_a_record_with_v6_length_rdata_is_rejected():
+    # A malformed A reply carrying 16-byte rdata must not enter the A list:
+    # the traced flow's family is derived from these answers downstream.
+    query = tracer._dns_query("example.com", 1)
+    msg = _a_response(
+        int.from_bytes(query[:2], "big"), 1, b"\x20\x01\x0d\xb8" + b"\x00" * 12
+    )
+    assert tracer._dns_answers(msg, query, 1) == []
+
+
+def test_well_formed_a_and_aaaa_answers_are_accepted():
+    for qtype, rdata, expected in (
+        (1, b"\x01\x02\x03\x04", "1.2.3.4"),
+        (28, b"\x20\x01\x0d\xb8" + b"\x00" * 12, "2001:db8::"),
+    ):
+        query = tracer._dns_query("example.com", qtype)
+        msg = _a_response(int.from_bytes(query[:2], "big"), qtype, rdata)
+        assert tracer._dns_answers(msg, query, qtype) == [expected]

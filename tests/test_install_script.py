@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import re
 import subprocess
@@ -1066,8 +1065,3 @@ def test_download_checksum_failure_executes_nothing(tmp_path: Path):
     assert result.returncode != 0
     assert "SHA-256 mismatch" in result.stderr
     assert not Path(env["MUTATION_LOG"]).exists()
-
-
-def test_script_sha_can_be_published_without_rewriting():
-    digest = hashlib.sha256(INSTALLER.read_bytes()).hexdigest()
-    assert re.fullmatch(r"[0-9a-f]{64}", digest)

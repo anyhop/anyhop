@@ -35,7 +35,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import secrets
 import time
 import urllib.error
 import urllib.request
@@ -83,6 +85,10 @@ _RAW = "https://raw.githubusercontent.com"
 _TIMEOUT = 30
 _MAX_BYTES = 32 * 1024 * 1024  # far above any real category file
 _MAGIC = b"SRS"  # binary rule-set header; catches HTML error pages etc.
+# prune only sweeps .tmp files at least this old: a live fetch's tmp (whose
+# unique name cannot be told from a crashed writer's) must never be unlinked
+# mid-flight. Orphans are pure garbage, so patience costs nothing.
+_TMP_GRACE_SECONDS = 300
 
 
 class GeoDataError(Exception):
@@ -244,9 +250,18 @@ def _write_cache(kind: str, name: str, data: bytes) -> dict:
     sha256 = hashlib.sha256(data).hexdigest()
     path = cache_dir() / _file_name(kind, name, sha256)
     if not path.exists():
-        tmp = path.with_suffix(".tmp")
-        tmp.write_bytes(data)
-        tmp.replace(path)  # content-addressed name: rename is the atomic commit
+        # Unique temp name: two processes may fetch the same category at once,
+        # and a fixed name would let one writer's replace crash on the other's
+        # (or a prune's) intervening unlink of the shared tmp. The target name
+        # is content-addressed, so concurrent writers carry identical bytes —
+        # last rename wins, both records stay valid.
+        tmp = cache_dir() / f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
+        try:
+            tmp.write_bytes(data)
+            tmp.replace(path)  # rename is the atomic commit
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
     return {"sha256": sha256, "size": len(data), "fetched_at": int(time.time())}
 
 
@@ -283,7 +298,7 @@ def ensure_matchers(matchers: list[tuple[str, str]]) -> list[str]:
             f"({entry['size']} bytes)"
         )
     if fetched:
-        prune(store)
+        prune()
     return fetched
 
 
@@ -313,7 +328,7 @@ def refresh() -> dict:
             "categories_available": len(names),
         }
     _manifest_path().write_text(json.dumps(manifest))
-    pruned = prune(store)
+    pruned = prune()
     report["pruned"] = pruned
     applog.log(
         "geo: refreshed from "
@@ -416,21 +431,35 @@ def _suggest(kind: str, name: str) -> str | None:
     return ", ".join(close) if close else None
 
 
-def prune(store: Store) -> list[str]:
-    """Remove cache files no record references (post-refresh/apply cleanup),
-    plus any orphaned ``.tmp`` files from a crashed ``_write_cache``."""
+def prune() -> list[str]:
+    """Remove cache files no record references (post-fetch cleanup), plus
+    orphaned ``.tmp`` files from a crashed ``_write_cache``.
+
+    The records are re-read as late as possible: callers hold snapshots that
+    may predate a long fetch, and a category another process recorded in that
+    window must not be swept — its file would vanish under a record that still
+    names it, compiling every rule that uses the category to a fail-closed
+    reject until a refetch.
+    """
+    current = Store.load()
     keep = {_manifest_path().name}
     for kind in KINDS:
-        for name, entry in (_record(store, kind).get("files") or {}).items():
+        for name, entry in (_record(current, kind).get("files") or {}).items():
             keep.add(_file_name(kind, name, str(entry.get("sha256"))))
     removed = []
+    now = time.time()
     for path in cache_dir().iterdir():
-        if path.name in keep:
+        if path.name in keep or path.suffix not in (".srs", ".tmp"):
             continue
-        if path.suffix in (".srs", ".tmp"):
-            # .srs: no record references it. .tmp: orphaned by a crash
-            # between write_bytes and replace. Both safe to remove — the
-            # next fetch recreates a .tmp atomically.
-            path.unlink(missing_ok=True)
-            removed.append(path.name)
+        if path.suffix == ".tmp":
+            # Orphaned by a crash between write and rename — but a *live*
+            # writer's tmp is indistinguishable by name, so only sweep ones
+            # old enough that no in-flight fetch can own them.
+            try:
+                if now - path.stat().st_mtime < _TMP_GRACE_SECONDS:
+                    continue
+            except OSError:
+                continue  # vanished mid-sweep: nothing to remove
+        path.unlink(missing_ok=True)
+        removed.append(path.name)
     return sorted(removed)

@@ -173,7 +173,7 @@ def test_prune_removes_unreferenced_files(store):
         files={"google": store.data["geodata"]["geosite"]["files"]["google"]},
         replace=True,
     )
-    pruned = geodata.prune(store)
+    pruned = geodata.prune()
     assert any("netflix" in name for name in pruned)
     assert all("google" not in name for name in pruned)
 
@@ -423,3 +423,20 @@ def test_a_file_swapped_between_two_operations_is_caught(store, digests):
 
     assert digests.digests == 1  # it looked again
     assert len(errors) == 2 and all("is not cached" in m for m in errors.values())
+
+
+def test_prune_spares_a_fresh_tmp_and_sweeps_an_old_orphan():
+    # A live fetch's .tmp is indistinguishable by name from a crashed writer's
+    # orphan, so the sweep only takes files older than the grace — otherwise a
+    # concurrent prune crashes the fetcher's rename mid-flight.
+    fresh = geodata.cache_dir() / ".orphan.tmp"
+    fresh.write_bytes(b"x")
+    assert ".orphan.tmp" not in geodata.prune()
+
+    import os
+    import time
+
+    old = time.time() - (geodata._TMP_GRACE_SECONDS + 10)
+    os.utime(fresh, (old, old))
+    assert ".orphan.tmp" in geodata.prune()
+    assert not fresh.exists()

@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import socket
 import struct
 from typing import NoReturn
@@ -168,6 +169,26 @@ def _allowed_uid_from_env() -> int:
         raise HelperConfigError(f"bad ANYHOP_HELPER_ALLOWED_UID {allowed!r}") from None
 
 
+def release_helper_assets(socket_path: str) -> None:
+    """Stop the sing-box this helper owns and remove its socket.
+
+    launchd's unload (helper install/uninstall) SIGTERMs the helper and cannot
+    see its children: sing-box is a detached session. Stopping it here is what
+    makes "unload releases the socket and any tun it holds" true — skipped, a
+    root sing-box would outlive the helper holding the tun device and
+    kill-switch routes, unstoppable by the user-level anyhop (its Runner finds
+    no helper to ask, and a non-root pidfile read fails the identity check as
+    not-ours). Mirrors the applier's foreground teardown (daemon.run_applier
+    own_children). Best-effort: never let a teardown error skip the exit.
+    """
+    try:
+        _runner().stop()
+        os.unlink(socket_path)
+        applog.log("anyhop-helper: stopped owned sing-box; exiting")
+    except Exception as e:  # noqa: BLE001 — best-effort teardown, then exit
+        applog.log(f"anyhop-helper: shutdown: {e}")
+
+
 def run_daemon() -> int:
     """The LaunchDaemon entry point. Binds the socket and serves forever.
 
@@ -209,6 +230,21 @@ def _serve_forever(socket_path: str, allowed_uid: int, served_home: str) -> NoRe
         f"anyhop-helper: listening on {socket_path} "
         f"(serving uid {allowed_uid}, home {served_home})"
     )
+
+    def _shutdown(_sig, _frame) -> None:
+        # launchd's unload (helper install/uninstall) SIGTERMs the helper and
+        # cannot see its children: sing-box is a detached session. Stopping it
+        # here is what makes "unload releases the socket and any tun it holds"
+        # true — skipped, a root sing-box would outlive the helper holding the
+        # tun device and kill-switch routes, unstoppable by the user-level
+        # anyhop (its Runner finds no helper to ask, and a non-root pidfile
+        # read fails the identity check as not-ours). Mirrors the applier's
+        # foreground teardown (daemon.run_applier own_children).
+        release_helper_assets(socket_path)
+        os._exit(0)
+
+    signal.signal(signal.SIGTERM, _shutdown)
+    signal.signal(signal.SIGINT, _shutdown)
 
     while True:
         try:
@@ -313,14 +349,6 @@ def ping() -> dict:
     return request("ping")
 
 
-def reachable() -> bool:
-    """True iff a helper is installed, running, and answers ping — regardless
-    of which home it serves. Delegation gates must use :func:`probe` /
-    :func:`serves_this_home` instead; this remains only for liveness display
-    (``anyhop helper status``)."""
-    return bool(ping().get("ok"))
-
-
 def probe() -> dict:
     """Classify the installed helper relative to this process's ``ANYHOP_HOME``.
 
@@ -343,8 +371,3 @@ def probe() -> dict:
     if home != _client_home():
         return {"state": "foreign", "home": home, "version": version}
     return {"state": "ok", "home": home, "version": version}
-
-
-def serves_this_home() -> bool:
-    """True iff a helper is live AND provably serves this ``ANYHOP_HOME``."""
-    return probe()["state"] == "ok"

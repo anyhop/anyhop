@@ -35,7 +35,7 @@ import time
 from hashlib import sha256
 from pathlib import Path
 
-from anyhop import fsio
+from anyhop import applog, fsio
 
 LOGIN_TTL = 120  # seconds a one-time login token is valid
 SESSION_IDLE = 30 * 60  # a session ends after this much inactivity
@@ -154,6 +154,25 @@ class LoginTokenStore:
     def _pruned(consumed: dict[str, int], now: int) -> dict[str, int]:
         return {digest: exp for digest, exp in consumed.items() if exp > now}
 
+    def _quarantine_corrupt(self) -> None:
+        """Move an unparsable consumed-login store aside and start fresh.
+
+        Fail-closed forever would lock every future one-time login out of the
+        Web UI until the file is removed by hand, while the entries are only
+        ``issued + LOGIN_TTL + 1`` lived — an empty store cannot resurrect a
+        token replayable past its TTL. The bytes are preserved for inspection,
+        the same posture as the state/credentials quarantine.
+        """
+        backup = self._path.with_name(f"{self._path.name}.corrupt-{time.time_ns()}")
+        try:
+            self._path.rename(backup)
+        except OSError:
+            try:
+                self._path.unlink()
+            except OSError:
+                return  # undeletable evidence stays; reads keep failing closed
+        applog.log(f"consumed-login store corrupt; moved to {backup.name}")
+
     def verify_and_consume(
         self, secret: str, token: str, *, now: int | None = None
     ) -> bool:
@@ -172,7 +191,8 @@ class LoginTokenStore:
             try:
                 consumed = self._pruned(self._load(), now)
             except ValueError:
-                return False  # preserve malformed/unreadable evidence; fail closed
+                self._quarantine_corrupt()  # heal; evidence preserved aside
+                consumed = {}
             if digest in consumed:
                 return False
             candidate = {**consumed, digest: expiry}

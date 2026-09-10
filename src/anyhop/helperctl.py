@@ -232,15 +232,6 @@ def is_installed() -> bool:
     return _supported() and Path(LAUNCHD_PLIST).exists()
 
 
-def is_loaded() -> bool:
-    """Best-effort: is the LaunchDaemon loaded? Needs root to be reliable for a
-    system daemon, so callers that run unprivileged should use the service
-    layer's `reachable` (ping) instead. Kept for root-driven flows."""
-    if not _supported():
-        return False
-    return _run(["launchctl", "list", HELPER_LABEL]).returncode == 0
-
-
 def _installed_home() -> str | None:
     """The ANYHOP_HOME the installed plist binds the helper to, or None."""
     try:

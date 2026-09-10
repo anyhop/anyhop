@@ -1291,20 +1291,23 @@ class _Handler(BaseHTTPRequestHandler):
 
         # Summary only: the client already collected the rows above, so the full
         # channels list isn't resent on the wire.
-        write(
-            {
-                "type": "done",
-                "data": {
-                    "probed": result.get("probed"),
-                    "reason": result.get("reason"),
-                    "filter": result.get("filter"),
-                    "running": result.get("running"),
-                    "channel_count": result.get("channel_count"),
-                    "healthy_count": result.get("healthy_count"),
-                    "failed_count": result.get("failed_count"),
-                },
-            }
-        )
+        try:
+            write(
+                {
+                    "type": "done",
+                    "data": {
+                        "probed": result.get("probed"),
+                        "reason": result.get("reason"),
+                        "filter": result.get("filter"),
+                        "running": result.get("running"),
+                        "channel_count": result.get("channel_count"),
+                        "healthy_count": result.get("healthy_count"),
+                        "failed_count": result.get("failed_count"),
+                    },
+                }
+            )
+        except _StreamClosed:
+            return  # left between the last row and the summary: the clean abort
 
     def _api_no_match(self, seg: list[str], method: str):
         """Exact 404/405 result from the body-free route registry."""

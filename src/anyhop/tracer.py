@@ -90,7 +90,10 @@ def _dns_answers(msg: bytes, query: bytes, qtype: int) -> list[str]:
         rdlen = int.from_bytes(msg[i + 8 : i + 10], "big")
         rdata = msg[i + 10 : i + 10 + rdlen]
         i += 10 + rdlen
-        if rtype == qtype and len(rdata) in (4, 16):
+        # The rdata length must belong to THIS record type, not just parse as
+        # some address: a malformed A reply carrying 16 bytes would otherwise
+        # enter the A list and skew the traced flow's family downstream.
+        if rtype == qtype and len(rdata) == (4 if qtype == 1 else 16):
             out.append(str(ipaddress.ip_address(rdata)))
     return out
 

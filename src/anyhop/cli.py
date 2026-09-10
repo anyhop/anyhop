@@ -337,8 +337,8 @@ def cmd_channels_setlabel(args):
 
 
 def cmd_channels_ls(args):
-    """List configured channels grouped by provider — static config only, no
-    connection status and independent of whether anyhop is up or down."""
+    """List configured channels — static config only, no connection status and
+    independent of whether anyhop is up or down."""
     if sum(bool(flag) for flag in (args.json, args.ids, args.refs)) > 1:
         raise service.ServiceError("--json, --ids, and --refs are mutually exclusive.")
     data = service.channel_list()
@@ -1463,13 +1463,16 @@ def cmd_helper_run(args):
 
 
 class _HelpOnErrorParser(argparse.ArgumentParser):
-    """ArgumentParser that prints help instead of a terse error when arguments
-    are missing or invalid. ``add_subparsers``/``add_parser`` propagate this class
-    to every level, so e.g. ``anyhop providers add`` (missing ``provider``)
-    shows the same help as ``anyhop providers add -h``."""
+    """ArgumentParser that answers a bad invocation with the error AND the
+    affected parser's help, both on stderr (recoverable with a plain ``-h``).
+    ``add_subparsers``/``add_parser`` propagate this class to every level, so
+    e.g. ``anyhop providers add`` (missing ``provider``) shows the same help as
+    ``anyhop providers add -h`` — but a bad *value* (``anyhop tun --trial x``)
+    also says what was wrong, and stderr keeps error output out of pipelines."""
 
     def error(self, message):
-        self.print_help()
+        sys.stderr.write(f"anyhop: error: {message}\n\n")
+        self.print_help(sys.stderr)
         self.exit(2)
 
 
@@ -2087,6 +2090,10 @@ def main(argv=None) -> None:
     except service.ServiceError as e:
         sys.exit(str(e))
     except (ProviderError, RuntimeError) as e:
+        sys.exit(f"ERROR: {e}")
+    except OSError as e:
+        # an unwritable --out, a vanished config file, …: a clean message in
+        # the shape of the handlers above, never a raw traceback
         sys.exit(f"ERROR: {e}")
     except KeyboardInterrupt:
         sys.exit(130)

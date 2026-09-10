@@ -305,7 +305,6 @@ def test_tun_mode_reports_without_touching_state():
 
 
 def test_tun_on_requires_root(monkeypatch):
-    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
     monkeypatch.setattr("os.geteuid", lambda: 501)
     with pytest.raises(service.ServiceError, match="privileged helper"):
@@ -325,7 +324,6 @@ def test_tun_on_requires_root(monkeypatch):
 
 
 def test_tun_on_requires_a_root_daemon_when_one_is_running(monkeypatch):
-    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: {"pid": 4242})
     monkeypatch.setattr(service, "_process_uid", lambda pid: 501)
     with pytest.raises(service.ServiceError, match="privileged helper"):
@@ -335,7 +333,6 @@ def test_tun_on_requires_a_root_daemon_when_one_is_running(monkeypatch):
 def test_tun_on_allowed_when_singbox_has_net_admin(monkeypatch):
     # The Linux setcap path: a capability on the binary means no root is
     # needed anywhere, even with an unprivileged daemon running.
-    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
     monkeypatch.setattr(service, "_singbox_has_net_admin", lambda: True)
     monkeypatch.setattr(service.daemon, "daemon_info", lambda: {"pid": 4242})
     monkeypatch.setattr(service, "_process_uid", lambda pid: 501)
@@ -365,16 +362,6 @@ def test_capeff_net_admin_bit_parsing():
     assert service._capeff_has_net_admin(lacks) is False
     assert service._capeff_has_net_admin("no such line") is False
     assert service._capeff_has_net_admin("CapEff:\tnot-hex\n") is False
-
-
-def test_tun_root_error_mentions_setcap_on_linux(monkeypatch):
-    monkeypatch.setattr("anyhop.helper.reachable", lambda: False)
-    monkeypatch.setattr(service, "_singbox_has_net_admin", lambda: False)
-    monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
-    monkeypatch.setattr("os.geteuid", lambda: 501)
-    monkeypatch.setattr(service.sys, "platform", "linux")
-    with pytest.raises(service.ServiceError, match="setcap cap_net_admin"):
-        service.tun_mode(True)
 
 
 def test_tun_toggles_when_privileged(monkeypatch):

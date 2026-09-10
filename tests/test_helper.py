@@ -184,18 +184,7 @@ def test_request_downgrades_cleanly_when_no_socket(tmp_path, monkeypatch):
     res = helper.request("ping")
     assert res["ok"] is False
     assert "unreachable" in res["error"]
-    assert helper.reachable() is False
-
-
-def test_authorization_rejects_non_installing_uid(monkeypatch, fake_runner):
-    # _handle is only reached after auth; verify the auth gate itself refuses a
-    # foreign uid by simulating the accept loop's check inline.
-    monkeypatch.setattr(helper, "_peer_uid", lambda conn: 1001)  # not 1000
-    res = helper._handle  # noqa: F841 — _handle is never called; auth precedes it
-    # The real guard lives in run_daemon; assert the policy function directly:
-    allowed = 1000
-    uid = 1001
-    assert not (uid == 0 or uid == allowed)
+    assert helper.probe() == {"state": "absent"}
 
 
 # ---- home scoping: the helper serves exactly one ANYHOP_HOME ------------------
@@ -496,3 +485,28 @@ def test_serving_singbox_pid_reads_the_served_homes_pidfile(monkeypatch, tmp_pat
 
     assert helperctl._serving_singbox_pid(str(tmp_path)) == 99
     assert seen["path"] == tmp_path / "singbox.pid"
+
+
+# ---- shutdown: unload must release the helper's sing-box --------------------
+
+
+def test_release_helper_assets_stops_owned_singbox_and_unlinks_socket(
+    fake_runner, tmp_path
+):
+    sock = tmp_path / "helper.sock"
+    sock.write_bytes(b"")
+    fake_runner.running = True
+
+    helper.release_helper_assets(str(sock))
+
+    assert fake_runner.calls == ["stop"]
+    assert not sock.exists()
+
+
+def test_release_helper_assets_is_best_effort(monkeypatch, tmp_path):
+    def broken_runner():
+        raise RuntimeError("runner exploded")
+
+    monkeypatch.setattr(helper, "_runner", broken_runner)
+
+    helper.release_helper_assets(str(tmp_path / "absent.sock"))  # must not raise

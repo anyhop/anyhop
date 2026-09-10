@@ -722,6 +722,17 @@ def _check_schema(data: dict) -> None:
     for rule in rules:
         if not isinstance(rule, dict):
             raise ValueError("router.rules entry is not an object")
+        # Every writer stores these keys; the render/compile layer indexes
+        # them directly, so a row missing one must fail loudly here (quarantine
+        # with the rest of the corrupt file) rather than KeyError mid-render.
+        # ``value`` may be empty (the ``all`` matcher has no value).
+        for key in ("id", "type", "target"):
+            if not isinstance(rule.get(key), str) or not rule[key]:
+                raise ValueError(
+                    f"router.rules entry {key!r} is not a non-empty string"
+                )
+        if not isinstance(rule.get("value"), str):
+            raise ValueError("router.rules entry 'value' is not a string")
 
 
 def _parse_state_text(text: str) -> dict:

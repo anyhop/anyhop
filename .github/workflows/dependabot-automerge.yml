@@ -1,20 +1,31 @@
 name: Dependabot automerge
 
+# Arm auto-merge on a verified Dependabot PR and let the required checks
+# decide. There is deliberately no job here that refreshes behind branches,
+# because `main` deliberately does not require branches to be up to date
+# (protection `strict: false`). That pairing is load-bearing: with `strict`
+# on, every merge pushes its siblings BEHIND, and Actions cannot get them
+# green again unaided — an update-branch call by GITHUB_TOKEN is attributed
+# to github-actions[bot], so the checks it triggers park at action_required
+# and wait for a human. A refresh job here stalled the queue for exactly
+# that reason. Dependabot rebases its own stale PRs anyway.
+#
+# The trade this accepts: a PR's checks ran against main as of its own head,
+# not against the result of merging it. If that guarantee is ever wanted
+# back, use a merge queue — do not reintroduce `strict` plus a refresh job.
+
 on:
   workflow_run:
     workflows: [CI]
     types: [requested]
-  push:
-    branches: [main]
 
-# Merge verification runs once per immutable head; refresh runs serialize
-# behind each other so a cascade of merges never races itself.
+# Merge verification runs once per immutable head.
 concurrency:
-  group: dependabot-automerge-${{ github.event.workflow_run.head_sha || 'refresh' }}
+  group: dependabot-automerge-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
+# Arming auto-merge needs pull-requests only; nothing here writes contents.
 permissions:
-  contents: write
   pull-requests: write
 
 jobs:
@@ -78,62 +89,3 @@ jobs:
         run: |
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto \
             --squash --match-head-commit "$HEAD_SHA"
-
-  # Branch protection requires PRs to be up to date with main, but nothing in
-  # GitHub updates a behind branch on its own: the moment one Dependabot PR
-  # merges, its siblings go BEHIND and their armed auto-merges stall until
-  # someone updates them by hand. So every push to main, refresh the siblings:
-  # merging main into the branch re-runs the required checks against the new
-  # merge preview and the armed auto-merge finishes without intervention.
-  # The API only creates a merge commit server-side—it never executes code
-  # from the PR—so it is safe to call from this privileged workflow.
-  #
-  # PRs that touch .github/workflows are the one case this cannot fix:
-  # GITHUB_TOKEN is refused there regardless of the permissions block.
-  # Dependabot's own rebase covers them, so they are logged, not retried.
-  refresh:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Update behind Dependabot branches onto the new main
-        env:
-          BASE_REF: ${{ github.event.repository.default_branch }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          # Only PRs with auto-merge armed: anything else is already held by
-          # a failed check or an identity mismatch this workflow must not
-          # paper over.
-          #
-          # Deliberately no mergeStateStatus pre-check. GitHub computes that
-          # field lazily, so for several seconds after a merge the siblings
-          # still report their pre-merge state instead of BEHIND. Gating on
-          # BEHIND therefore skipped exactly the PRs this job exists to
-          # unstick, and since only a push runs this job, nothing ever
-          # retried—the queue stalled until someone intervened by hand.
-          # Attempt the update unconditionally instead and let the API
-          # classify the outcome; it is a no-op on an already-current branch.
-          while read -r pr_number head_sha; do
-            [[ -n "$pr_number" ]] || continue
-            # expected_head_sha keeps the update atomic against the listing:
-            # if the PR moved underneath us the call fails instead of
-            # updating a head we never inspected.
-            if out=$(gh api --method PUT \
-                "repos/$GITHUB_REPOSITORY/pulls/$pr_number/update-branch" \
-                -f expected_head_sha="$head_sha" 2>&1); then
-              echo "updated #$pr_number onto $BASE_REF"
-            elif grep -qF 'no new commits on the base branch' <<<"$out"; then
-              echo "#$pr_number already current"
-            else
-              # Conflicts need a Dependabot rebase, and GITHUB_TOKEN is
-              # refused outright on PRs touching .github/workflows (no
-              # `workflows` permission exists for it). Dependabot rebases
-              # both cases itself; surface the reason and move on.
-              echo "skipped #$pr_number: $(head -1 <<<"$out")" >&2
-            fi
-          done < <(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BASE_REF" \
-            --author 'app/dependabot' --state open --limit 100 \
-            --json number,headRefOid,autoMergeRequest \
-            --jq '.[] | select(.autoMergeRequest != null) | "\(.number) \(.headRefOid)"')

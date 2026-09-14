@@ -63,15 +63,12 @@ jobs:
           echo "merge=true" >>"$GITHUB_OUTPUT"
           echo "pr_number=$PR_NUMBER" >>"$GITHUB_OUTPUT"
 
-      - name: Approve the verified update
-        if: steps.verify.outputs.merge == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.verify.outputs.pr_number }}
-        run: |
-          gh pr review "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --approve \
-            --body "Dependabot identity verified; required checks gate auto-merge."
-
+      # No approval step: `main` does not require reviews, and since the repo
+      # moved into the anyhop org the org policy forbids GITHUB_TOKEN from
+      # approving at all ("GitHub Actions is not permitted to approve pull
+      # requests"). It used to succeed under the personal account, and its
+      # failure silently skipped the arming step below — nothing merged.
+      # The identity check above plus the required checks are the whole gate.
       - name: Enable auto-merge for the verified head
         if: steps.verify.outputs.merge == 'true'
         env:

@@ -52,6 +52,14 @@ jobs:
   # severity CRITICAL/HIGH with a hard exit code fails the run on real ones.
   # Narrow, reviewed exceptions live in .trivyignore — each entry carries its
   # own drop condition, and the weekly sweep is the review point.
+  #
+  # Report-only on pull requests, blocking everywhere else. An advisory against
+  # the pinned base lands on a clock nobody in this repo controls: the fix ships
+  # in Debian, but the pin only moves when the official python:3.14-slim image
+  # is rebuilt. Until then a hard gate here fails every unrelated PR — which is
+  # what stalled the Dependabot queue — and no PR can fix it. The weekly sweep
+  # and every push to main still fail loudly, so the finding stays visible and
+  # keeps its review point; it just no longer blocks merges it cannot inform.
   image:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -86,7 +94,10 @@ jobs:
           # `trivyignores` (repo-relative path) since trivy-action v0.36;
           # the old `ignorefile` input is dropped, not warned-into-working.
           trivyignores: .trivyignore
-          exit-code: "1"
+          # The table prints either way; only the gate is conditional. Written
+          # negated on purpose: `x && '0' || '1'` always yields '1', because
+          # Actions casts the string '0' to the number 0 and treats it as false.
+          exit-code: ${{ github.event_name != 'pull_request' && '1' || '0' }}
 
   gitleaks:
     runs-on: ubuntu-latest

@@ -87,6 +87,10 @@ jobs:
   # merge preview and the armed auto-merge finishes without intervention.
   # The API only creates a merge commit server-side—it never executes code
   # from the PR—so it is safe to call from this privileged workflow.
+  #
+  # PRs that touch .github/workflows are the one case this cannot fix:
+  # GITHUB_TOKEN is refused there regardless of the permissions block.
+  # Dependabot's own rebase covers them, so they are logged, not retried.
   refresh:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -101,21 +105,33 @@ jobs:
 
           # Only PRs with auto-merge armed: anything else is already held by
           # a failed check or an identity mismatch this workflow must not
-          # paper over. Only BEHIND branches need the update—DIRTY needs a
-          # Dependabot rebase, BLOCKED is still checking, CLEAN merges alone.
+          # paper over.
+          #
+          # Deliberately no mergeStateStatus pre-check. GitHub computes that
+          # field lazily, so for several seconds after a merge the siblings
+          # still report their pre-merge state instead of BEHIND. Gating on
+          # BEHIND therefore skipped exactly the PRs this job exists to
+          # unstick, and since only a push runs this job, nothing ever
+          # retried—the queue stalled until someone intervened by hand.
+          # Attempt the update unconditionally instead and let the API
+          # classify the outcome; it is a no-op on an already-current branch.
           while read -r pr_number head_sha; do
             [[ -n "$pr_number" ]] || continue
-            state=$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" \
-              --json mergeStateStatus --jq .mergeStateStatus)
-            [[ "$state" == BEHIND ]] || continue
-            # expected_head_sha makes the update atomic with the state we
-            # just inspected; a 422 here means the PR moved underneath us
-            # and the next push will catch it.
-            if gh api --method PUT "repos/$GITHUB_REPOSITORY/pulls/$pr_number/update-branch" \
-                -f expected_head_sha="$head_sha" >/dev/null; then
+            # expected_head_sha keeps the update atomic against the listing:
+            # if the PR moved underneath us the call fails instead of
+            # updating a head we never inspected.
+            if out=$(gh api --method PUT \
+                "repos/$GITHUB_REPOSITORY/pulls/$pr_number/update-branch" \
+                -f expected_head_sha="$head_sha" 2>&1); then
               echo "updated #$pr_number onto $BASE_REF"
+            elif grep -qF 'no new commits on the base branch' <<<"$out"; then
+              echo "#$pr_number already current"
             else
-              echo "skipped #$pr_number: branch moved or conflicts; leaving it to Dependabot" >&2
+              # Conflicts need a Dependabot rebase, and GITHUB_TOKEN is
+              # refused outright on PRs touching .github/workflows (no
+              # `workflows` permission exists for it). Dependabot rebases
+              # both cases itself; surface the reason and move on.
+              echo "skipped #$pr_number: $(head -1 <<<"$out")" >&2
             fi
           done < <(gh pr list --repo "$GITHUB_REPOSITORY" --base "$BASE_REF" \
             --author 'app/dependabot' --state open --limit 100 \

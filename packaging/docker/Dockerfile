@@ -28,9 +28,23 @@
 FROM python:3.14-slim@sha256:cad9a2c871761c413caa6fdd6441c783451e740a48aaeba60ae62a8b53525ef6
 ARG ANYHOP_WHEEL_SHA256
 LABEL org.opencontainers.image.anyhop-wheel-sha256=$ANYHOP_WHEEL_SHA256
-RUN useradd --uid 1000 --user-group --home-dir /var/lib/anyhop --create-home \
-    --shell /usr/sbin/nologin anyhop \
-    && mkdir -p /etc/anyhop
+# Apply Debian security updates at build time. The pin above freezes the base
+# layer, so without this the image ships whatever package versions the last
+# official rebuild happened to bake in — and that rebuild is on nobody's
+# schedule here. When trixie published fixes for gzip, pcre2, sqlite3 and perl,
+# python:3.14-slim kept resolving to the same digest, so the pin could not move
+# and the image scan sat red on 12 CRITICAL/HIGH findings no bump could clear.
+# This is the one place the pin-everything discipline is deliberately relaxed:
+# exact build reproducibility is traded for patched packages, and the Trivy job
+# is what verifies the result.
+RUN set -eu; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get upgrade -y --no-install-recommends; \
+    rm -rf /var/lib/apt/lists/*; \
+    useradd --uid 1000 --user-group --home-dir /var/lib/anyhop --create-home \
+      --shell /usr/sbin/nologin anyhop; \
+    mkdir -p /etc/anyhop
 COPY packaging/docker/requirements.lock /tmp/requirements.lock
 COPY dist/*.whl /tmp/
 RUN set -eu; \

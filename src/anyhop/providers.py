@@ -110,8 +110,8 @@ def _get_json(url: str, headers: dict | None = None, timeout: int = 30):
 NORDVPN_WG_ADDRESS = ["10.5.0.2/32"]  # noqa: S1313
 
 # In-process country/city cache as (fetched_at_monotonic, data). Time-bounded
-# so a long-lived process (the daemon reconnecting channels weeks later, a
-# future Web UI) doesn't pin the list it fetched at startup forever; the
+# so a long-lived process (the daemon serving the API and reconnecting channels
+# weeks later) doesn't pin the list it fetched at startup forever; the
 # on-disk cache in locations.py has its own, longer expiry.
 NORD_CACHE_TTL = 3600.0
 _nord_countries_cache: tuple[float, list[dict]] | None = None
@@ -316,7 +316,7 @@ REGISTRY: dict[str, dict] = {
         "locations": nordvpn_locations,
         # Drops the in-process country cache so the next "locations" call truly
         # hits the API — what a forced refresh must do even in a long-lived
-        # process (the daemon, a future Web UI), not just a fresh CLI run.
+        # daemon process, not just a fresh CLI run.
         "forget_locations": forget_nord_countries,
     },
     "protonvpn": {
@@ -412,7 +412,7 @@ def provider_wg(provider: str, country: str, city: str = "") -> dict:
 
     Uses the stored credential to derive the account's private key and the
     provider API to pick a server, producing the ``wgconf.parse`` shape so
-    API-derived and (later) imported channels are identical at rest.
+    API-derived and config-imported channels are identical at rest.
     """
     if provider not in PROVIDERS:
         raise ProviderError(

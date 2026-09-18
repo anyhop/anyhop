@@ -6,7 +6,7 @@ under it (``anyhop channels add <name> --country …``). All of it lives in one
 ``~/.anyhop/state.json``; provider tokens live in ``credentials.yaml``.
 
 The CLI only adapts terminal input/output to the shared application layer. A
-detached applier daemon watches the state file, makes the single sing-box
+background daemon watches the state file, makes the single sing-box
 process match it, and heartbeat-probes every enabled channel — so adding or
 removing a channel is enough; there is no separate "apply" step. Two distinct
 per-channel facts: ``channels enable``/``disable`` set *administrative intent*
@@ -18,8 +18,8 @@ succeeded.
 Read commands accept ``--json`` for **shell / cross-language scripting** (jq,
 monitoring hooks, CI): it is a direct serialization of the ``anyhop.service`` return
 value, not a scrape of the human text. It is deliberately *not* the programmatic
-interface for anyhop's own components — the Web UI and any typed client use
-``anyhop.service`` (and later the ``anyhop.api`` control API) directly rather than
+interface for anyhop's own components — the CLI and control API both call
+``anyhop.service`` directly, and the Web UI calls the control API rather than
 shelling out to the CLI and parsing its output.
 """
 

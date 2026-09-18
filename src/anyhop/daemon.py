@@ -1,8 +1,8 @@
 """The anyhop daemon: the project's local background service.
 
-The daemon owns runtime reconciliation and probing for the CLI today and future
-Web UI / desktop clients. It keeps the single sing-box process matched to
-``state.json`` and continuously probes every channel's connectivity.
+The daemon owns runtime reconciliation and probing for the CLI, REST API, and
+Web UI. It keeps the single sing-box process matched to ``state.json`` and
+continuously probes every enabled channel's connectivity.
 
 Its single 1 Hz loop drives five duties:
 
@@ -11,9 +11,9 @@ Its single 1 Hz loop drives five duties:
    it only if it actually changed. A file edit from the application layer is the
    trigger.
 2. **Heartbeat probe** — every ``PROBE_INTERVAL`` seconds, route a tiny request
-   through each channel's proxy to record its exit IP + latency (or a failure)
-   back into ``state.json``. This is what ``anyhop status`` reads. Runs (with
-   auto-reconnect) on its own worker thread so a slow pass never delays a
+   through each enabled channel's proxy to record its exit IP + latency (or a
+   failure) back into ``state.json``. This is what ``anyhop status`` reads. Runs
+   (with auto-reconnect) on its own worker thread so a slow pass never delays a
    reconcile.
 3. **Traffic sampling** — every ``METRICS_INTERVAL`` seconds, read the Clash
    API's live connections and bank per-channel byte deltas (see ``metrics``).

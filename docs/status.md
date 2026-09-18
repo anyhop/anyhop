@@ -1,7 +1,7 @@
 # Current status
 
-What works today, what is planned. `anyhop` is usable now as a CLI-first client
-for per-app and per-workflow VPN exits.
+What works today, what is planned. `anyhop` is usable now through its CLI, Web
+UI, and REST API for per-app and per-workflow VPN exits.
 
 ## Providers
 

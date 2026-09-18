@@ -1,8 +1,9 @@
 """Reusable application operations for anyhop.
 
-This module is the seam shared by the CLI today and future local daemon/API,
-Web UI, and desktop clients. It orchestrates domain/runtime modules and returns
-structured Python data; it deliberately does not print, prompt, or exit.
+This module is the application seam shared by the CLI and daemon-hosted control
+API. The Web UI reaches the same operations through that API. The module
+orchestrates domain/runtime modules and returns structured Python data; it
+deliberately does not print, prompt, or exit.
 """
 
 from __future__ import annotations

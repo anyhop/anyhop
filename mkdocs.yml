@@ -8,7 +8,9 @@ docs_dir: docs
 
 theme:
   name: material
-  logo: assets/icon.svg
+  # The wordmark carries the name, so the header title text is hidden via
+  # stylesheets/site.css, which also swaps in the dark wordmark under slate.
+  logo: assets/wordmark.svg
   favicon: assets/icon.svg
   palette:
     - media: "(prefers-color-scheme: light)"
@@ -44,6 +46,9 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.highlight
   - admonition
+
+extra_css:
+  - stylesheets/site.css
 
 not_in_nav: |
   openapi.yaml

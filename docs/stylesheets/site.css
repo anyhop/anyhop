@@ -1,0 +1,15 @@
+/* Header branding. The header bar is black in both schemes (primary: black),
+   so the logo slot always shows the dark-background wordmark; both variants
+   share dimensions, so the img box keeps its size. The content-area wordmark
+   in the generated homepage follows the scheme via Material's
+   #only-light/#only-dark fragments. */
+.md-logo img[src$="wordmark.svg"] {
+  content: url("../assets/wordmark-dark.svg");
+}
+
+/* The wordmark already carries the name, so drop the plain-text site name
+   next to it. The page-title topic stays and still fades in on scroll
+   (navigation.tracking). */
+.md-header__topic:first-child {
+  display: none;
+}

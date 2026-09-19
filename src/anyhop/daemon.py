@@ -443,6 +443,7 @@ def run_applier(own_children: bool = False) -> None:
     import fcntl
 
     from anyhop import metrics, reconnect, singbox
+    from anyhop.backend import runtime_backend
     from anyhop.engine import Engine
     from anyhop.state import Store, StoreReadError, config_signature, _read_raw
 
@@ -562,7 +563,7 @@ def run_applier(own_children: bool = False) -> None:
 
     def _metrics_pass() -> None:
         try:
-            runner = singbox.Runner()
+            runner = runtime_backend()
             # No preliminary is_running() pass: a non-null generation is
             # already a verified live process, so the two reads bracketing the
             # sample establish liveness *and* detect a reload between them —
@@ -688,7 +689,7 @@ def run_applier(own_children: bool = False) -> None:
             # exponential backoff so a crash-looping config can't start a storm.
             if now - last_supervise >= SUPERVISE_INTERVAL:
                 last_supervise = now
-                if singbox.Runner().is_running():
+                if runtime_backend().is_running():
                     if crashes and now - last_crash_at >= CRASH_RESET:
                         crashes = 0  # stable again — forget the crash history
                         _set_runtime("ok")
@@ -710,7 +711,7 @@ def run_applier(own_children: bool = False) -> None:
                         Engine(Store.load()).reconcile()
                         applog.log("sing-box restarted after unexpected exit")
                     except Exception as e:  # noqa: BLE001
-                        if singbox.Runner().is_running():
+                        if runtime_backend().is_running():
                             applog.log(
                                 "sing-box restarted on the last known-good "
                                 f"config (desired config still failing: {e})"
@@ -766,7 +767,7 @@ def run_applier(own_children: bool = False) -> None:
             # sing-box running for deliberate adoption by the respawned
             # daemon. The daemon's own identity files go below either way.
             try:
-                singbox.Runner().stop()
+                runtime_backend().stop()
                 applog.log(
                     "foreground shutdown: sing-box stopped and reaped, "
                     "data plane released"

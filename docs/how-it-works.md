@@ -34,3 +34,26 @@ The runtime model, in one page. The security counterpart is
 
 - `anyhop` uses a pinned upstream `sing-box` release and verifies its checksum
   before running it.
+
+## Architectural boundary
+
+`sing-box` is a private data-plane backend, not part of anyhop's public API.
+The CLI and daemon-hosted REST API call the application operations in
+`anyhop.service`; the Web UI calls that REST API. Those operations expose
+anyhop concepts—providers, channels, rulesets, health, traffic, and
+lifecycle—and do not return generated sing-box configuration, native tags,
+control endpoints, credentials, or raw control responses.
+
+Process control and telemetry needed by orchestration go through the internal
+`RuntimeBackend` contract in `anyhop.backend`. Its default implementation is
+the pinned sing-box runner. The engine is the implementation adapter: it
+compiles anyhop state into backend configuration and owns the translation of
+backend outcomes. This boundary is deliberately an internal substitution and
+testing seam, not a public plugin API or a promise that arbitrary data-plane
+cores are interchangeable.
+
+The sing-box Clash API exists only for backend readiness and traffic sampling.
+It binds to a random loopback port and requires a per-installation secret; its
+address and response shapes are implementation details and must never be
+proxied through the anyhop REST API. Clients integrate with `/api/v1`, whose
+versioning is owned by anyhop and can remain stable across sing-box changes.

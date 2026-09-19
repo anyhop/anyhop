@@ -1139,9 +1139,10 @@ class _Handler(BaseHTTPRequestHandler):
         nonce = (query.get("nonce") or [""])[0]
         if not nonce or len(nonce) > 128:
             raise _BadRequest(400, "a nonce query parameter (<=128 chars) is required")
-        from anyhop import daemon, singbox
+        from anyhop import daemon
+        from anyhop.backend import runtime_backend
 
-        up = singbox.Runner().is_running()
+        up = runtime_backend().is_running()
         info = daemon.daemon_info() or {}
         self._json(
             200,

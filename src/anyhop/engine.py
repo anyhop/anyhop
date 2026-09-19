@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 from anyhop import applog, geodata, probe, routes, singbox
+from anyhop.backend import RuntimeBackend, runtime_backend
 from anyhop.constants import (
     OUTBOUND_PREFIX,
     ROUTER_INBOUND_TAG,
@@ -171,9 +172,9 @@ def channel_ipv6(ch: Channel) -> bool:
 
 
 class Engine:
-    def __init__(self, store: Store):
+    def __init__(self, store: Store, runner: RuntimeBackend | None = None):
         self.store = store
-        self.runner = singbox.Runner()
+        self.runner = runner or runtime_backend()
         # Explicitly declared ports found taken by another process during
         # stolen-port recovery. A declaration is a contract with outside
         # configuration (compose wiring, firewalls), so it is never moved;

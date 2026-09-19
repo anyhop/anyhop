@@ -44,6 +44,7 @@ import secrets
 import time
 
 from anyhop import applog, credentials
+from anyhop.backend import RuntimeBackend
 from anyhop.providers import (
     ProviderAuthError,
     ProviderError,
@@ -53,7 +54,6 @@ from anyhop.providers import (
     provider_wg,
 )
 from anyhop.state import Store, channel_fingerprint
-from anyhop.singbox import Runner
 
 FAIL_THRESHOLD = (
     3  # consecutive probe failures before we start reconnecting (~90s @ 30s)
@@ -111,7 +111,11 @@ def _killswitch_diagnostic(store: Store) -> str:
 
 
 def run_pass(
-    store: Store, runner: Runner, *, now: float | None = None, resolve=provider_wg
+    store: Store,
+    runner: RuntimeBackend,
+    *,
+    now: float | None = None,
+    resolve=provider_wg,
 ) -> None:
     """Advance the reconnect state machine one step for every channel.
 

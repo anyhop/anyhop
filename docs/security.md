@@ -26,6 +26,22 @@ the same machine may be able to send traffic through your channels (and your
 provider account). anyhop assumes a single-user machine; don't run it where
 that assumption fails. (Tracked as backlog: per-installation proxy auth.)
 
+### Private backend control plane
+
+The sing-box Clash API is an internal implementation channel, not a supported
+integration surface. It binds to a random loopback port, requires a generated
+secret stored in `clash_api.json` at `0600`, and is consumed only through
+anyhop's private runtime-backend adapter. The public REST API never proxies
+Clash routes or returns its endpoint, secret, native tags, configuration, or
+raw responses.
+
+This separation protects the public contract from sing-box changes and blocks
+network access, accidental discovery, and other OS users under the directory
+permission model above. It is not a sandbox from malicious processes already
+running as the owning OS user: those processes are explicitly inside anyhop's
+trust boundary and can read the backend secret. A separate service identity or
+different IPC transport would be required to defend against them.
+
 ## The container profile (Docker)
 
 The official Docker image shifts the trust boundary **one layer out, by

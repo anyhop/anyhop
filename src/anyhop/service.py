@@ -35,6 +35,7 @@ from anyhop import (
     txn,
     wgconf,
 )
+from anyhop.backend import runtime_backend
 from anyhop.engine import Engine, channel_ipv6
 from anyhop.providers import (
     PROVIDERS,
@@ -1561,7 +1562,7 @@ def _running_singbox_has_net_admin() -> bool | None:
     """
     if sys.platform != "linux":
         return None
-    pid = singbox.Runner().running_pid()
+    pid = runtime_backend().running_pid()
     if pid is None:
         return None
     try:
@@ -1980,7 +1981,7 @@ def _gateway_health() -> dict:
             failing.append("runtime_generation")
         if not _tun_interface_present():
             failing.append("tun_interface")
-        if not singbox.Runner().control_alive():
+        if not runtime_backend().control_alive():
             failing.append("singbox_control")
     if not any(ch.enabled and (ch.probe or {}).get("ok") for ch in store.channels()):
         failing.append("viable_channel")
@@ -2286,7 +2287,7 @@ def setup_validate(text: str) -> dict:
 
 def status_snapshot() -> dict:
     store = Store.load()
-    runner = singbox.Runner()
+    runner = runtime_backend()
     running = runner.is_running()
     channels = []
     for channel in store.channels():
@@ -2662,7 +2663,7 @@ def speedtest_run_one(
 
 
 def _stop_all() -> bool:
-    runner = singbox.Runner()
+    runner = runtime_backend()
     was_singbox = runner.is_running()
     was_applier = daemon.stop()
     # Always run the (idempotent) stop rather than gating it on the earlier
@@ -2705,7 +2706,7 @@ def restart() -> dict:
         # Restart= to resurrect mid-sequence. sing-box is stopped explicitly
         # first so the tunnels bounce deterministically on every platform
         # (launchd kickstart only recycles the daemon job itself).
-        singbox.Runner().stop()
+        runtime_backend().stop()
         if not daemonctl.restart_service():  # unit vanished behind our back
             daemon.ensure_running()
     else:
@@ -2728,7 +2729,7 @@ def health() -> dict:
     as alive.
     """
     pid = daemon.running_pid()
-    singbox_up = singbox.Runner().is_running()
+    singbox_up = runtime_backend().is_running()
     info = daemon.daemon_info() if pid is not None else None
     result = {
         "ok": pid is not None and singbox_up,
@@ -2830,7 +2831,7 @@ def daemon_uninstall() -> dict:
         raise ServiceError(str(e)) from e
     if result.get("removed"):
         try:
-            singbox.Runner().stop()
+            runtime_backend().stop()
         except Exception as e:  # noqa: BLE001 — unit removal already committed
             raise ServiceError(
                 f"the login service was removed, but sing-box could not be stopped: {e}"

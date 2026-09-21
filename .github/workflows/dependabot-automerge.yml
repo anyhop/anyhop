@@ -24,8 +24,11 @@ concurrency:
   group: dependabot-automerge-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
-# Arming auto-merge needs pull-requests only; nothing here writes contents.
+# GitHub's enablePullRequestAutoMerge mutation is a merge operation: the
+# Actions token needs both pull-requests: write and contents: write even though
+# this workflow only arms auto-merge and never pushes a commit itself.
 permissions:
+  contents: write
   pull-requests: write
 
 jobs:

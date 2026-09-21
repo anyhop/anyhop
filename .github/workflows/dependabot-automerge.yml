@@ -91,4 +91,4 @@ jobs:
           PR_NUMBER: ${{ steps.verify.outputs.pr_number }}
         run: |
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto \
-            --squash --match-head-commit "$HEAD_SHA"
+            --rebase --match-head-commit "$HEAD_SHA"

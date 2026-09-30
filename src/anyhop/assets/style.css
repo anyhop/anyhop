@@ -142,7 +142,8 @@ textarea {
 
 /* provider logos are tuned for light surfaces — NordVPN's slate wordmark and
    Proton's navy half of the wordmark vanish on dark. Swap each to its white-
-   wordmark cut (icon untouched). Attribute-matched so any <img> using them,
+   wordmark cut (icon untouched; Customized's badge also takes the brighter
+   dark-theme brand gradient). Attribute-matched so any <img> using them,
    now or later, picks up the dark variant. */
 :root.dark img[src$="/nordvpn.svg"] {
   content: url("/nordvpn-dark.svg");
@@ -150,6 +151,10 @@ textarea {
 
 :root.dark img[src$="/protonvpn.svg"] {
   content: url("/protonvpn-dark.svg");
+}
+
+:root.dark img[src$="/customized.svg"] {
+  content: url("/customized-dark.svg");
 }
 
 .wordmark b {
@@ -1837,6 +1842,20 @@ input.relabel {
   margin-bottom: 14px;
 }
 
+/* two short fields side by side (e.g. Country + City); stacks on phones */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
 .field.check {
   display: flex;
   align-items: flex-start;
@@ -2070,6 +2089,37 @@ select option {
 .cselect-opt.selected {
   color: var(--brand);
   font-weight: 600;
+}
+
+/* image options (provider logos): every logo at one height (width follows
+   its own aspect ratio), and every row — plus the closed box showing the
+   pick — at one fixed height with the logo centred, so nothing clips. */
+.cselect-icon {
+  display: block;
+  height: 24px;
+  width: auto;
+  max-width: 100%;
+}
+
+.cselect-opt:has(.cselect-icon) {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 10px;
+}
+
+.cselect-btn:has(.cselect-icon) {
+  height: 48px;
+  padding-block: 0;
+}
+
+.cselect-label:has(.cselect-icon) {
+  display: flex;
+  align-items: center;
+}
+
+.cselect-opt.selected:has(.cselect-icon) {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
 }
 
 .field input:focus-visible,

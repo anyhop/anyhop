@@ -427,6 +427,34 @@ def test_add_config_provider_then_channel_via_upload(live):
     assert ch["label"] == "West" and ch["name"] == "wg_us_ca_9"
 
 
+def test_upload_customized_conf_is_named_by_the_request(live):
+    base, secret = live
+    origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
+    _req(
+        base + "/api/v1/providers",
+        method="POST",
+        headers=origin,
+        data={"provider": "customized"},
+    )
+    body = {
+        "provider": "customized",
+        "conf_name": "whatever.conf",
+        "conf_text": _conf(),
+    }
+    st, _, _ = _req(base + "/api/v1/channels", method="POST", headers=origin, data=body)
+    assert st == 400  # a customized channel must be named
+    st, resp, _ = _req(
+        base + "/api/v1/channels",
+        method="POST",
+        headers=origin,
+        data={**body, "name": "home_vpn", "country": "Japan", "city": "Tokyo"},
+    )
+    assert st == 200
+    ch = json.loads(resp)["channel"]
+    assert ch["name"] == "home_vpn"
+    assert (ch["country"], ch["city"]) == ("Japan", "Tokyo")
+
+
 def test_reupload_identical_conf_reports_unchanged(live):
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}

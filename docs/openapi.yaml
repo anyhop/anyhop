@@ -488,9 +488,15 @@ paths:
       description: >
         `country` (+`city`) for API providers; `conf_text` (+`conf_name`)
         for config providers — mutually exclusive, exactly as the CLI's
-        --country/--config. `port` declares the local proxy port instead
-        of an OS-assigned one, exactly as the CLI's --port; refused if
-        already held.
+        --country/--config. The `customized` provider (any WireGuard
+        server) is the one exception: its upload REQUIRES `name`, which
+        becomes the channel id (`customized/<name>`, a lowercase slug),
+        and MAY carry `country` (+`city`) as a free-text display location
+        (a city needs its country; omitted on a re-upload keeps the
+        current location) — exactly as the CLI's --name/--country/--city.
+        Every other provider refuses `name`. `port` declares the local
+        proxy port instead of an OS-assigned one, exactly as the CLI's
+        --port; refused if already held.
       operationId: addChannel
       requestBody:
         required: true
@@ -502,8 +508,16 @@ paths:
               required: [provider]
               properties:
                 provider: { type: string }
-                country: { type: string }
-                city: { type: string }
+                country:
+                  {
+                    type: string,
+                    description: "API providers: the location to resolve a server in. customized: optional free-text display location",
+                  }
+                city:
+                  {
+                    type: string,
+                    description: "API providers: optional city (omit = any). customized: optional, needs country",
+                  }
                 label: { type: string }
                 conf_text:
                   { type: string, description: Contents of a WireGuard .conf }
@@ -511,6 +525,11 @@ paths:
                   {
                     type: string,
                     description: Original file name (names the channel),
+                  }
+                name:
+                  {
+                    type: string,
+                    description: "customized only (required there): the channel id, a lowercase slug (letters, digits, _)",
                   }
                 port:
                   {

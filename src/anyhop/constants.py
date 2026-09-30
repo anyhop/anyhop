@@ -74,3 +74,13 @@ WG_MTU = 1280
 # traffic like any other unmatched flow.
 TUN_DNS_UPSTREAM = "1.1.1.1"  # noqa: S1313
 TUN_DNS_TAG = "dns-remote"
+
+# The catch-all bring-your-own-server provider lists after every named VPN
+# service, wherever providers (and their channels) are shown. Lives here, not
+# in providers.py, because state.py orders by it and cannot import that module.
+LISTED_LAST_PROVIDERS = frozenset({"customized"})
+
+
+def provider_order(provider: str) -> tuple[bool, str]:
+    """Sort key for providers: alphabetical, catch-all providers last."""
+    return provider in LISTED_LAST_PROVIDERS, provider

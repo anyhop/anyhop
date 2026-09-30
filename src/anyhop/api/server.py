@@ -1479,6 +1479,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "label",
                 "conf_text",
                 "conf_name",
+                "name",
                 "port",
             )
             return self._call(_add_channel, body)
@@ -1743,6 +1744,9 @@ def _add_channel(body: dict) -> dict:
             _str_field(body, "conf_name") or "import.conf",
             conf_text,
             _str_field(body, "label"),
+            _opt_str_field(body, "name"),
+            _opt_str_field(body, "country"),
+            _opt_str_field(body, "city"),
         )
     return service.channel_add(
         provider,
@@ -1751,6 +1755,7 @@ def _add_channel(body: dict) -> dict:
         None,
         _str_field(body, "label"),
         port=_int_field(body, "port") or 0,
+        name=_opt_str_field(body, "name"),
     )
 
 

@@ -600,3 +600,139 @@ def test_reimport_changed_conf_reports_updated(tmp_path):
     changed = service.channel_add("protonvpn", None, None, str(conf))
     assert changed["unchanged"] is False
     assert changed["updated"] is True
+
+
+# ---- customized (named config channels) ------------------------------------
+
+
+def test_customized_channel_id_is_the_required_name(tmp_path):
+    store = service.Store.load()
+    store.add_provider("customized")
+    conf = tmp_path / "wg-US-CA-9.conf"
+    conf.write_text(_proton_conf())
+
+    result = service.channel_add("customized", None, None, str(conf), name="home_vpn")
+    assert result["channel"]["name"] == "home_vpn"
+    ch = service.Store.load().get_channel("customized", "home_vpn")
+    assert ch is not None
+    # the file name follows no convention for arbitrary servers: no location
+    assert (ch.country, ch.city) == ("", "")
+
+    # same name again re-imports in place
+    again = service.channel_add("customized", None, None, str(conf), name="home_vpn")
+    assert again["unchanged"] is True
+    assert [c.id for c in service.Store.load().provider_channels("customized")] == [
+        "home_vpn"
+    ]
+
+
+@pytest.mark.parametrize("name", [None, "", "  "])
+def test_customized_requires_a_name(tmp_path, name):
+    service.Store.load().add_provider("customized")
+    conf = tmp_path / "x.conf"
+    conf.write_text(_proton_conf())
+    with pytest.raises(service.ServiceError, match="need a name"):
+        service.channel_add("customized", None, None, str(conf), name=name)
+    with pytest.raises(service.ServiceError, match="need a name"):
+        service.channel_add_conf_text("customized", "x.conf", _proton_conf(), name=name)
+
+
+def test_customized_rejects_a_non_slug_name(tmp_path):
+    service.Store.load().add_provider("customized")
+    conf = tmp_path / "x.conf"
+    conf.write_text(_proton_conf())
+    with pytest.raises(service.ServiceError, match="'home_server'"):
+        service.channel_add("customized", None, None, str(conf), name="Home Server")
+    assert service.Store.load().provider_channels("customized") == []
+
+
+def test_customized_without_config_points_at_name_and_config():
+    service.Store.load().add_provider("customized")
+    with pytest.raises(service.ServiceError, match="--name <name> --config"):
+        service.channel_add("customized", "Japan", None, name="x")
+
+
+def test_name_is_refused_for_providers_that_name_their_own_channels(tmp_path):
+    store = service.Store.load()
+    store.add_provider("protonvpn")
+    store.add_provider("nordvpn")
+    conf = tmp_path / "wg-US-CA-9.conf"
+    conf.write_text(_proton_conf())
+    with pytest.raises(service.ServiceError, match=r"named after their \.conf file"):
+        service.channel_add("protonvpn", None, None, str(conf), name="x")
+    with pytest.raises(service.ServiceError, match="named after their location"):
+        service.channel_add("nordvpn", "Japan", None, name="x")
+
+
+def test_customized_provider_and_channels_list_last(tmp_path):
+    store = service.Store.load()
+    for p in ("customized", "protonvpn", "nordvpn"):
+        store.add_provider(p)
+    conf = tmp_path / "wg-US-CA-9.conf"
+    conf.write_text(_proton_conf())
+    service.channel_add("customized", None, None, str(conf), name="aaa")
+    service.channel_add("protonvpn", None, None, str(conf))
+
+    listed = [p["provider"] for p in service.provider_list()["providers"]]
+    assert listed == ["nordvpn", "protonvpn", "customized"]
+    catalog = [p["provider"] for p in service.provider_catalog()["providers"]]
+    assert catalog == ["nordvpn", "protonvpn", "customized"]
+    assert [c.provider for c in service.Store.load().channels()] == [
+        "protonvpn",
+        "customized",
+    ]
+
+
+def test_customized_channel_takes_an_optional_stated_location(tmp_path):
+    service.Store.load().add_provider("customized")
+    conf = tmp_path / "server.conf"
+    conf.write_text(_proton_conf())
+
+    service.channel_add("customized", " Japan ", "Tokyo", str(conf), name="tokyo")
+    ch = service.Store.load().get_channel("customized", "tokyo")
+    assert (ch.country, ch.city) == ("Japan", "Tokyo")
+
+    # a re-import that states no location keeps the current one (like the label)
+    again = service.channel_add("customized", None, None, str(conf), name="tokyo")
+    assert again["unchanged"] is True
+    ch = service.Store.load().get_channel("customized", "tokyo")
+    assert (ch.country, ch.city) == ("Japan", "Tokyo")
+
+    # stating a new one replaces it
+    moved = service.channel_add("customized", "Germany", None, str(conf), name="tokyo")
+    assert moved["updated"] is True
+    ch = service.Store.load().get_channel("customized", "tokyo")
+    assert (ch.country, ch.city) == ("Germany", "")
+
+    # the upload path takes the same fields
+    service.channel_add_conf_text(
+        "customized",
+        "x.conf",
+        _proton_conf(),
+        name="up",
+        country="France",
+        city="Paris",
+    )
+    ch = service.Store.load().get_channel("customized", "up")
+    assert (ch.country, ch.city) == ("France", "Paris")
+
+
+def test_customized_city_needs_a_country(tmp_path):
+    service.Store.load().add_provider("customized")
+    conf = tmp_path / "server.conf"
+    conf.write_text(_proton_conf())
+    with pytest.raises(service.ServiceError, match="--city needs --country"):
+        service.channel_add("customized", None, "Tokyo", str(conf), name="x")
+    assert service.Store.load().provider_channels("customized") == []
+
+
+def test_other_config_providers_still_refuse_a_stated_location(tmp_path):
+    service.Store.load().add_provider("protonvpn")
+    conf = tmp_path / "wg-US-CA-9.conf"
+    conf.write_text(_proton_conf())
+    with pytest.raises(service.ServiceError, match="cannot be combined"):
+        service.channel_add("protonvpn", "Japan", None, str(conf))
+    with pytest.raises(service.ServiceError, match="cannot be combined"):
+        service.channel_add_conf_text(
+            "protonvpn", "wg-US-CA-9.conf", _proton_conf(), country="Japan"
+        )

@@ -14,7 +14,7 @@
 
 # anyhop
 
-A universal VPN client that manages multiple VPN connections with rule-based routing, with interfaces for human (Web UI and CLI) and programs (REST API and Docker image).
+A universal VPN client that manages multiple VPN connections with rule-based routing, with interfaces for human (Web UI and CLI) and programs (REST API and Docker image). Works with commercial VPN services and with your own self-hosted WireGuard servers.
 
 ## Platforms
 
@@ -53,8 +53,19 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
   <tr>
     <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/nordvpn.png" alt="" height="56"><br>NordVPN</td>
     <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/protonvpn.png" alt="" height="56"><br>Proton VPN</td>
+    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/customized.png" alt="" height="56"><br>Self-hosted<br><sub><code>customized</code></sub></td>
   </tr>
 </table>
+
+Not only commercial VPNs: the **`customized`** provider takes any WireGuard
+server — one you host yourself, or a provider not listed here. Import its
+standard `.conf` under a name you choose (optionally with a country/city), and
+it becomes a channel like any other:
+
+```bash
+anyhop providers add customized
+anyhop channels add customized --name home --config ~/wg/home.conf --country Germany
+```
 
 ### Planned
 
@@ -102,12 +113,12 @@ provider-specific constraints, and excluded providers.
 
 ### For people
 
-You already pay for a commercial VPN — but its official client connects to one
-location at a time. Switching countries means disconnecting, reconnecting, and
+You already pay for a commercial VPN (or run your own WireGuard servers) — but a
+VPN client connects to one location at a time. Switching countries means disconnecting, reconnecting, and
 breaking whatever was using the old exit. Two locations at once is not on offer.
 
 `anyhop` keeps several exits live simultaneously, from one provider or mixed across
-providers. Different traffic leaves through different VPN servers, decided by
+providers and your own servers. Different traffic leaves through different VPN servers, decided by
 anyhop's routing rules:
 
 <p align="center">

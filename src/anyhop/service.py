@@ -48,6 +48,7 @@ from anyhop.providers import (
     kind,
     known,
     match,
+    names_channels,
     preview,
     provider_resolver,
     provider_wg,
@@ -315,6 +316,7 @@ def provider_catalog() -> dict:
                     for f in auth_fields(p)
                 ],
                 "config_help": config_help(p),
+                "named_channels": names_channels(p),
                 "help": instructions,
                 "url": url,
             }
@@ -407,6 +409,7 @@ def channel_add(
     config: str | None = None,
     label: str = "",
     port: int = 0,
+    name: str | None = None,
 ) -> dict:
     store = Store.load()
     label = label.strip()
@@ -419,22 +422,20 @@ def channel_add(
 
     # The two archetypes are mutually exclusive: token/API providers locate a server
     # by --country/--city; config providers import a .conf. They cannot be combined,
-    # and a .conf import never invents a country/city it can't know.
-    if config and (country or city):
-        raise ServiceError(
-            "--config cannot be combined with --country/--city: a WireGuard .conf is "
-            "imported as-is, while --country/--city locate a server via an API provider "
-            "(e.g. nordvpn). Use one or the other."
-        )
-
+    # and a .conf import never invents a country/city it can't know — except for
+    # Customized, where the user states the location (see _conf_location).
     if config:
-        return _channel_add_config(store, provider, config, label, port)
+        return _channel_add_config(
+            store, provider, config, label, port, name, country, city
+        )
 
     if kind(provider) == "config":
+        named = " --name <name>" if names_channels(provider) else ""
         raise ServiceError(
             f"{display_name(provider)} channels are imported from a WireGuard .conf: "
-            f"anyhop channels add {provider} --config /path/to/wireguard.conf"
+            f"anyhop channels add {provider}{named} --config /path/to/wireguard.conf"
         )
+    _check_channel_name(provider, name)
     if not is_functional(provider):
         raise ServiceError(
             f"adding channels under {display_name(provider)} isn't implemented yet."
@@ -476,7 +477,14 @@ def _check_declared_port(port: int) -> None:
 
 
 def _channel_add_config(
-    store: Store, provider: str, config: str, label: str = "", port: int = 0
+    store: Store,
+    provider: str,
+    config: str,
+    label: str = "",
+    port: int = 0,
+    name: str | None = None,
+    country: str | None = None,
+    city: str | None = None,
 ) -> dict:
     """Import a channel from a WireGuard ``.conf`` (the config-provider archetype).
 
@@ -486,8 +494,12 @@ def _channel_add_config(
 
     A ``.conf`` carries no country/city, and anyhop does not geolocate — so the
     channel id is taken from the file name (a factual, user-chosen label), and
-    country/city are left empty rather than guessed.
+    country/city are left empty rather than guessed. Providers that name their
+    channels (Customized) take the id from ``name`` instead, and may state
+    their location (``country``/``city``).
     """
+    _check_channel_name(provider, name)  # before touching the file
+    _conf_location(provider, country, city)
     path = Path(config).expanduser()
     if not path.is_file():
         raise ServiceError(f"config file not found: {config}")
@@ -495,11 +507,19 @@ def _channel_add_config(
         text = path.read_text()
     except OSError as e:
         raise ServiceError(f"could not read {config}: {e}") from e
-    return _import_conf(store, provider, path.name, text, label, port)
+    return _import_conf(
+        store, provider, path.name, text, label, port, name, country, city
+    )
 
 
 def channel_add_conf_text(
-    provider: str, filename: str, text: str, label: str = ""
+    provider: str,
+    filename: str,
+    text: str,
+    label: str = "",
+    name: str | None = None,
+    country: str | None = None,
+    city: str | None = None,
 ) -> dict:
     """Import a channel from ``.conf`` *content* (the Web UI upload path).
 
@@ -511,34 +531,114 @@ def channel_add_conf_text(
         raise ServiceError(
             f"{display_name(provider)} is not added — add the provider first."
         )
-    return _import_conf(store, provider, filename, text, label.strip())
+    return _import_conf(
+        store, provider, filename, text, label.strip(), 0, name, country, city
+    )
+
+
+def _check_channel_name(provider: str, name: str | None) -> None:
+    """Validate ``name`` against the provider's channel-naming rule.
+
+    Providers with ``named_channels`` (Customized) *require* a name, and it is
+    used verbatim as the channel id — so it must already be a valid id (a
+    lowercase slug) rather than being silently rewritten into a different one.
+    Every other provider names its channels itself and refuses a name.
+    """
+    if not names_channels(provider):
+        if name is not None:
+            raise ServiceError(
+                f"--name is only for {display_name('customized')} channels; "
+                f"{display_name(provider)} channels are named after their "
+                + (".conf file." if kind(provider) == "config" else "location.")
+            )
+        return
+    if not name or not name.strip():
+        raise ServiceError(
+            f"{display_name(provider)} channels need a name — it becomes the "
+            f"channel id ({provider}/<name>): --name <name>"
+        )
+    if name != channel_id_from_filename(name):
+        raise ServiceError(
+            f"channel name {name!r} must be a lowercase slug (letters, digits, _), "
+            f"e.g. {channel_id_from_filename(name)!r}."
+        )
+
+
+def _conf_location(
+    provider: str, country: str | None, city: str | None
+) -> tuple[str, str] | None:
+    """The user-stated ``(country, city)`` for a ``.conf`` import, or None when
+    none was given.
+
+    Only providers that name their channels (Customized) take one: an arbitrary
+    server's file name says nothing about where it is, so the user may say it.
+    Both are free-text display fields (nothing resolves them); a city needs its
+    country, since the location reads "city, country". Every other config
+    provider refuses them — its location comes from the file name.
+    """
+    country, city = (country or "").strip(), (city or "").strip()
+    if not (country or city):
+        return None
+    if not names_channels(provider):
+        raise ServiceError(
+            "--config cannot be combined with --country/--city: a WireGuard .conf is "
+            "imported as-is, while --country/--city locate a server via an API provider "
+            "(e.g. nordvpn). Use one or the other."
+        )
+    if not country:
+        raise ServiceError(
+            "--city needs --country (the location reads 'city, country')."
+        )
+    return country, city
 
 
 def _import_conf(
-    store: Store, provider: str, filename: str, text: str, label: str, port: int = 0
+    store: Store,
+    provider: str,
+    filename: str,
+    text: str,
+    label: str,
+    port: int = 0,
+    name: str | None = None,
+    country: str | None = None,
+    city: str | None = None,
 ) -> dict:
     """Parse a ``.conf`` (from a file or an upload) and upsert it as a channel.
 
     A ``.conf`` carries no country/city, and anyhop does not geolocate — so the
     channel id is the file name (a factual, user-chosen label), and country/city
-    are parsed best-effort from the name's ISO codes rather than guessed.
+    are parsed best-effort from the name's ISO codes rather than guessed. For
+    providers that name their channels (Customized) the id is the required
+    ``name`` instead, and — the file name following no known convention —
+    country/city are whatever the user states (optional; a re-import that
+    states none keeps the channel's current location, like the label).
     """
     if kind(provider) != "config":
         raise ServiceError(
             f"{display_name(provider)} uses an API — add channels by country, "
             f"not a .conf (see: anyhop locations {provider})."
         )
+    _check_channel_name(provider, name)
+    stated = _conf_location(provider, country, city)
     try:
         wg = wgconf.parse(text)
     except wgconf.ConfError as e:
         raise ServiceError(f"{filename} is not a usable WireGuard .conf: {e}") from e
-    stem = Path(filename).stem
-    country, city = geo.from_filename(stem)
+    # validated above: only naming providers carry a name
+    stem = name if name is not None else Path(filename).stem
     # Identity is the file name: re-importing the same .conf updates it in place
     # (keys may have rotated) rather than creating wg_..._2. Snapshot the existing
     # channel first (by the same slugged id upsert will use) so we can tell a real
     # update from a byte-identical no-op.
     existing = store.get_channel(provider, channel_id_from_filename(stem))
+    if name is None:
+        country, city = geo.from_filename(stem)
+    elif stated is not None:
+        country, city = stated
+    elif existing is not None:
+        country, city = existing.country, existing.city
+    else:
+        country, city = "", ""
     unchanged = existing is not None and _conf_channel_unchanged(
         existing, country, city, wg, label, port
     )

@@ -83,6 +83,11 @@ trademark holders.
   logo are trademarks of Proton AG. This SVG was derived from an upstream asset
   whose embedded Inkscape/RDF metadata mislabeled it "Proton Mail"; that stale
   metadata has been corrected to "Proton VPN."
+- **Customized** (`src/anyhop/assets/customized.svg`, `customized-dark.svg`) —
+  anyhop's own artwork for the bring-your-own WireGuard provider, not a third-party
+  mark. Its wordmark is outlined (converted to vector paths) from the Inter Display
+  typeface by Rasmus Andersson (https://github.com/rsms/inter), licensed under the
+  **SIL Open Font License 1.1**; no font file is shipped.
 
 ### README provider icons
 
@@ -116,6 +121,10 @@ both light and dark READMEs.
 | HideMyAss (HMA)         | `static2.hidemyass.com` → `web/i/icons/favicon/android-chrome-256x256.png`                                                                                           | HideMyAss (HMA VPN)            |
 | SlickVPN                | `slickvpn.com/assets/logo-icon.png`                                                                                                                                  | SlickVPN                       |
 | VPNSecure.me            | `vpnsecure.me/favicon.svg`                                                                                                                                           | VPNSecure.me                   |
+
+The exception is `customized.png` (the self-hosted / Customized provider): it is
+anyhop's own artwork — the same slider badge as the Web UI's `customized.svg` on
+the same white tile — not a third-party mark, so it has no source row above.
 
 One asset was edited beyond resizing: VyprVPN publishes no standalone icon, only
 a combined lockup. The wordmark group was removed and the viewBox re-fit to the

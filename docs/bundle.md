@@ -63,7 +63,7 @@ bundle_version: 1     # required — a newer version is refused with a clear err
 
 ```yaml
 providers:
-  nordvpn:                        # a known provider key (nordvpn, protonvpn)
+  nordvpn:                        # a provider that authenticates VPN connection creations with an account authentication token, all channels requires only one credential
     credential:                   # REQUIRED for token providers
       token: "nordvpn-access-token"   # or token_env / token_file (see below)
     channels:
@@ -74,9 +74,9 @@ providers:
         port: 20010               # optional — DECLARE the local proxy port (see below)
         enabled: false            # optional — import held-but-not-dialled (default: true)
         wg: { ... }               # OPTIONAL for token providers (see below)
-  protonvpn:                      # config providers have no credential
+  protonvpn:                      # a provider that provides per-connection config files downloaded from the online console and copied as per-channel fields below
     channels:
-      wg_us_1:                # the channel id (required)
+      wg_us_1:                    # the channel id (required)
         country: United States    # optional display label ("" -> "(Unknown)")
         city: California          # optional display label
         wg:                       # REQUIRED for config providers
@@ -89,6 +89,12 @@ providers:
             preshared_key: null        # optional
             allowed_ips: [0.0.0.0/0, "::/0"]   # optional, this is the default
             keepalive: 25                       # optional, this is the default
+  customized:                     # any WireGuard server — same shape as the protonvpn example above
+    channels:
+      home_server:                # the channel id = the --name you chose (required)
+        country: Germany          # optional free-text location ("" -> "(Unknown)")
+        city: Berlin              # optional (only with a country)
+        wg: { ... }               # REQUIRED, as for every config provider
 ```
 
 The `wg` rule follows the two provider archetypes:
@@ -110,7 +116,7 @@ The `wg` rule follows the two provider archetypes:
   without carrying the secret; `anyhop export` always writes the stored value
   inline (an export is a backup, not a template). See
   [declarative-config.md](declarative-config.md) for authoring guidance.
-- **Config providers (Proton VPN):** `wg` is *required*. There is no API to
+- **Config providers (Proton VPN, Customized):** `wg` is *required*. There is no API to
   derive anything from — the values from the downloaded `.conf` **are** the
   channel's configuration. Validation rejects a config channel without them.
 

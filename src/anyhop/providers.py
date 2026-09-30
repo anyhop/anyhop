@@ -9,7 +9,10 @@ WireGuard parameters:
   provider and is wired end-to-end.
 * ``config`` — portal-only providers (e.g. ProtonVPN) that hand out a WireGuard
   ``.conf``. There is no token; you add the provider so channels can be imported
-  under it via ``channels add <name> --config <file>``.
+  under it via ``channels add <name> --config <file>``. The ``customized``
+  provider is the bring-your-own variant: any WireGuard server (self-hosted or
+  a provider anyhop doesn't know), where the user names each channel
+  (``--name``) since an arbitrary ``.conf`` file name carries no meaning.
 
 Everything the engine needs for a functional provider — derive the account key,
 list locations, resolve a location to a peer — comes straight from the provider's
@@ -27,6 +30,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from anyhop import credentials
+from anyhop.constants import provider_order
 from anyhop.credentials import mask
 
 NORD_API = "https://api.nordvpn.com/v1"
@@ -294,9 +298,12 @@ class AuthField:
 # The registry. ``kind`` is "token" (API-backed) or "config" (portal .conf).
 # ``functional`` marks *token* providers whose API resolver is wired up —
 # config-kind providers are never gated by this flag (they're gated by
-# ``kind`` instead, since there's no API to resolve). anyhop ships exactly one
-# of each archetype today: NordVPN (token, ``functional: True``) and Proton
-# VPN (config, resolved via ``kind == "config"`` regardless of this flag).
+# ``kind`` instead, since there's no API to resolve). anyhop ships NordVPN
+# (token, ``functional: True``), Proton VPN (config, resolved via
+# ``kind == "config"`` regardless of this flag), and Customized — a config
+# provider for arbitrary WireGuard servers. ``named_channels`` marks a config
+# provider whose channel id is a user-chosen name (``--name``) instead of the
+# ``.conf`` file name.
 REGISTRY: dict[str, dict] = {
     "nordvpn": {
         "name": "NordVPN",
@@ -334,6 +341,21 @@ REGISTRY: dict[str, dict] = {
         "anyhop channels add protonvpn --config /path/to/proton.conf",
         "url": "https://account.protonvpn.com/downloads",
     },
+    "customized": {
+        "name": "Customized",
+        "kind": "config",
+        "functional": False,
+        # Any WireGuard server: v6 is allowed, and — as for Proton — a channel
+        # only carries it when its own config has a global v6 interface
+        # address (see Engine._endpoint).
+        "ipv6": True,
+        "named_channels": True,
+        "config_help": "Bring any WireGuard server (self-hosted or another "
+        "provider): export its WireGuard config, "
+        "then add it as a channel under a name of your choice: "
+        "anyhop channels add customized --name <name> --config /path/to/wg.conf",
+        "url": "",
+    },
 }
 
 # Functional providers only, in the shape locations.py / provider_wg expect.
@@ -344,8 +366,8 @@ PROVIDER_NAMES = {k: v["name"] for k, v in REGISTRY.items()}
 
 
 def known() -> list[str]:
-    """Every provider anyhop recognises, sorted."""
-    return sorted(REGISTRY)
+    """Every provider anyhop recognises, sorted (Customized last)."""
+    return sorted(REGISTRY, key=provider_order)
 
 
 def supported() -> list[str]:
@@ -370,6 +392,12 @@ def supports_ipv6(provider: str) -> bool:
     Unknown providers default to False — v6 is opt-in per provider.
     """
     return bool(REGISTRY.get(provider, {}).get("ipv6"))
+
+
+def names_channels(provider: str) -> bool:
+    """Whether this provider's channels are named by the user (``--name``,
+    required) rather than after the imported ``.conf`` file."""
+    return bool(REGISTRY.get(provider, {}).get("named_channels"))
 
 
 def display_name(key: str) -> str:

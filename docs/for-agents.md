@@ -14,7 +14,8 @@ a rule table. A single background daemon owns the state; the CLI, Web UI, and
 REST API are three faces of it. Use it when a program needs traffic to leave
 from different countries at the same time.
 
-**Wrong tool if** your provider is not NordVPN or Proton VPN (the common case —
+**Wrong tool if** your provider is not NordVPN or Proton VPN and you can't get a
+plain WireGuard `.conf` for it (anything else goes under `customized`; the common case —
 [compare with gluetun](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/gluetun-comparison.md)),
 you need OpenVPN today, one exit for everything is enough, or you want
 per-process namespace isolation on Linux rather than per-request routing
@@ -22,12 +23,12 @@ per-process namespace isolation on Linux rather than per-request routing
 
 ## The model
 
-| Noun                  | Meaning                                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------------------- |
-| **Provider**          | An account. `nordvpn` (API token) or `protonvpn` (`.conf` import).                                  |
-| **Channel**           | One VPN exit — a WireGuard peer with its own local HTTP+SOCKS port. Id looks like `wg_us_1`.        |
-| **Ruleset**           | Matchers (domain / CIDR / geosite / geoip) pointing at one target: a channel, `direct`, or `block`. |
-| **Router entrypoint** | One HTTP+SOCKS port; traffic sent here is matched top to bottom, first match wins.                  |
+| Noun                  | Meaning                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Provider**          | An account. `nordvpn` (API token), `protonvpn` (`.conf` import), or `customized` (any `.conf`, named). |
+| **Channel**           | One VPN exit — a WireGuard peer with its own local HTTP+SOCKS port. Id looks like `wg_us_1`.           |
+| **Ruleset**           | Matchers (domain / CIDR / geosite / geoip) pointing at one target: a channel, `direct`, or `block`.    |
+| **Router entrypoint** | One HTTP+SOCKS port; traffic sent here is matched top to bottom, first match wins.                     |
 
 ## What it can do
 
@@ -97,18 +98,18 @@ containerized.
 
 ## Fetch when you need it
 
-| Page                                                                                                                                                                                | When                                              |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| [REST API](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/api.md) · [openapi.yaml](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/openapi.yaml)                       | Writing any code against anyhop                     |
-| [CLI reference](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/cli-reference.md)                                                                                             | Shelling out instead of using REST                |
-| [Rule-based routing](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/routing.md)                                                                                              | Designing the rule table, kill switch, LAN bypass |
+| Page                                                                                                                                                                                        | When                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| [REST API](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/api.md) · [openapi.yaml](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/openapi.yaml)                       | Writing any code against anyhop                   |
+| [CLI reference](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/cli-reference.md)                                                                                                 | Shelling out instead of using REST                |
+| [Rule-based routing](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/routing.md)                                                                                                  | Designing the rule table, kill switch, LAN bypass |
 | [Declarative setup](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/declarative-config.md) · [bundle format](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/bundle.md) | Reproducible setup, CI, rebuilds                  |
 | [Docker](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/docker.md) · [Compose walkthrough](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/docker-compose.md)          | Containers, sibling services, secrets             |
-| [How it works](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/how-it-works.md)                                                                                               | Debugging surprising behaviour                    |
-| [Security model](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/security.md)                                                                                                 | Exposing the API beyond loopback                  |
-| [Getting started](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/getting-started.md)                                                                                         | Installing on a host                              |
-| [Current status](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/status.md)                                                                                                   | Is this provider or platform supported            |
-| [TUN runbook](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/tun-runbook.md)                                                                                                 | Whole-machine capture and rollback                |
+| [How it works](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/how-it-works.md)                                                                                                   | Debugging surprising behaviour                    |
+| [Security model](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/security.md)                                                                                                     | Exposing the API beyond loopback                  |
+| [Getting started](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/getting-started.md)                                                                                             | Installing on a host                              |
+| [Current status](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/status.md)                                                                                                       | Is this provider or platform supported            |
+| [TUN runbook](https://raw.githubusercontent.com/anyhop/anyhop/main/docs/tun-runbook.md)                                                                                                     | Whole-machine capture and rollback                |
 
 Read `GET /api/v1/status` before acting — most mistakes are a stale assumption
 about what exists and what is healthy.

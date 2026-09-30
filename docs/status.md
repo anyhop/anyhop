@@ -5,33 +5,34 @@ UI, and REST API for per-app and per-workflow VPN exits.
 
 ## Providers
 
-| Provider   | Support                                                                   |
-| ---------- | ------------------------------------------------------------------------- |
-| NordVPN    | Token/API setup, location selection, automatic WireGuard channel creation |
-| Proton VPN | WireGuard `.conf` import                                                  |
+| Provider   | Support                                                                                  |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| NordVPN    | Token/API setup, location selection, automatic WireGuard channel creation                |
+| Proton VPN | WireGuard `.conf` import                                                                 |
+| Customized | Self-hosted (or any other) WireGuard server: named `.conf` import, optional country/city |
 
 Which providers can come next, and why some cannot, is in
 [VPN provider research](vpn-provider-research.md).
 
 ## Platforms
 
-| Platform | Support                                                           |
-| -------- | ----------------------------------------------------------------- |
-| macOS    | Supported                                                         |
-| Linux    | Supported                                                         |
+| Platform | Support                                                                                       |
+| -------- | --------------------------------------------------------------------------------------------- |
+| macOS    | Supported                                                                                     |
+| Linux    | Supported                                                                                     |
 | Docker   | Supported — [`ghcr.io/anyhop/anyhop`](https://github.com/anyhop/anyhop/pkgs/container/anyhop) |
-| Windows  | Planned                                                           |
+| Windows  | Planned                                                                                       |
 
 ## Features
 
-| Area              | Status                                                                                                           |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Core CLI          | Providers, channels, per-channel proxies, status, tests (probe + speed + traffic), logs                          |
-| Routing           | Ruleset-based router entrypoint with domain/CIDR/all matchers, kill-switch, CLI shadow lint, built-in LAN bypass |
-| Web UI            | Dashboard (channels, probe/speed, routes, kill-switch) + Bundle + Logs pages                                     |
-| REST API          | Everything the CLI does over `/api/v1` (Bearer auth) — for scripts and compose siblings                          |
-| Docker            | Container profile: proxy hub for compose networks, VPN gateway container (tun), declarative boot config          |
-| Distribution      | PyPI, one-command uv bootstrap, Homebrew, GHCR                                                          |
+| Area         | Status                                                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Core CLI     | Providers, channels, per-channel proxies, status, tests (probe + speed + traffic), logs                          |
+| Routing      | Ruleset-based router entrypoint with domain/CIDR/all matchers, kill-switch, CLI shadow lint, built-in LAN bypass |
+| Web UI       | Dashboard (channels, probe/speed, routes, kill-switch) + Bundle + Logs pages                                     |
+| REST API     | Everything the CLI does over `/api/v1` (Bearer auth) — for scripts and compose siblings                          |
+| Docker       | Container profile: proxy hub for compose networks, VPN gateway container (tun), declarative boot config          |
+| Distribution | PyPI, one-command uv bootstrap, Homebrew, GHCR                                                                   |
 
 ## Planned next
 

@@ -9,13 +9,13 @@ flag; this page is the walkthrough.
 Choose a native user-level install or the scoped Docker deployment. Native
 TUN can capture the host; Docker never does.
 
-| Choice                | Supervisor                 | Traffic captured                          | Host-wide VPN |
-| --------------------- | -------------------------- | ----------------------------------------- | ------------- |
-| One-command uv script | launchd / `systemd --user` | Host apps or host TUN                     | Yes           |
-| Homebrew              | `brew services`            | Host apps or host TUN                     | Yes           |
-| Manual uv install     | launchd / `systemd --user` | Host apps or host TUN                     | Yes           |
-| Manual pipx install   | launchd / `systemd --user` | Host apps or host TUN                     | Yes           |
-| Docker proxy hub      | Docker restart policy      | Proxy-aware containers/apps               | No            |
+| Choice                | Supervisor                 | Traffic captured                            | Host-wide VPN |
+| --------------------- | -------------------------- | ------------------------------------------- | ------------- |
+| One-command uv script | launchd / `systemd --user` | Host apps or host TUN                       | Yes           |
+| Homebrew              | `brew services`            | Host apps or host TUN                       | Yes           |
+| Manual uv install     | launchd / `systemd --user` | Host apps or host TUN                       | Yes           |
+| Manual pipx install   | launchd / `systemd --user` | Host apps or host TUN                       | Yes           |
+| Docker proxy hub      | Docker restart policy      | Proxy-aware containers/apps                 | No            |
 | Docker gateway        | Docker restart policy      | anyhop netns + explicitly joined containers | No            |
 
 ### One-command script (macOS + Linux)
@@ -256,6 +256,16 @@ changes one live credential. See
 ```bash
 anyhop providers add protonvpn
 anyhop channels add protonvpn --config ~/Downloads/wg-US-CA-842.conf
+```
+
+**Any other WireGuard server** (self-hosted, or a provider anyhop doesn't
+support) goes under the `customized` provider. Each channel needs a name, which
+becomes its id (`customized/home_server`):
+
+```bash
+anyhop providers add customized
+anyhop channels add customized --name home_server --config ~/wg/home.conf \
+  --country Germany --city Berlin    # location is optional
 ```
 
 Re-importing the same `.conf` file updates that channel in place, keeping the

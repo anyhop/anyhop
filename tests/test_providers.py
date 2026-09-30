@@ -11,7 +11,11 @@ from anyhop import credentials, providers
 
 
 def test_known_enumerates_every_provider():
-    assert set(providers.known()) == {"nordvpn", "protonvpn"}
+    assert set(providers.known()) == {"nordvpn", "protonvpn", "customized"}
+
+
+def test_customized_lists_after_the_named_providers():
+    assert providers.known() == ["nordvpn", "protonvpn", "customized"]
 
 
 def test_supported_is_only_functional_providers():
@@ -27,6 +31,18 @@ def test_kinds_and_functional_flags():
 
 def test_config_provider_has_howto():
     assert "config" in providers.config_help("protonvpn").lower()
+
+
+def test_customized_is_a_named_config_provider():
+    assert providers.kind("customized") == "config"
+    assert not providers.is_functional("customized")
+    assert providers.supports_ipv6("customized")
+    assert providers.names_channels("customized")
+    assert not providers.names_channels("protonvpn")
+    assert not providers.names_channels("nordvpn")
+    assert providers.display_name("customized") == "Customized"
+    assert providers.match("Customized") == "customized"
+    assert "--name" in providers.config_help("customized")
 
 
 def test_auth_fields_describe_the_login_form():

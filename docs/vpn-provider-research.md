@@ -47,6 +47,14 @@ keys and resolves servers. No manual config download.
 **Config/portal** — you download a WireGuard `.conf` from the provider's web portal
 (usually a config generator) and import it.
 
+Beyond commercial providers, the **`customized`** provider (implemented) covers
+everything else that speaks WireGuard: a self-hosted server, or a provider with no
+dedicated support yet whose `.conf` you can export. It is the config archetype
+without a provider convention — you name each channel (`--name`) and may state its
+location (`--country`/`--city`), since an arbitrary `.conf` carries neither. So a
+provider below that exports WireGuard configs is usable today through `customized`,
+before it gets first-class support.
+
 ## MVP providers
 
 NordVPN and ProtonVPN are the two MVP targets — one per archetype.
@@ -87,10 +95,10 @@ offer standard WireGuard config download/generation from their portal:
 
 **Supportable with caveats** (works, but document the friction):
 
-| Provider   | Caveat                                                                                                                                                                    |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider   | Caveat                                                                                                                                                                      |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | PureVPN    | Portal generates WireGuard configs, but they **expire** ("activate within 30 minutes… or redownload") — hostile to anyhop's stored-config model; expect frequent re-imports |
-| FastestVPN | WireGuard `.conf` provided **only via support email** — no self-service generator; provisioning is manual and slow                                                        |
+| FastestVPN | WireGuard `.conf` provided **only via support email** — no self-service generator; provisioning is manual and slow                                                          |
 
 ## OpenVPN-only providers (planned)
 

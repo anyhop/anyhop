@@ -82,8 +82,8 @@ exposes `anyhop` directly; see the README's Quick Start or
 - **No separate apply step** — adding or removing channels or routing rules writes
   `~/.anyhop/state.json`; `anyhop`'s background runtime reconciles sing-box and probes
   channels automatically. `start`/`stop`/`restart` are the user-facing controls.
-- **Provider names** — commands take the lowercase key (`nordvpn`, `protonvpn`); the
-  brand name (`NordVPN`, `Proton VPN`) is what's shown in output. Both the key and the
+- **Provider names** — commands take the lowercase key (`nordvpn`, `protonvpn`,
+  `customized`); the brand name (`NordVPN`, `Proton VPN`, `Customized`) is what's shown in output. Both the key and the
   brand (any case) are accepted where a provider is expected.
 
 ## Concepts
@@ -92,7 +92,9 @@ exposes `anyhop` directly; see the README's Quick Start or
   - **Token/API** (e.g. `nordvpn`): you provide a credential once; the provider's API
     derives WireGuard keys and resolves servers by location.
   - **Config/portal** (e.g. `protonvpn`): no API — you download a WireGuard `.conf`
-    from the provider portal and import it. No credential.
+    from the provider portal and import it. No credential. `customized` is the
+    bring-your-own variant for any other WireGuard server (self-hosted or an
+    unsupported provider): same `.conf` import, but you name each channel.
 - **Channel** — one VPN location/server under a provider, exposed locally as an
   HTTP+SOCKS proxy on `127.0.0.1:<port>`. Ports are auto-assigned by the OS and
   then stored in `state.json` so they stay stable across restarts and re-imports.
@@ -127,7 +129,7 @@ Add a provider — **or replace an already-added token provider's token**.
 
 - **Token providers** (`nordvpn`): prompts for the credential (input hidden, shown as
   `*`), validates it against the provider API, and stores it in `credentials.yaml`.
-- **Config providers** (`protonvpn`): just registers the provider — no credential —
+- **Config providers** (`protonvpn`, `customized`): just registers the provider — no credential —
   and prints how to import a `.conf`.
 
 **Replacing a token (idempotent add).** Running `add` for a token provider that is
@@ -218,7 +220,8 @@ anyhop channels add nordvpn --country "United States" --city "Seattle"
 anyhop channels add protonvpn --config ~/Downloads/wg-US-CA-842.conf
 ```
 
-- `--config` cannot be combined with `--country`/`--city`.
+- `--config` cannot be combined with `--country`/`--city` (only Customized takes
+  them with `--config`, as a stated location — see below).
 - The channel **id is the file name** (`wg-US-CA-842.conf` → `wg_us_ca_842`), no
   numeric suffix. Re-importing the same file is an **update in place** (keys may have
   rotated) — it keeps the id and local port stable and does not create a duplicate.
@@ -230,14 +233,35 @@ anyhop channels add protonvpn --config ~/Downloads/wg-US-CA-842.conf
   the country code is reliable; a missing/unknown subdivision shows as `(Unknown)`.
   `anyhop` never geo-locates the endpoint to guess.
 
-Both forms accept `--label "<text>"` to give the channel a friendly display name
+**Customized** — any WireGuard server (self-hosted, or a provider anyhop doesn't
+support), from a standard `.conf`. `--name` is **required** and becomes the channel
+id; `--country`/`--city` are **optional** and set the location shown for it:
+
+```bash
+anyhop providers add customized
+anyhop channels add customized --name home_server --config ~/wg/home.conf
+anyhop channels add customized --name tokyo --config ~/wg/tokyo.conf \
+  --country Japan --city Tokyo                       # optional location
+```
+
+- The id is `customized/<name>` (`customized/home_server`). The name must already be
+  a valid id — lowercase letters, digits, and `_` — and is refused otherwise rather
+  than silently rewritten.
+- Re-importing under the same `--name` updates that channel in place, as above.
+- Location is optional and stated by you, since an arbitrary file name follows no
+  convention: `--country Japan --city Tokyo` (free text, shown as-is; `--city` needs
+  `--country`). Without it, country/city show `(Unknown)`. A re-import that states no
+  location keeps the channel's current one, like the label.
+- `--name` is refused for every other provider (they name their own channels).
+
+All forms accept `--label "<text>"` to give the channel a friendly display name
 (see [`anyhop channels setlabel`](#anyhop-channels-setlabel-channel-label)):
 
 ```bash
 anyhop channels add nordvpn --country "United States" --label "Streaming - US"
 ```
 
-Both forms also accept `--port <n>` to **declare** the channel's local proxy
+All forms also accept `--port <n>` to **declare** the channel's local proxy
 port instead of taking an OS-assigned one — for when something outside anyhop
 (a firewall rule, a compose file publishing the port) must know it ahead of
 time. A declared port that another channel (or the router entrypoint) already
@@ -1133,7 +1157,7 @@ anyhop validate my-setup.yaml && anyhop import my-setup.yaml   # gate an import
 It runs the self-contained (`--replace`-style) checks:
 
 - `kind: anyhop-bundle` and a `bundle_version` this anyhop understands.
-- Providers are among the supported set (`nordvpn`, `protonvpn`).
+- Providers are among the supported set (`nordvpn`, `protonvpn`, `customized`).
 - Token providers (NordVPN) carry a non-empty token; channel ids are unique
   within a provider; **country is required and checked against the provider's
   real country list, and city — if given — against that country's cities**
@@ -1186,9 +1210,10 @@ Port, Latency, IP, and Sent / Received / Down Speed / Up Speed), and the
 router rules. Measured columns stay blank until you run a per-row or
 all-channel **Probe** or **Speed Test** (spinner while running). Adding a
 channel opens a provider-guided wizard: an icon-only provider row plus an
-always-present "+" to add NordVPN or Proton VPN;
+always-present "+" to add NordVPN, Proton VPN, or Customized;
 token providers (NordVPN) pick a country and city from a searchable list, Proton
-VPN uploads a WireGuard `.conf`. Router rules can be added, deleted, and
+VPN uploads a WireGuard `.conf`, and Customized uploads a `.conf` under a required
+name. Router rules can be added, deleted, and
 drag-reordered (first match wins), with an **Allow Non-VPN Traffic** toggle
 (Unmatched row) and a fixed **Priority 0 / LAN** row keeping local traffic
 direct. Channels a routing rule still targets can't be removed — the
@@ -1366,9 +1391,9 @@ All optional; **every one unset = the behavior documented everywhere else in
 this reference.** They exist for deployment profiles (the Docker image sets
 several — see `docs/docker.md`) and for hermetic testing:
 
-| Variable               | Effect                                                                                                                                                                                                                                                                                                         |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ANYHOP_HOME`            | State directory (default `~/.anyhop`).                                                                                                                                                                                                                                                                           |
+| Variable                 | Effect                                                                                                                                                                                                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANYHOP_HOME`            | State directory (default `~/.anyhop`).                                                                                                                                                                                                                                                                         |
 | `ANYHOP_LISTEN`          | Bind address for channel + router proxy inbounds (default `127.0.0.1`). The container image sets `0.0.0.0`; invalid values are logged and ignored, never widened.                                                                                                                                              |
 | `ANYHOP_PORT_BASE`       | Allocate new ports sequentially from this number instead of the OS ephemeral pool — deterministic, publishable ports. Declared `--port`/bundle `port:` values still win.                                                                                                                                       |
 | `ANYHOP_WG_MTU`          | Tunnel MTU for every generated WireGuard endpoint (default `1280` — safe under any encapsulation; sing-box's own 1408 default crashes with `sendmmsg: message too long` on sub-1500 paths, e.g. Docker on a GCP VM). Accepts 1280–9000; invalid values are logged and ignored.                                 |
@@ -1377,7 +1402,7 @@ several — see `docs/docker.md`) and for hermetic testing:
 | `ANYHOP_API_LISTEN`      | Bind address (`host[:port]`) for the control API/Web UI server (default: loopback on the minted `control_api.json` port). Non-loopback values expose the Bearer-authenticated REST API — see `docs/api.md`; the browser cookie path stays loopback-only. Invalid values are logged and ignored, never widened. |
 | `ANYHOP_API_SECRET`      | Replaces the minted API secret with this value (min 16 chars) — for handing the same credential to compose siblings. Set for the daemon *and* local CLI use.                                                                                                                                                   |
 | `ANYHOP_API_SECRET_FILE` | Same, read from a file (compose/k8s secrets). Exactly one of the two; setting both, an unreadable file, or a weak value makes the API refuse to start.                                                                                                                                                         |
-| `ANYHOP_BUNDLE`          | Read by the container entrypoint only: the bundle path applied at boot (default `/etc/anyhop/bundle.yaml`).                                                                                                                                                                                                      |
+| `ANYHOP_BUNDLE`          | Read by the container entrypoint only: the bundle path applied at boot (default `/etc/anyhop/bundle.yaml`).                                                                                                                                                                                                    |
 
 (`ANYHOP_SERVICE` / `ANYHOP_APPLIER` are internal markers set by the login service,
 the image, and `anyhop run` — not user knobs.)

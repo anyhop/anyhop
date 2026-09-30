@@ -766,3 +766,27 @@ def test_test_without_fail_never_exits_nonzero(monkeypatch, capsys):
         service, "test", lambda **kw: _fake_test_result(healthy=0, failed=3)
     )
     cli.main(["test"])  # informational: exit 0 regardless of channel health
+
+
+def test_customized_config_import_uses_the_name(capsys, no_background, tmp_path):
+    conf = tmp_path / "server.conf"
+    conf.write_text(SAMPLE_CONF)
+    cli.main(["providers", "add", "customized"])
+    capsys.readouterr()
+
+    out = run_cli(
+        ["channels", "add", "customized", "--name", "home", "--config", str(conf)],
+        capsys,
+    )
+    assert out.startswith("Imported channel home under Customized from server.conf")
+    assert service.Store.load().get_channel("customized", "home") is not None
+
+    run_cli(
+        [
+            "channels", "add", "customized", "--name", "tokyo", "--config", str(conf),
+            "--country", "Japan", "--city", "Tokyo",
+        ],
+        capsys,
+    )  # fmt: skip
+    ch = service.Store.load().get_channel("customized", "tokyo")
+    assert (ch.country, ch.city) == ("Japan", "Tokyo")

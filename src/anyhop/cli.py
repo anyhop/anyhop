@@ -303,6 +303,7 @@ def cmd_channels_add(args):
         args.config,
         args.label or "",
         port=args.port or 0,
+        name=args.name,
     )
     channel = result["channel"]
     labelled = f' labelled "{channel["label"]}"' if channel.get("label") else ""
@@ -1544,12 +1545,25 @@ def build_parser() -> argparse.ArgumentParser:
     ch_sub = ch.add_subparsers(dest="channels_command")
     ca = ch_sub.add_parser("add", help="add a channel under a provider")
     ca.add_argument("provider", help=_provider_help())
-    ca.add_argument("--country", help="country — API providers only (e.g. nordvpn)")
-    ca.add_argument("--city", help="city — API providers only (omit = any city)")
+    ca.add_argument(
+        "--country",
+        help="country — API providers (e.g. nordvpn); for customized, an optional "
+        "free-text location shown with the channel",
+    )
+    ca.add_argument(
+        "--city",
+        help="city — API providers (omit = any city); for customized, optional "
+        "(needs --country)",
+    )
     ca.add_argument(
         "--config",
         help="path to a WireGuard .conf — config providers only (e.g. protonvpn); "
-        "mutually exclusive with --country/--city",
+        "mutually exclusive with --country/--city (except for customized)",
+    )
+    ca.add_argument(
+        "--name",
+        help="channel name — required for customized (lowercase letters, digits, _); "
+        "the channel id becomes customized/<name>",
     )
     ca.add_argument(
         "--label",

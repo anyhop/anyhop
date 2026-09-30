@@ -215,13 +215,19 @@ export function confirmDialog(title, message, { confirmText = "Confirm", cancelT
 //     selected value is held in a hidden <input> (same id/name a real select
 //     would use), and a "change" event is dispatched on it so existing
 //     onchange handlers keep working. ---
+// An option with an ``icon`` (image URL) renders as that image alone, with the
+// label as its alt text — e.g. provider logos, which already carry the name.
+function _cselectContent(o) {
+  return o.icon ? `<img class="cselect-icon" src="${esc(o.icon)}" alt="${esc(o.label)}">` : esc(o.label);
+}
+
 export function customSelectHTML(id, options, selectedValue) {
   const sel = options.find((o) => o.value === selectedValue) || options[0];
   const items = options
-    .map((o) => `<button type="button" role="option" aria-selected="${o.value === sel.value}" class="cselect-opt${o.value === sel.value ? " selected" : ""}" data-value="${esc(o.value)}">${esc(o.label)}</button>`)
+    .map((o) => `<button type="button" role="option" aria-selected="${o.value === sel.value}" class="cselect-opt${o.value === sel.value ? " selected" : ""}" data-value="${esc(o.value)}">${_cselectContent(o)}</button>`)
     .join("");
   return `<div class="cselect" data-cselect="${esc(id)}">
-    <button type="button" class="cselect-btn" aria-haspopup="listbox" aria-expanded="false"><span class="cselect-label">${esc(sel.label)}</span><span class="cselect-caret" aria-hidden="true"></span></button>
+    <button type="button" class="cselect-btn" aria-haspopup="listbox" aria-expanded="false"><span class="cselect-label">${_cselectContent(sel)}</span><span class="cselect-caret" aria-hidden="true"></span></button>
     <input type="hidden" id="${esc(id)}" name="${esc(id)}" value="${esc(sel.value)}">
     <div class="cselect-menu" role="listbox">${items}</div>
   </div>`;
@@ -241,7 +247,7 @@ function _wireOneCSelect(box) {
     opt.onclick = (e) => {
       e.stopPropagation();
       input.value = opt.dataset.value;
-      label.textContent = opt.textContent;
+      label.innerHTML = opt.innerHTML; // already escaped at render; keeps icons
       opts.forEach((o) => {
         o.classList.toggle("selected", o === opt);
         o.setAttribute("aria-selected", String(o === opt));

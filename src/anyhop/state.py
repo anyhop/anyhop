@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Callable
 
 from anyhop import applog, fsio, paths
-from anyhop.constants import INBOUND_PREFIX, OUTBOUND_PREFIX
+from anyhop.constants import INBOUND_PREFIX, OUTBOUND_PREFIX, provider_order
 
 STATE_VERSION = 1
 SETUP_COMMIT_KEY = "_setup_commit"
@@ -841,7 +841,7 @@ class Store:
         return self.data.get("providers", {})
 
     def provider_names(self) -> list[str]:
-        return sorted(self.providers)
+        return sorted(self.providers, key=provider_order)
 
     def has_provider(self, provider: str) -> bool:
         return provider in self.providers
@@ -878,7 +878,8 @@ class Store:
     # ---- channels ----------------------------------------------------------
     def channels(self) -> list[Channel]:
         out: list[Channel] = []
-        for provider, pdata in sorted(self.providers.items()):
+        for provider in self.provider_names():
+            pdata = self.providers[provider]
             for cid, ch in sorted((pdata.get("channels") or {}).items()):
                 out.append(_channel_view(provider, cid, ch))
         return out

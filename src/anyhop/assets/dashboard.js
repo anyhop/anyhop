@@ -11,6 +11,7 @@ const PEN = `<svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentCol
 const PROVIDER_ICONS = {
   nordvpn: "/nordvpn.svg",
   protonvpn: "/protonvpn.svg",
+  customized: "/customized.svg",
 };
 
 const SHELL = `
@@ -1084,7 +1085,7 @@ async function openAddChannel() {
       wiz.querySelector("[data-back]").onclick = renderProviders;
       return;
     }
-    const opts = addable.map((p) => ({ value: p.provider, label: p.display_name }));
+    const opts = addable.map((p) => ({ value: p.provider, label: p.display_name, icon: providerIcon(p.provider) }));
     wiz.innerHTML = `<form id="pf">
       <label class="field"><span>Provider</span>${customSelectHTML("prov", opts, opts[0].value)}</label>
       <div id="guide"></div><div id="pfields"></div>
@@ -1123,6 +1124,16 @@ async function openAddChannel() {
 
   function renderConfigStep(p) {
     const g = providerGuide(p);
+    // Providers that name their channels (Customized) require a name: it
+    // becomes the channel id, so it follows the same slug rule the server checks.
+    const nameField = p.named_channels
+      ? `<label class="field"><span>Name</span><input id="cname" placeholder="e.g. home_server" autocomplete="off" spellcheck="false"></label>
+      <p class="hint">Becomes the channel ID <code>${esc(p.provider)}/&lt;name&gt;</code>: lowercase letters, digits, and _.</p>
+      <div class="field-row">
+        <label class="field"><span>Country <em>(optional)</em></span><input id="ccountry" placeholder="e.g. Japan" autocomplete="off" spellcheck="false"></label>
+        <label class="field"><span>City <em>(optional)</em></span><input id="ccity" placeholder="e.g. Tokyo" autocomplete="off" spellcheck="false"></label>
+      </div>`
+      : "";
     wiz.innerHTML = `<form id="cf">
       <p class="field-guide">${esc(g.text)}${g.url ? ` <a href="${esc(g.url)}" target="_blank" rel="noopener">Open portal ↗</a>` : ""}</p>
       <label class="field"><span>WireGuard .conf</span>
@@ -1131,6 +1142,7 @@ async function openAddChannel() {
           <span class="file-name" data-file-name>No file chosen</span>
           <input id="conf" type="file" accept=".conf,text/plain" hidden>
         </div></label>
+      ${nameField}
       <label class="field"><span>Label <em>(optional)</em></span><input id="label" placeholder="e.g. Streaming — US" spellcheck="false"></label>
       <p class="form-err" id="cerr"></p>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button><button class="btn primary" type="submit">Add Channel</button></div>
@@ -1144,11 +1156,20 @@ async function openAddChannel() {
       const err = wiz.querySelector("#cerr"); err.textContent = "";
       const file = conf.files[0];
       if (!file) { err.textContent = "Choose a .conf file."; return; }
+      const cname = p.named_channels ? wiz.querySelector("#cname").value.trim() : "";
+      if (p.named_channels && !/^[a-z0-9]+(_[a-z0-9]+)*$/.test(cname)) {
+        err.textContent = cname ? "Name must be lowercase letters, digits, and _ (e.g. home_server)." : "Enter a name for the channel.";
+        return;
+      }
+      const ccountry = p.named_channels ? wiz.querySelector("#ccountry").value.trim() : "";
+      const ccity = p.named_channels ? wiz.querySelector("#ccity").value.trim() : "";
+      if (ccity && !ccountry) { err.textContent = "A city needs its country."; return; }
       const btn = wiz.querySelector('button[type="submit"]');
       if (btn.disabled) return;
       btn.disabled = true;
       const active = mountGuard();
       const body = { provider: st.provider, label: wiz.querySelector("#label").value.trim(), conf_name: file.name, conf_text: await file.text() };
+      if (p.named_channels) Object.assign(body, { name: cname, country: ccountry, city: ccity });
       const res = await api.post("/api/v1/channels", body, { signal: lifetime?.signal });
       if (res.aborted || !active()) return;
       btn.disabled = false;

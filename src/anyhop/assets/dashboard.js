@@ -733,6 +733,10 @@ function renderRoutes() {
     <span class="apply-copy">Order changed — drag more, or apply to save.</span>
     <span class="apply-actions"><button class="btn ghost" id="dash-reorder-cancel">Cancel</button><button class="btn primary" id="dash-reorder-apply">Apply new order</button></span>
   </div>` : "";
+  // Rebuilding the panel destroys whatever had keyboard focus in it, and it
+  // re-renders on its own (routes fetch, the first status poll, label edits),
+  // so a keyboard user would silently drop to <body>: carry focus across.
+  const refocus = focusKey(el.routes);
   el.routes.innerHTML = `<div class="ruleset-list ${dirty ? "dirty" : ""}">${body}</div>${applyBar}`;
   el.routes.querySelector("[data-unmatched-toggle]").onclick = () => toggleKillswitch({ target: { checked: !ks } });
   el.routes.querySelector("[data-lan-toggle]").onclick = () => toggleLanDirect(!lanOn);
@@ -740,7 +744,19 @@ function renderRoutes() {
     el.routes.querySelector("#dash-reorder-apply").onclick = applyReorder;
     el.routes.querySelector("#dash-reorder-cancel").onclick = cancelReorder;
   }
+  if (refocus) el.routes.querySelector(refocus)?.focus({ preventScroll: true });
   applyTraceHighlight();
+}
+
+// A selector that finds the focused element inside ``root`` again after a
+// rebuild — by its id, else its data-* attributes (every focusable control in
+// a re-rendered panel carries one) — or null when focus is elsewhere.
+function focusKey(root) {
+  const active = document.activeElement;
+  if (!active || active === root || !root.contains(active)) return null;
+  if (active.id) return `#${CSS.escape(active.id)}`;
+  const attrs = [...active.attributes].filter((a) => a.name.startsWith("data-"));
+  return attrs.length ? attrs.map((a) => `[${a.name}="${CSS.escape(a.value)}"]`).join("") : null;
 }
 
 // ---- rule-match tracer -------------------------------------------------------

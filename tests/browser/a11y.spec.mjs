@@ -85,6 +85,37 @@ test("keyboard-only: navigate pages, drive a dialog, flip a toggle", async ({
   );
 });
 
+test("keyboard-only: focus survives a routes panel re-render", async ({
+  app,
+}) => {
+  const { page } = app;
+  const viaChip = page
+    .locator(".rule-row[data-id]", { hasText: "Streaming" })
+    .locator(".rule-via .vch");
+  // settled: routes rendered and the first status poll resolved the labels
+  await expect(viaChip).toHaveText("wg_us_new_york_1");
+  const addRule = page.locator("[data-add-rule]");
+  await addRule.focus();
+  // mark the node itself (a JS property, not an attribute the app could read)
+  await addRule.evaluate((node) => { node.stale = true; });
+  // a label change re-renders the whole panel on the next status poll —
+  // the same rebuild that races a keyboard user on page load
+  const status = await page.evaluate(async () => {
+    const res = await fetch("/api/v1/channels/nordvpn/wg_us_new_york_1/label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "NYC" }),
+    });
+    return res.status;
+  });
+  expect(status).toBe(200);
+  await expect(viaChip).toHaveText("NYC", { timeout: 10_000 });
+  expect(await addRule.evaluate((node) => node.stale === true)).toBe(false); // rebuilt
+  await expect(addRule).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".overlay .modal")).toBeVisible();
+});
+
 test("keyboard-only: the custom select is a listbox with arrow-key flow", async ({
   app,
 }) => {

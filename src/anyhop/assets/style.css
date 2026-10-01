@@ -134,8 +134,8 @@ textarea {
   opacity: .82;
 }
 
-/* the wordmark's letter gradient carries a dark-navy stop that vanishes on dark
-   surfaces; swap to a brighter cut of the same indigo→cyan identity. */
+/* the wordmark's solid navy "any" vanishes on dark surfaces; swap to the
+   white-and-bright-gradient cut of the same indigo→cyan identity. */
 :root.dark .wordmark-img {
   content: url("/wordmark-dark.svg");
 }

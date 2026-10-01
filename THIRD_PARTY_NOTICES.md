@@ -1,7 +1,8 @@
 # Third-Party Notices
 
 anyhop's package ships its own code plus small provider brand logos for the Web UI
-(see "Provider brand assets" below). Two kinds of third-party component are
+(see "Provider brand assets" below) and a wordmark outlined from an open-source
+typeface (see "anyhop wordmark typeface"). Two kinds of third-party component are
 involved when you run it:
 
 1. **Python dependencies** — declared in `pyproject.toml` and installed from PyPI
@@ -68,6 +69,15 @@ with this application without prior consent.
 > anyhop does not redistribute the sing-box binary; each user downloads it
 > directly from the upstream release page. anyhop is an independent project and
 > is not affiliated with, endorsed by, or sponsored by the sing-box project.
+
+## anyhop wordmark typeface
+
+The "anyhop" lettering in `src/anyhop/assets/wordmark.svg` and
+`wordmark-dark.svg` is outlined (converted to vector paths) from the Space
+Grotesk typeface by Florian Karsten — Copyright 2020 The Space Grotesk Project
+Authors (https://github.com/floriankarsten/space-grotesk) — licensed under the
+**SIL Open Font License 1.1**. No font file is shipped; the mark beside the
+lettering is anyhop's own artwork.
 
 ## Provider brand assets
 

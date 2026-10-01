@@ -962,8 +962,11 @@ anyhop test --speed --json
 
 **Interpretation:** speed-test `LATENCY` is a min round trip through the tunnel and
 bundles TCP/TLS setup, so it reads higher than raw ping — the *ordering* across channels
-is what's meaningful. `UPLOAD` is bounded by your machine's shared uplink, so channels
-tend to converge there.
+is what's meaningful. `DOWNLOAD` reads for about five seconds; `UPLOAD` sends up
+to 8 MB in growing rounds, each counted only once the server confirmed it, and
+stops near five seconds on a slow or congested link — so it still reports a low
+number rather than `-`. `UPLOAD` is bounded by your machine's shared uplink, so
+channels tend to converge there.
 
 **Traffic accuracy note:** `SENT`/`RECV` are sampled from live connections
 every couple of seconds. Transfers that open and finish entirely between two

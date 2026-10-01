@@ -14,15 +14,26 @@ Method — everything goes through the channel's ``mixed`` proxy via a urllib
 * **download** — read a large object for up to ``DOWNLOAD_SECONDS``, then stop;
   throughput is bytes read / elapsed. Time-bounding keeps a fast link honest and a
   slow one quick.
-* **upload** — POST a fixed payload of zeros to an endpoint that discards it.
+* **upload** — POST zeros to an endpoint that discards them, in rounds that
+  grow from ``UPLOAD_FIRST_BYTES`` (doubling, but each sized from the rate
+  measured so far to finish inside what is left of ``UPLOAD_SECONDS``) up to
+  ``UPLOAD_MAX_BYTES`` in all; throughput is bytes / summed round time. Each
+  round is timed to the server's answer, so it counts only bytes that actually
+  arrived — a single streamed body would be timed by its writes into the
+  *local* proxy, which buffers far more than a slow uplink carries. A normal
+  link sends the whole 8 MB; a slow or congested one stops near the time
+  budget and still reports a (low) number, where one fixed 8 MB payload
+  outlasted the run's deadline and reported nothing.
 
 Each metric has an ordered list of endpoints and the first one that works wins —
 the same multi-source approach as the heartbeat probe, so one retired or flaky
 endpoint degrades to a backup instead of reporting "-". Primaries: download uses
 Cloudflare; upload uses a plain upload sink because Cloudflare's ``__up`` throttles
-proxied POSTs heavily (it is kept only as the last-resort backup). Upload is also
-naturally capped by the machine's own uplink (shared by every channel), so all
-channels tend to converge there.
+proxied POSTs heavily (it is kept only as the last-resort backup). The former
+primary, librespeed.org's ``backend/empty.php``, was retired: it answers 404 —
+after swallowing the whole body, so it cost a full upload before falling back.
+Upload is also naturally capped by the machine's own uplink (shared by every
+channel), so all channels tend to converge there.
 """
 
 from __future__ import annotations
@@ -45,7 +56,7 @@ DOWNLOAD_URLS = [
 ]
 # Endpoints that accept and discard a POST body.
 UPLOAD_URLS = [
-    "https://librespeed.org/backend/empty.php",
+    "https://dlptest.com/api/http-post/",  # "nothing stored, logged, or forwarded"
     "https://speed.cloudflare.com/__up",  # throttles proxied POSTs; last resort
 ]
 # Tiny objects on independent infrastructure (Cloudflare, Google).
@@ -55,7 +66,10 @@ LATENCY_URLS = [
 ]
 
 DOWNLOAD_SECONDS = 5.0  # read the download stream for at most this long
-UPLOAD_BYTES = 8 * 1024 * 1024  # payload pushed for the upload test
+UPLOAD_SECONDS = 5.0  # time budget the upload rounds are sized to fit
+UPLOAD_FIRST_BYTES = 256 * 1024  # first round; later ones at most double
+UPLOAD_MIN_ROUND = 64 * 1024  # a smaller round than this is all overhead: stop
+UPLOAD_MAX_BYTES = 8 * 1024 * 1024  # total payload, as the fixed upload sent
 LATENCY_SAMPLES = 5  # tiny requests; the fastest one wins
 # The whole run (all phases, all fallbacks) is bounded by one monotonic
 # deadline — a hung endpoint can stall one phase, never the entire command.
@@ -132,27 +146,41 @@ def _download_bps(
 def _upload_bps(
     opener, timeout: int, cancel: Callable[[], bool] | None = None
 ) -> float | None:
-    payload = b"\0" * UPLOAD_BYTES
     for url in UPLOAD_URLS:
-        if cancel and cancel():
-            raise Cancelled
-        req = urllib.request.Request(  # noqa: S310
-            url,
-            data=payload,
-            headers={
-                "User-Agent": _USER_AGENT,
-                "Content-Type": "application/octet-stream",
-            },
-        )
-        start = time.monotonic()
+        sent = 0
+        busy = 0.0  # summed round time — each timed to the server's answer
+        size = UPLOAD_FIRST_BYTES
         try:
-            with opener.open(req, timeout=timeout) as r:  # noqa: S310 (loopback proxy)
-                r.read(_SMALL_READ_CAP)
-        except Exception:  # noqa: S112, BLE001 — endpoint not usable; try the next sink
-            continue
-        elapsed = time.monotonic() - start
-        if elapsed > 0:
-            return len(payload) * 8 / elapsed
+            while busy < UPLOAD_SECONDS and sent < UPLOAD_MAX_BYTES:
+                if cancel and cancel():
+                    raise Cancelled
+                req = urllib.request.Request(  # noqa: S310
+                    url,
+                    data=b"\0" * size,
+                    headers={
+                        "User-Agent": _USER_AGENT,
+                        "Content-Type": "application/octet-stream",
+                    },
+                )
+                start = time.monotonic()
+                with opener.open(req, timeout=timeout) as r:  # noqa: S310 (loopback proxy)
+                    r.read(_SMALL_READ_CAP)
+                busy += time.monotonic() - start
+                sent += size
+                # the next round: double, but only as much as the rate so far
+                # says fits the time left — so the last round can't overshoot
+                fits = int(sent / busy * (UPLOAD_SECONDS - busy)) if busy else size
+                size = min(size * 2, fits, UPLOAD_MAX_BYTES - sent)
+                if size < UPLOAD_MIN_ROUND:
+                    break
+        except Cancelled:
+            raise
+        except Exception:  # noqa: BLE001
+            if not sent:
+                continue  # nothing arrived at this sink — try the next one
+            # a later round failed: measure the rounds that completed
+        if sent and busy > 0:
+            return sent * 8 / busy
     return None
 
 

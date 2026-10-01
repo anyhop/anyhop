@@ -48,7 +48,9 @@ class _Opener:
 @pytest.fixture(autouse=True)
 def _fast_download(monkeypatch):
     monkeypatch.setattr(throughput, "DOWNLOAD_SECONDS", 0.02)
-    monkeypatch.setattr(throughput, "UPLOAD_BYTES", 1024)
+    monkeypatch.setattr(throughput, "UPLOAD_FIRST_BYTES", 1024)
+    monkeypatch.setattr(throughput, "UPLOAD_MIN_ROUND", 1)
+    monkeypatch.setattr(throughput, "UPLOAD_MAX_BYTES", 16 * 1024)
 
 
 def test_latency_uses_primary_when_healthy():
@@ -90,7 +92,9 @@ def test_upload_falls_back_when_primary_dead():
         }
     )
     assert throughput._upload_bps(opener, timeout=1) is not None
-    assert opener.calls == [throughput.UPLOAD_URLS[0], throughput.UPLOAD_URLS[1]]
+    # the dead primary cost one attempt; every round then went to the backup
+    assert opener.calls[0] == throughput.UPLOAD_URLS[0]
+    assert set(opener.calls[1:]) == {throughput.UPLOAD_URLS[1]}
 
 
 def test_all_endpoints_dead_returns_none():
@@ -120,6 +124,76 @@ def test_cancel_aborts_the_download_loop_early():
         throughput._download_bps(endless, timeout=2, cancel=cancel)
     assert time.monotonic() - start < throughput.DOWNLOAD_SECONDS  # bailed early
     assert calls["n"] >= 2  # cancel was actually polled
+
+
+# ---- upload rounds ---------------------------------------------------------------
+
+
+class _TimedOpener(_Opener):
+    """Each upload round "takes" a fixed time per byte (a fake uplink), recorded
+    by advancing a fake clock, and logs the round sizes it was sent."""
+
+    def __init__(self, routes, seconds_per_byte, clock, fail_after=None):
+        super().__init__(routes)
+        self.spb, self.clock, self.fail_after = seconds_per_byte, clock, fail_after
+        self.sizes: list[int] = []
+
+    def open(self, req, timeout=None):
+        if self.fail_after is not None and len(self.sizes) >= self.fail_after:
+            raise OSError("connection reset")
+        self.sizes.append(len(req.data))
+        self.clock["now"] += len(req.data) * self.spb
+        return super().open(req, timeout)
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    clock = {"now": 0.0}
+    monkeypatch.setattr(throughput.time, "monotonic", lambda: clock["now"])
+    return clock
+
+
+def test_upload_rounds_are_sized_to_fit_the_time_budget(monkeypatch, fake_clock):
+    # a slow uplink (1 KiB in 1 s): rounds grow, but each only as far as the
+    # measured rate says fits the time left — 1 s + 2 s + 2 s lands exactly on
+    # the 5 s budget instead of a doubled 4 s last round overshooting to 7 s
+    monkeypatch.setattr(throughput, "UPLOAD_SECONDS", 5.0)
+    monkeypatch.setattr(throughput, "UPLOAD_MAX_BYTES", 1 << 30)
+    url = throughput.UPLOAD_URLS[0]
+    opener = _TimedOpener({url: b""}, 1 / 1024, fake_clock)
+    bps = throughput._upload_bps(opener, timeout=1)
+    assert opener.sizes == [1024, 2048, 2048]
+    assert fake_clock["now"] == pytest.approx(5.0)
+    assert bps == pytest.approx(1024 * 8)
+
+
+def test_upload_skips_a_round_too_small_to_measure(monkeypatch, fake_clock):
+    monkeypatch.setattr(throughput, "UPLOAD_SECONDS", 1.5)
+    monkeypatch.setattr(throughput, "UPLOAD_MIN_ROUND", 1024)
+    monkeypatch.setattr(throughput, "UPLOAD_MAX_BYTES", 1 << 30)
+    url = throughput.UPLOAD_URLS[0]
+    opener = _TimedOpener({url: b""}, 1 / 1024, fake_clock)
+    throughput._upload_bps(opener, timeout=1)
+    assert opener.sizes == [1024]  # 0.5 s left fits only 512 B: not worth a round
+
+
+def test_upload_sends_the_full_payload_on_a_fast_link(monkeypatch, fake_clock):
+    monkeypatch.setattr(throughput, "UPLOAD_SECONDS", 5.0)
+    url = throughput.UPLOAD_URLS[0]
+    opener = _TimedOpener({url: b""}, 1e-9, fake_clock)
+    throughput._upload_bps(opener, timeout=1)
+    assert sum(opener.sizes) == throughput.UPLOAD_MAX_BYTES  # last round trimmed
+
+
+def test_upload_measures_completed_rounds_when_a_later_round_fails(
+    monkeypatch, fake_clock
+):
+    monkeypatch.setattr(throughput, "UPLOAD_SECONDS", 100.0)
+    monkeypatch.setattr(throughput, "UPLOAD_MAX_BYTES", 1 << 30)
+    url = throughput.UPLOAD_URLS[0]
+    opener = _TimedOpener({url: b""}, 1 / 1024, fake_clock, fail_after=2)
+    assert throughput._upload_bps(opener, timeout=1) == pytest.approx(1024 * 8)
+    assert opener.calls == [url, url]  # no fallback once bytes arrived
 
 
 # ---- HTTPS-only endpoints + the overall deadline ------------------------------

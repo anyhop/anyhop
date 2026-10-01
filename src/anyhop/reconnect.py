@@ -26,7 +26,11 @@ Recovery action depends on the provider archetype:
 
 * token/API (NordVPN): re-resolve a fresh server via ``provider_wg`` and overwrite
   the channel's ``wg`` params. That moves the config signature, so the daemon
-  reconciles and sing-box reloads onto the new server.
+  reconciles and sing-box reloads onto the new server. The pick avoids the
+  server the channel was just on. A channel **pinned** to a server never
+  moves: it re-reads that same server (its address/key may have changed), and
+  once the provider no longer lists the server as usable the channel is
+  ``failed`` at once with that reason — never silently moved elsewhere.
 * config (ProtonVPN): no API to re-resolve, so force a sing-box restart to shake
   out transient issues; a permanently bad imported server surfaces as ``failed``.
   Restarts are **coalesced**: however many config channels come due in one
@@ -48,6 +52,7 @@ from anyhop.backend import RuntimeBackend
 from anyhop.providers import (
     ProviderAuthError,
     ProviderError,
+    ProviderServerUnavailableError,
     is_functional,
     kind,
     provider_resolver,
@@ -68,12 +73,13 @@ def _backoff(attempt: int) -> int:
 
 
 def _is_non_retryable(err: Exception) -> bool:
-    """True for auth-class failures that retrying can never fix (bad/missing token).
+    """True for failures that retrying can never fix: a bad/missing token, or
+    a pinned server the provider no longer offers.
 
     Decided by exception *type*, not message text — a substring heuristic would
     permanently fail a channel over a transient error whose message merely
     contains a word like "invalid"."""
-    return isinstance(err, ProviderAuthError)
+    return isinstance(err, ProviderAuthError | ProviderServerUnavailableError)
 
 
 def _probe_summary(probe: dict) -> str:
@@ -212,8 +218,15 @@ def run_pass(
     stored_credentials = credentials.snapshot() if resolve is provider_wg else {}
 
     def resolve_channel(ch):
+        # pinned: the same server again; auto: anything but the dead one
+        if ch.server:
+            hints = {"server": ch.server}
+        elif ch.current_server:
+            hints = {"avoid": ch.current_server}
+        else:
+            hints = {}
         if resolve is not provider_wg:
-            return resolve(ch.provider, ch.country, ch.city or "")
+            return resolve(ch.provider, ch.country, ch.city or "", **hints)
         if ch.provider not in resolver_cache:
             try:
                 resolver_cache[ch.provider] = provider_resolver(
@@ -224,7 +237,7 @@ def run_pass(
         provider_resolve = resolver_cache[ch.provider]
         if isinstance(provider_resolve, ProviderError):
             raise provider_resolve
-        return provider_resolve(ch.country, ch.city or "")
+        return provider_resolve(ch.country, ch.city or "", **hints)
 
     for ref, action in actions.items():
         if ref not in committed:
@@ -246,6 +259,15 @@ def run_pass(
                     f"re-resolved server; reload pending; next retry in {_backoff(attempts)}s if still unhealthy"
                 )
             except ProviderError as e:
+                if ch.server and isinstance(e, ProviderServerUnavailableError):
+                    chan = f"{ch.provider}/{ch.id}"
+                    e = ProviderServerUnavailableError(
+                        f"pinned server {ch.server} is no longer available — pin "
+                        f"another (anyhop servers {ch.provider} --country "
+                        f'"{ch.country}"): anyhop channels setserver {chan} '
+                        f"<server>, or follow the recommendation: anyhop "
+                        f"channels setserver {chan} auto"
+                    )
                 if _is_non_retryable(e):
                     rc["failed"] = True
                     rc["error"] = str(e)

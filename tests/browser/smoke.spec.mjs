@@ -652,3 +652,101 @@ test("grid reconciles adds, removes, and reorders after a quiet spell", async ({
   await page.waitForTimeout(STATUS_TICK_MS + 1000);
   expect(await page.evaluate(() => window.__gridMutations)).toBe(0);
 });
+
+test("server pinning: the wizard pins a chosen server, the row unpins it", async ({
+  app,
+}) => {
+  const { page } = app;
+  await page.locator("[data-add-channel]").click();
+  await page.locator('.prov-tile[data-provider="nordvpn"]').click();
+  await page.locator('#loc-grid [data-country="Germany"]').click();
+  await page.locator('#loc-grid [data-city="Frankfurt"]').click();
+  // the last step lists the servers inline, below the label: Automatic first
+  // and selected, then the city's servers in a 3-up grid
+  const auto = page.locator('#srv-choice [data-server="auto"]');
+  await expect(auto).toHaveClass(/selected/);
+  await expect(page.locator(".srv-caption")).toHaveText("Pick a server in Frankfurt, Germany");
+  await expect(page.locator("#srv-grid [data-server]")).toHaveText([
+    /de10.*4% load/,
+    /de12.*12% load/,
+  ]);
+  const columns = await page
+    .locator("#srv-grid")
+    .evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(" ").length);
+  expect(columns).toBe(3);
+  // the filter narrows the grid but never hides Automatic
+  await page.locator("#srv-search").fill("de12");
+  await expect(page.locator("#srv-grid [data-server]:visible")).toHaveCount(1);
+  await expect(auto).toBeVisible();
+  await page.locator("#srv-search").fill("");
+  // picking a card is a radio choice and never submits the form
+  await page.locator('#srv-grid [data-server="de10"]').click();
+  await expect(page.locator('#srv-grid [data-server="de10"]')).toHaveClass(/selected/);
+  await expect(auto).not.toHaveClass(/selected/);
+  await expect(page.locator("#lf")).toBeVisible();
+  await page.locator("#label").fill("Pinned FRA");
+  await page.locator('#lf button[type="submit"]').click();
+  await expect(page.locator("#toasts")).toContainText("Added Pinned FRA");
+
+  const row = page.locator('.row.dashchan.body[data-id="wg_de_frankfurt_1"]');
+  await expect(row.locator(".srv")).toHaveText("de10", { timeout: 10_000 });
+  await expect(row.locator(".srv .pin")).toHaveCount(1);
+
+  // the row's server opens the same layout: Automatic + the city's servers
+  await row.locator(".srv").click();
+  await expect(page.locator("#srv-grid [data-server]")).toHaveCount(2);
+  await expect(page.locator('#srv-grid [data-server="de10"]')).toHaveClass(/selected/);
+  await page.locator("[data-widen]").click();
+  await expect(page.locator("#srv-grid [data-server]")).toHaveCount(3);
+  await page.locator('.server-choice [data-server="auto"]').click();
+  await expect(page.locator("#toasts")).toContainText(
+    "wg_de_frankfurt_1 now follows the recommended server",
+  );
+  // unpinned, still on the same server until the provider picks again
+  await expect(row.locator(".srv .pin")).toHaveCount(0, { timeout: 10_000 });
+  await expect(row.locator(".srv")).toHaveText("de10");
+});
+
+test("server pinning: Automatic adds by location, not by server", async ({ app }) => {
+  const { page } = app;
+  await page.locator("[data-add-channel]").click();
+  await page.locator('.prov-tile[data-provider="nordvpn"]').click();
+  await page.locator('#loc-grid [data-country="Germany"]').click();
+  await page.locator('#loc-grid [data-city="Frankfurt"]').click();
+  await expect(page.locator("#srv-grid [data-server]")).toHaveCount(2);
+  await page.locator('#lf button[type="submit"]').click();
+  await expect(page.locator("#toasts")).toContainText("Added wg_de_frankfurt_1");
+  const row = page.locator('.row.dashchan.body[data-id="wg_de_frankfurt_1"]');
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await expect(row.locator(".srv .pin")).toHaveCount(0);
+});
+
+test("server pinning: a pin picked under Any city stays country-wide", async ({ app }) => {
+  const { page } = app;
+  await page.locator("[data-add-channel]").click();
+  await page.locator('.prov-tile[data-provider="nordvpn"]').click();
+  await page.locator('#loc-grid [data-country="Germany"]').click();
+  await page.locator('#loc-grid [data-city=""]').click();
+  // any city: the whole country's servers
+  await expect(page.locator(".srv-caption")).toHaveText("Pick a server in Germany");
+  await expect(page.locator("#srv-grid [data-server]")).toHaveCount(3);
+  await page.locator('#srv-grid [data-server="de11"]').click();
+  await page.locator('#lf button[type="submit"]').click();
+  await expect(page.locator("#toasts")).toContainText("Added wg_de_2");
+
+  // a country-wide id and location, not de11's city (Berlin)
+  const row = page.locator('.row.dashchan.body[data-id="wg_de_2"]');
+  await expect(row.locator(".loc")).toContainText("Germany", { timeout: 10_000 });
+  await expect(row.locator(".loc")).not.toContainText("Berlin");
+  await expect(row.locator(".srv")).toHaveText("de11");
+
+  // re-pinning lists every server in the country, with no "widen" needed
+  await row.locator(".srv").click();
+  await expect(page.locator(".srv-caption")).toHaveText("Pick a server in Germany");
+  await expect(page.locator("#srv-grid [data-server]")).toHaveCount(3);
+  await expect(page.locator("[data-widen]")).toHaveCount(0);
+  await page.locator('#srv-grid [data-server="de10"]').click();
+  await expect(page.locator("#toasts")).toContainText("Pinned wg_de_2 to de10");
+  await expect(row.locator(".srv")).toHaveText("de10", { timeout: 10_000 });
+  await expect(row.locator(".loc")).not.toContainText("Frankfurt");
+});

@@ -304,6 +304,8 @@ def cmd_channels_add(args):
         args.label or "",
         port=args.port or 0,
         name=args.name,
+        server=args.server,
+        any_city=args.any_city,
     )
     channel = result["channel"]
     labelled = f' labelled "{channel["label"]}"' if channel.get("label") else ""
@@ -319,6 +321,8 @@ def cmd_channels_add(args):
     if result.get("imported_from"):
         verb = "Updated" if result.get("updated") else "Imported"
         source = f" from {result['imported_from']}"
+    elif channel.get("pinned"):
+        verb, source = "Added", f" pinned to {channel['server']}"
     else:
         verb, source = "Added", ""
     print(
@@ -335,6 +339,35 @@ def cmd_channels_setlabel(args):
         print(f"Cleared the label on {ref} (shows as {result['channel']} again).")
     else:
         print(f'Labelled {ref} as "{result["label"]}".')
+
+
+def cmd_channels_setserver(args):
+    result = service.channel_set_server(args.channel, args.server)
+    channel = result["channel"]
+    ref = f"{channel['provider']}/{channel['name']}"
+    if not result["changed"]:
+        mode = (
+            f"pinned to {channel['server']}"
+            if channel["pinned"]
+            else "following the recommended server"
+        )
+        print(f"{ref} is already {mode} — nothing to do.")
+    elif channel["pinned"]:
+        print(f"Pinned {ref} to {channel['server']} ({_where(channel)}).")
+        print("Applying… (see: anyhop status)")
+    else:
+        on = f" (stays on {channel['server']} for now)" if channel["server"] else ""
+        print(
+            f"Unpinned {ref}: it now follows the recommended server for "
+            f"{_where(channel)}{on}."
+        )
+
+
+def _where(channel: dict) -> str:
+    """``City, Country``, or the country alone for an any-city channel."""
+    if channel["city"] in ("(Any City)", "(Unknown)"):
+        return channel["country"]
+    return f"{channel['city']}, {channel['country']}"
 
 
 def cmd_channels_ls(args):
@@ -738,6 +771,15 @@ def cmd_locations(args):
     _print_or_json(
         service.locations_list(provider, args.country, args.refresh),
         output.locations,
+        args.json,
+    )
+
+
+def cmd_servers(args):
+    provider = _resolve_provider(args.provider)
+    _print_or_json(
+        service.servers_list(provider, args.country, args.city),
+        output.servers_list,
         args.json,
     )
 
@@ -1561,6 +1603,17 @@ def build_parser() -> argparse.ArgumentParser:
         "mutually exclusive with --country/--city (except for customized)",
     )
     ca.add_argument(
+        "--server",
+        help="pin the channel to one server (e.g. de1398 — see: anyhop servers); "
+        "the server determines the location, so no --country/--city",
+    )
+    ca.add_argument(
+        "--any-city",
+        action="store_true",
+        help="with --server: record the channel for the server's whole country "
+        "(any city) instead of its city — re-pinning then lists the country",
+    )
+    ca.add_argument(
         "--name",
         help="channel name — required for customized (lowercase letters, digits, _); "
         "the channel id becomes customized/<name>",
@@ -1592,6 +1645,16 @@ def build_parser() -> argparse.ArgumentParser:
         "label", nargs="?", default="", help="the label; omit or pass '' to clear it"
     )
     csl.set_defaults(func=cmd_channels_setlabel)
+    css = ch_sub.add_parser(
+        "setserver",
+        help="pin a channel to one server, or 'auto' to follow the recommendation",
+    )
+    css.add_argument("channel", help="channel id or provider/id ref (no globs)")
+    css.add_argument(
+        "server",
+        help="a server name (e.g. de1398 or de1398.nordvpn.com), or 'auto'",
+    )
+    css.set_defaults(func=cmd_channels_setserver)
     cr = ch_sub.add_parser("rm", help="remove one or more channels")
     cr.add_argument(
         "refs",
@@ -1825,6 +1888,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     lo.add_argument("--json", action="store_true", help="print machine-readable JSON")
     lo.set_defaults(func=cmd_locations)
+
+    # servers
+    sv = sub.add_parser(
+        "servers",
+        help="list the servers a channel can be pinned to in a location",
+    )
+    sv.add_argument("provider", help=_provider_help())
+    sv.add_argument("--country", help="country to list servers in (required)")
+    sv.add_argument("--city", help="narrow the list to one city")
+    sv.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    sv.set_defaults(func=cmd_servers)
 
     # top-level verbs
     st = sub.add_parser("status", help="show system status (run state, router, Web UI)")

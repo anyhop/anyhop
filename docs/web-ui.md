@@ -26,6 +26,13 @@ page:
   Proton VPN, upload a WireGuard `.conf` (with a link to the portal). Each added
   token provider carries a **gear** to replace its stored token (write-only — the
   token is never shown back); replacing it re-resolves that provider's channels.
+  For NordVPN the last step lists the location's servers right below the
+  label: **Automatic** (the provider picks — the default) on its own row, then
+  a filterable, least-loaded-first grid of servers; select one to pin the
+  channel to it.
+- **Channel servers** — a NordVPN channel shows the server it is on under its
+  location, with a pin icon when pinned. Click it to pin another server (the
+  city's list, widenable to the whole country) or pick **Automatic** to unpin.
 - **Router rules** — add/delete rules, **drag to reorder** (first match wins),
   and toggle **Allow Non-VPN Traffic** (the Unmatched row: on lets unmatched
   destinations reach the Internet, off blocks them). A fixed **Priority 0 / LAN**

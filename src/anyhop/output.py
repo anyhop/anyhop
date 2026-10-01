@@ -158,12 +158,17 @@ def channels_list(data: dict) -> str:
     # STATUS is administrative intent (enabled/disabled), not probe liveness —
     # this table stays static config, independent of whether anyhop is running.
     # IPV6 is the per-provider policy AND this server's own capability.
+    # SERVER only when some channel names one (API-resolved channels) — a
+    # config-only setup would otherwise carry a column of dashes.
+    with_server = any(c.get("server") for c in channels)
+    headers = [*BASE_HEADERS, *(["SERVER"] if with_server else []), "IPV6", "STATUS"]
     return "\n".join(
         _table(
-            [*BASE_HEADERS, "IPV6", "STATUS"],
+            headers,
             [
                 [
                     *_base_cells(c),
+                    *([_server_cell(c)] if with_server else []),
                     "yes" if c.get("ipv6") else "no",
                     "enabled" if c.get("enabled", True) else "disabled",
                 ]
@@ -171,6 +176,42 @@ def channels_list(data: dict) -> str:
             ],
         )
     )
+
+
+def _server_cell(c: dict) -> str:
+    """The server a channel is on, short form, marked when pinned there."""
+    server = (c.get("server") or "").split(".", 1)[0]  # de1605.nordvpn.com
+    if not server:
+        return "-"
+    return f"{server} (pinned)" if c.get("pinned") else server
+
+
+def servers_list(data: dict) -> str:
+    servers = data["servers"]
+    where = f"{data['city']}, {data['country']}" if data["city"] else data["country"]
+    if not servers:
+        return f"No {data['display_name']} servers available in {where}."
+    lines = [
+        f"{data['display_name']} servers in {where} ({len(servers)}), "
+        "least loaded first:"
+    ]
+    lines.extend(
+        _table(
+            ["SERVER", "CITY", "LOAD"],
+            [
+                [
+                    s["server"],
+                    s["city"],
+                    f"{s['load']}%" if s["load"] is not None else "-",
+                ]
+                for s in servers
+            ],
+        )
+    )
+    lines.append(
+        f"Pin one:  anyhop channels add {data['provider']} --server {servers[0]['server']}"
+    )
+    return "\n".join(lines)
 
 
 def locations(data: dict) -> str:

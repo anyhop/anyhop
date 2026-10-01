@@ -56,25 +56,29 @@ YAML because hand-written config wants comments.
 
 ```yaml
 kind: anyhop-bundle     # required — identifies the file
-bundle_version: 1     # required — a newer version is refused with a clear error
+bundle_version: 1       # required — a newer version is refused with a clear error
 ```
 
 ### Providers and channels
 
 ```yaml
 providers:
-  nordvpn:                        # a provider that authenticates VPN connection creations with an account authentication token, all channels requires only one credential
-    credential:                   # REQUIRED for token providers
-      token: "nordvpn-access-token"   # or token_env / token_file (see below)
+  nordvpn:                           # a provider that authenticates VPN connection creations with an account authentication token, all channels requires only one credential
+    credential:                      # REQUIRED for token providers
+      token: "nordvpn-access-token"  # or token_env / token_file (see below)
     channels:
-      wg_us_1:                    # the channel id — its permanent handle (required)
-        country: United States    # required for token providers
-        city: ""                  # empty = any city
-        label: Streaming — US     # optional display label
-        port: 20010               # optional — DECLARE the local proxy port (see below)
-        enabled: false            # optional — import held-but-not-dialled (default: true)
-        wg: { ... }               # OPTIONAL for token providers (see below)
-  protonvpn:                      # a provider that provides per-connection config files downloaded from the online console and copied as per-channel fields below
+      wg_us_1:                       # the channel id — its permanent handle (required)
+        country: United States       # required for token providers
+        city: ""                     # empty = any city
+        label: Streaming — US        # optional display label
+        port: 20010                  # optional — DECLARE the local proxy port (see below)
+        enabled: false               # optional — import held-but-not-dialled (default: true)
+        wg: { ... }                  # OPTIONAL for token providers (see below)
+      wg_de_frankfurt_1:             # a channel PINNED to one server (see below)
+        server: de1605.nordvpn.com   # instead of country/city — never both
+        any_city: true               # optional — the whole country, not the server's city
+        wg: { ... }
+  protonvpn:                         # a provider that provides per-connection config files downloaded from the online console and copied as per-channel fields below
     channels:
       wg_us_1:                    # the channel id (required)
         country: United States    # optional display label ("" -> "(Unknown)")
@@ -86,7 +90,7 @@ providers:
             public_key: "...44-char base64..."
             endpoint_host: 185.159.157.1
             endpoint_port: 51820
-            preshared_key: null        # optional
+            preshared_key: null                 # optional
             allowed_ips: [0.0.0.0/0, "::/0"]   # optional, this is the default
             keepalive: 25                       # optional, this is the default
   customized:                     # any WireGuard server — same shape as the protonvpn example above
@@ -280,6 +284,17 @@ Both apply modes settle each token channel in this order:
 This is why exports still include the snapshot even though it is usually
 ignored: it is the guarantee that a restore works offline and can never be
 broken by a provider outage.
+
+**Pinned channels** (`server:` instead of `country`/`city`; see
+[`anyhop channels setserver`](cli-reference.md#anyhop-channels-setserver-channel-serverauto))
+follow the same order with the server as their identity: an existing channel
+already on that server keeps its parameters; otherwise the server is looked up
+(which also gives the channel its country/city) and resolved — never a
+recommendation. Validation rejects `server` together with `country`/`city`, a
+name that isn't a standard server, and two channels pinning the same server. A
+server the provider **no longer offers fails the apply** for an enabled channel,
+instead of quietly connecting it somewhere else; an unreachable API falls back to
+the snapshot as above, labelled with the country the server's name implies.
 
 ### Config channels: `wg` is the config
 

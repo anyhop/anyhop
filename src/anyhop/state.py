@@ -203,6 +203,11 @@ class Channel:
     country: str = ""
     city: str = ""
     label: str = ""  # optional display label; the id stays the only handle
+    # The pinned server's canonical hostname, or "" when the provider picks
+    # (the recommended server for country/city). A pinned channel's country is
+    # the server's; its city is the server's too, or "" when it was pinned for
+    # the whole country (any city).
+    server: str = ""
     wg: dict = field(default_factory=dict)
     probe: dict = field(default_factory=dict)
     reconnect: dict = field(default_factory=dict)
@@ -229,6 +234,14 @@ class Channel:
     @property
     def outbound_tag(self) -> str:
         return f"{OUTBOUND_PREFIX}{self.provider}-{self.id}"
+
+    @property
+    def current_server(self) -> str:
+        """Hostname of the server the channel's WireGuard params point at, when
+        the provider named one (API-resolved channels); "" otherwise."""
+        peer = (self.wg or {}).get("peer") or {}
+        hostname = peer.get("hostname")
+        return hostname if isinstance(hostname, str) else ""
 
     @property
     def location(self) -> str:
@@ -271,6 +284,7 @@ def _channel_view(provider: str, cid: str, ch: dict) -> Channel:
         country=ch.get("country", ""),
         city=ch.get("city", ""),
         label=ch.get("label", ""),
+        server=ch.get("server", ""),
         wg=ch.get("wg") or {},
         probe=ch.get("probe", {}),
         reconnect=ch.get("reconnect", {}),
@@ -713,6 +727,10 @@ def _check_schema(data: dict) -> None:
                     raise ValueError(
                         f"channel {provider!r}/{cid!r} {key} is not an object"
                     )
+            if "server" in ch and not (isinstance(ch["server"], str) and ch["server"]):
+                raise ValueError(
+                    f"channel {provider!r}/{cid!r} server is not a non-empty string"
+                )
     router = data.get("router", {})
     if not isinstance(router, dict):
         raise ValueError("router is not an object")
@@ -913,10 +931,12 @@ class Store:
         wg: dict,
         label: str = "",
         port: int = 0,
+        server: str = "",
     ) -> Channel:
         # id and port are allocated inside the transaction, against the locked
         # on-disk state — two concurrent adds can never pick the same slot.
         # ``label`` is the optional display label, not part of the id.
+        # ``server`` pins the channel to that server (country/city as above).
         # ``port`` (optional) is an explicit declaration; 0 keeps the default
         # allocation. A declared port that clashes raises PortInUseError.
         with transaction() as data:
@@ -936,6 +956,8 @@ class Store:
                 chans[cid]["port_explicit"] = True  # may ever self-reallocate
             if label:
                 chans[cid]["label"] = label
+            if server:
+                chans[cid]["server"] = server
             committed = _channel_view(provider, cid, chans[cid])
         self.data = _read_raw()
         return committed
@@ -1092,6 +1114,51 @@ class Store:
                     ch.pop("label", None)  # cleared → falls back to the id
         self.data = _read_raw()
         return found
+
+    def set_channel_server(
+        self,
+        provider: str,
+        cid: str,
+        server: str,
+        *,
+        wg: dict | None = None,
+        country: str = "",
+        city: str = "",
+        expected_revision: str | None = None,
+    ) -> Channel | None:
+        """Pin a channel to ``server`` (with its freshly resolved ``wg`` and the
+        location to record — the server's country, and its city or "" for a
+        country-wide channel), or with ``server=""`` unpin it.
+
+        Unpinning keeps the current params and location: the channel stays on
+        the server it is on until a reconnect or token change picks again, so
+        switching modes never interrupts a working tunnel. Either way this is
+        human intervention, so reconnect give-up state is cleared. Returns the
+        updated channel, or None if it does not exist.
+        """
+        committed = None
+        with transaction() as data:
+            _require_revision(
+                "channel",
+                f"{provider}/{cid}",
+                expected_revision,
+                _channel_revision(data, provider, cid),
+            )
+            prov = data["providers"].get(provider) or {}
+            ch = (prov.get("channels") or {}).get(cid)
+            if ch is not None:
+                if server:
+                    ch["server"] = server
+                    ch["country"] = country
+                    ch["city"] = city
+                    if wg is not None:
+                        ch["wg"] = wg
+                else:
+                    ch.pop("server", None)
+                ch.pop("reconnect", None)
+                committed = _channel_view(provider, cid, ch)
+        self.data = _read_raw()
+        return committed
 
     def set_probe(self, provider: str, cid: str, probe: dict) -> None:
         """Set one probe unconditionally (interactive/test compatibility).
@@ -1814,11 +1881,14 @@ class Store:
                             entry["enabled"] = False
                         if label:
                             entry["label"] = label
+                        if spec.get("server"):
+                            entry["server"] = spec["server"]
                         chans[cid] = entry
                         summary["created"].append(ref)
                     elif (
                         ch.get("country", "") == spec.get("country", "")
                         and ch.get("city", "") == spec.get("city", "")
+                        and ch.get("server", "") == (spec.get("server") or "")
                         and ch.get("wg") == wg
                         and ch.get("enabled", True) == enabled
                         and (not label or ch.get("label", "") == label)
@@ -1834,6 +1904,10 @@ class Store:
                     else:
                         ch["country"] = spec.get("country", "")
                         ch["city"] = spec.get("city", "")
+                        if spec.get("server"):
+                            ch["server"] = spec["server"]
+                        else:
+                            ch.pop("server", None)
                         ch["wg"] = wg
                         if port and port != int(ch.get("port") or 0):
                             ch["port"] = _claim_port(
@@ -2106,11 +2180,14 @@ class Store:
                             entry["enabled"] = False
                         if label:
                             entry["label"] = label
+                        if spec.get("server"):
+                            entry["server"] = spec["server"]
                         chans[cid] = entry
                         summary["created"].append(ref)
                     elif (
                         ch.get("country", "") == spec.get("country", "")
                         and ch.get("city", "") == spec.get("city", "")
+                        and ch.get("server", "") == (spec.get("server") or "")
                         and ch.get("wg") == wg
                         and ch.get("enabled", True) == enabled
                         and (not label or ch.get("label", "") == label)
@@ -2126,6 +2203,10 @@ class Store:
                         # provenance is deliberately untouched (never adopt)
                         ch["country"] = spec.get("country", "")
                         ch["city"] = spec.get("city", "")
+                        if spec.get("server"):
+                            ch["server"] = spec["server"]
+                        else:
+                            ch.pop("server", None)
                         ch["wg"] = wg
                         if port and port != int(ch.get("port") or 0):
                             ch["port"] = _claim_port(
@@ -2220,6 +2301,8 @@ class Store:
                         entry["enabled"] = False
                     if spec.get("label"):
                         entry["label"] = spec["label"]
+                    if spec.get("server"):
+                        entry["server"] = spec["server"]
                     chans[cid] = entry
                 new_providers[provider] = {"channels": chans}
             data["providers"] = new_providers

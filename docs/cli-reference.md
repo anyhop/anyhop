@@ -22,6 +22,7 @@ exposes `anyhop` directly; see the README's Quick Start or
     - [`anyhop channels add PROVIDER …`](#anyhop-channels-add-provider-)
     - [`anyhop channels ls [--json|--ids|--refs]`](#anyhop-channels-ls---json--ids--refs)
     - [`anyhop channels setlabel CHANNEL [label]`](#anyhop-channels-setlabel-channel-label)
+    - [`anyhop channels setserver CHANNEL SERVER|auto`](#anyhop-channels-setserver-channel-serverauto)
     - [`anyhop channels rm CHANNEL...`](#anyhop-channels-rm-channel)
     - [`anyhop channels enable/disable CHANNEL...`](#anyhop-channels-enabledisable-channel)
   - [`anyhop routes`](#anyhop-routes)
@@ -39,6 +40,7 @@ exposes `anyhop` directly; see the README's Quick Start or
     - [`anyhop routes geo [ls|refresh|source]`](#anyhop-routes-geo-lsrefreshsource)
     - [`anyhop routes trace DESTINATION [--json]`](#anyhop-routes-trace-destination---json)
   - [`anyhop locations`](#anyhop-locations)
+  - [`anyhop servers`](#anyhop-servers)
   - [`anyhop status`](#anyhop-status)
   - [`anyhop start` / `stop` / `restart`](#anyhop-start--stop--restart)
   - [`anyhop upgrade [--check] [--prerelease]`](#anyhop-upgrade---check---prerelease)
@@ -145,7 +147,7 @@ replaces it:
   channels.
 - **Channels re-resolve:** after a successful replace with a *different* token, every
   one of that provider's channels is re-resolved with the new credential in one pass
-  (a fresh server per channel). A channel that can't be re-resolved right now keeps
+  (a fresh server per channel; a pinned channel re-resolves its own server). A channel that can't be re-resolved right now keeps
   its current server and refreshes on the next reconnect; the summary lists both sets.
 - **The token is never displayed** — only a masked preview (`nGx4****a91k`) is ever
   shown, in any command, JSON, log, or the Web UI.
@@ -213,6 +215,34 @@ anyhop channels add nordvpn --country "United States" --city "Seattle"
 - Each add resolves a fresh recommended server, so repeating the same location creates
   a distinct channel: `wg_us_1`, `wg_us_2`, …
 - See selectable locations with [`anyhop locations`](#anyhop-locations).
+
+**Pinned server** (NordVPN) — instead of taking the provider's recommendation,
+name one concrete server, found with [`anyhop servers`](#anyhop-servers):
+
+```bash
+anyhop servers nordvpn --country Germany --city Frankfurt
+anyhop channels add nordvpn --server de1605          # or de1605.nordvpn.com
+```
+
+- The server alone determines the location: `--server` is refused together with
+  `--country`/`--city` (and `--config`/`--name`), so the two can never disagree.
+  The id comes from the server's location (`wg_de_frankfurt_1`).
+- `--any-city` records the channel for the server's whole country instead of its
+  city (`wg_de_1`, "Germany (Any City)") — the scope the Web UI's "Any city"
+  pick uses. It can only widen the location, never contradict the server, and
+  re-pinning a country-wide channel lists (and keeps) the whole country.
+- A pinned channel **stays on that server**. Reconnects and token replacements
+  re-read the same server; if NordVPN no longer offers it (retired, offline), the
+  channel is marked failed with that reason — it is never silently moved
+  elsewhere. Pin another server or switch back with
+  [`anyhop channels setserver`](#anyhop-channels-setserver-channel-serverauto).
+- Pinning fixes the **server**, not the exit IP: NordVPN may change the address a
+  server's traffic leaves from.
+- Only standard servers can be pinned; Dedicated IP and specialty (Double VPN,
+  Onion, SOCKS) servers are refused with an explanation.
+- Two channels can't share a server: NordVPN gives every device of an account
+  the same WireGuard key, so a second channel on the same server would knock the
+  first one off. The pin is refused, naming the channel already there.
 
 **Config providers** — import a WireGuard `.conf`:
 
@@ -292,6 +322,11 @@ California      protonvpn/wg_us_ca_842    :53126  United States  California     
 
 `--json` carries the same fact as a boolean `enabled` per channel.
 
+When any channel names its server (API-resolved channels), a `SERVER` column
+appears after `CITY`: the server the channel is on (`de1424`), marked
+`(pinned)` when pinned there. `--json` carries `server` (the hostname, or `""`)
+and `pinned` on every channel.
+
 For scripting, print just channel ids or provider-qualified refs (labels are
 never used as identifiers):
 
@@ -318,6 +353,25 @@ channel). Every channel table (`channels ls`, `test`) shows
 the same `LABEL` + `ID` columns — `LABEL` is the label or the id when unset, `ID`
 is the provider-qualified ref (`nordvpn/wg_jp_1`); `--json` on those carries the
 bare `name` (id), `provider`, and `label` separately.
+
+### `anyhop channels setserver CHANNEL SERVER|auto`
+
+Pin a channel to one server, or with `auto` unpin it so it follows the
+provider's recommended server again (NordVPN only).
+
+```bash
+anyhop channels setserver wg_de_1 de1605         # pin (or re-pin) to de1605
+anyhop channels setserver nordvpn/wg_de_1 auto   # follow the recommendation
+```
+
+- Pinning resolves the server first — nothing changes if it isn't available —
+  then moves the channel's country/city to the server's; a channel with no city
+  (any city in its country) **stays country-wide**. The **id stays**: it is the
+  handle routing rules reference, so a re-pin never breaks a rule.
+- `auto` keeps the channel on the server it is on (no reconnect, no interruption);
+  from then on reconnects and token changes pick the recommended server for its
+  location.
+- `<channel>` is one channel id or `provider/id` ref (no globs).
 
 ### `anyhop channels rm CHANNEL...`
 
@@ -682,6 +736,25 @@ Config providers have no locations API and print guidance instead.
 ```bash
 anyhop locations nordvpn
 anyhop locations nordvpn --country "United States"
+```
+
+## `anyhop servers`
+
+`anyhop servers <provider> --country "<country>" [--city "<city>"] [--json]`
+
+List the servers a channel can be pinned to in a location, least loaded first
+(NordVPN only). `LOAD` is a snapshot of the moment of listing. Only standard
+servers an ordinary account can use are listed.
+
+```text
+$ anyhop servers nordvpn --country Germany --city Frankfurt
+NordVPN servers in Frankfurt, Germany (165), least loaded first:
+SERVER  CITY       LOAD
+------  ---------  ----
+de1605  Frankfurt  7%
+de1609  Frankfurt  7%
+…
+Pin one:  anyhop channels add nordvpn --server de1605
 ```
 
 ---
@@ -1068,7 +1141,8 @@ Apply a bundle. Two modes, one command:
     with the same location keeps its live params (no API call, no churn); the
     bundle's `wg` snapshot is used only when fresh resolution fails (offline,
     API down) — reported in the summary, refreshed later by auto-reconnect.
-    Config channels are applied exactly as written.
+    A pinned channel (`server:`) resolves exactly that server; one NordVPN no
+    longer offers fails the apply. Config channels are applied exactly as written.
   - **Rulesets always append at the bottom of the priority order.** Under
     first-match-wins an appended block can never hijack existing routing; use
     `anyhop routes ls` (shadow lint) and `anyhop routes reorder` afterwards.

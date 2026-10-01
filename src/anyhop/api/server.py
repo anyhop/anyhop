@@ -115,6 +115,10 @@ def _query_first(path: str, key: str) -> str | None:
 # The HTTP methods each top-level /api/v1/<resource> accepts. A request whose
 # path names one of these resources but whose method isn't listed is a 405
 # (with an Allow header); a path whose first segment isn't here is a 404.
+# POST /api/v1/channels/<provider>/<id>/<action>
+_CHANNEL_ACTIONS = frozenset({"label", "enabled", "server"})
+
+
 def _api_route_methods(seg: list[str]) -> set[str] | None:
     """Methods for one exact REST target, or ``None`` when it is unknown.
 
@@ -142,6 +146,7 @@ def _api_route_methods(seg: list[str]) -> set[str] | None:
         ("routes", "geo", "refresh"): {"POST"},
         ("routes", "geo", "source"): {"POST"},
         ("locations",): {"GET"},
+        ("servers",): {"GET"},
         ("metrics",): {"GET"},
         ("logs",): {"GET"},
         ("test",): {"POST"},
@@ -165,7 +170,7 @@ def _api_route_methods(seg: list[str]) -> set[str] | None:
         return {"POST"}
     if len(seg) == 3 and seg[0] == "channels":
         return {"DELETE"}
-    if len(seg) == 4 and seg[0] == "channels" and seg[3] in {"label", "enabled"}:
+    if len(seg) == 4 and seg[0] == "channels" and seg[3] in _CHANNEL_ACTIONS:
         return {"POST"}
     if len(seg) == 3 and seg[:2] == ["routes", "rulesets"]:
         return {"POST", "DELETE"}
@@ -203,6 +208,7 @@ _API_RESOURCE_METHODS = {
     "providers": {"GET", "POST", "DELETE"},
     "channels": {"GET", "POST", "DELETE"},
     "locations": {"GET"},
+    "servers": {"GET"},
     "routes": {"GET", "POST", "DELETE"},
     "tun": {"POST"},
     "upgrade": {"GET", "POST"},
@@ -1338,6 +1344,7 @@ class _Handler(BaseHTTPRequestHandler):
             ("channels",): service.channel_list,
             ("routes",): service.routes_list,
             ("locations",): lambda: _locations(self.path),
+            ("servers",): lambda: _servers(self.path),
             ("metrics",): lambda: service.metrics_totals(_channel_query(self.path)),
             ("logs",): lambda: {"text": service.logs_tail(_log_lines(self.path))},
             # On-demand only: the owning channel (tap for Homebrew, PyPI for
@@ -1481,6 +1488,8 @@ class _Handler(BaseHTTPRequestHandler):
                 "conf_name",
                 "name",
                 "port",
+                "server",
+                "any_city",
             )
             return self._call(_add_channel, body)
         if (
@@ -1494,6 +1503,23 @@ class _Handler(BaseHTTPRequestHandler):
                 service.channel_set_label,
                 f"{seg[1]}/{seg[2]}",
                 _str_field(body, "label"),
+            )
+        if (
+            method == "POST"
+            and len(seg) == 4
+            and seg[0] == "channels"
+            and seg[3] == "server"
+        ):
+            # Pin to a server name, or "auto" to follow the recommendation.
+            # Honors If-Match like the enabled toggle.
+            _fields(body, "server")
+            return self._call(
+                lambda: service.channel_set_server(
+                    seg[2],
+                    _str_field(body, "server", required=True),
+                    provider=seg[1],
+                    expected_revision=self._if_match(),
+                )
             )
         if (
             method == "POST"
@@ -1733,11 +1759,28 @@ def _locations(path: str) -> dict:
     return service.locations_list(provider, _query_first(path, "country"))
 
 
+def _servers(path: str) -> dict:
+    from anyhop import service
+
+    provider = _query_first(path, "provider")
+    if not provider:
+        raise service.ServiceError("a provider query parameter is required.")
+    return service.servers_list(
+        service.resolve_provider(provider),
+        _query_first(path, "country"),
+        _query_first(path, "city"),
+    )
+
+
 def _add_channel(body: dict) -> dict:
     from anyhop import service
 
     provider = service.resolve_provider(_str_field(body, "provider", required=True))
     conf_text = _opt_str_field(body, "conf_text")
+    server = _opt_str_field(body, "server")
+    any_city = _bool_field(body, "any_city")
+    if conf_text is not None and (server is not None or any_city):
+        raise service.ServiceError("server/any_city cannot be combined with conf_text.")
     if conf_text is not None:  # browser upload of a .conf's contents
         return service.channel_add_conf_text(
             provider,
@@ -1756,6 +1799,8 @@ def _add_channel(body: dict) -> dict:
         _str_field(body, "label"),
         port=_int_field(body, "port") or 0,
         name=_opt_str_field(body, "name"),
+        server=server,
+        any_city=any_city,
     )
 
 

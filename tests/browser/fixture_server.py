@@ -103,6 +103,51 @@ def _fake_locations(provider: str, country: str | None = None, refresh: bool = F
 
 service.locations_list = _fake_locations
 
+# Canned pinnable servers (Germany): the real service.servers_list /
+# channel_add / channel_set_server run, only the provider calls are faked.
+_SERVERS = [
+    {
+        "server": f"de{n}",
+        "hostname": f"de{n}.nordvpn.com",
+        "country": "Germany",
+        "city": city,
+        "load": load,
+    }
+    for n, city, load in [
+        (10, "Frankfurt", 4),
+        (11, "Berlin", 7),
+        (12, "Frankfurt", 12),
+    ]
+]
+
+
+def _fake_list_servers(provider: str, country: str, city: str = "") -> list:
+    return [
+        s
+        for s in _SERVERS
+        if s["country"] == country and (not city or s["city"] == city)
+    ]
+
+
+def _fake_lookup_server(provider: str, server: str) -> dict:
+    name = server.lower().removesuffix(".nordvpn.com")
+    for s in _SERVERS:
+        if s["server"] == name:
+            return s
+    raise service.ProviderError(f"{name} is not an available NordVPN server.")
+
+
+def _fake_provider_wg(provider, country, city="", *, server=""):
+    wg = _wg("9.9.9.9")
+    if server:
+        wg["peer"]["hostname"] = server
+    return wg
+
+
+service.list_servers = _fake_list_servers
+service.lookup_server = _fake_lookup_server
+service.provider_wg = _fake_provider_wg
+
 
 def _wg(host: str) -> dict:
     # syntactically valid 32-byte keys (base64 of 0x00*32 / 0x01*32) so bundle

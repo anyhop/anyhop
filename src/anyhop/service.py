@@ -47,11 +47,15 @@ from anyhop.providers import (
     is_functional,
     kind,
     known,
+    list_servers,
+    lookup_server,
     match,
     names_channels,
     preview,
     provider_resolver,
     provider_wg,
+    servers_unsupported,
+    supports_servers,
 )
 from anyhop.state import (
     PortInUseError,
@@ -210,7 +214,10 @@ def _resolve_token_channels(
         return wg_by_cid, [ch.id for ch in channels]
     for ch in channels:
         try:
-            wg_by_cid[ch.id] = resolve(ch.country or "", ch.city or "")
+            if ch.server:  # a pinned channel stays on its server
+                wg_by_cid[ch.id] = resolve(ch.country, ch.city, server=ch.server)
+            else:
+                wg_by_cid[ch.id] = resolve(ch.country or "", ch.city or "")
         except ProviderError:
             failed.append(ch.id)
     return wg_by_cid, failed
@@ -299,8 +306,8 @@ def provider_catalog() -> dict:
     """Every provider anyhop recognises + how to add it — drives the UI add form.
 
     For each: its kind (``token``/``config``), whether it's functional, the
-    credential fields to prompt for (token providers), and the portal help
-    (config providers).
+    credential fields to prompt for (token providers), the portal help
+    (config providers), and whether channels can be pinned to a server.
     """
     out = []
     for p in known():
@@ -317,6 +324,8 @@ def provider_catalog() -> dict:
                 ],
                 "config_help": config_help(p),
                 "named_channels": names_channels(p),
+                # channels can be pinned to one server (GET /servers lists them)
+                "servers": supports_servers(p),
                 "help": instructions,
                 "url": url,
             }
@@ -410,6 +419,8 @@ def channel_add(
     label: str = "",
     port: int = 0,
     name: str | None = None,
+    server: str | None = None,
+    any_city: bool = False,
 ) -> dict:
     store = Store.load()
     label = label.strip()
@@ -424,6 +435,15 @@ def channel_add(
     # by --country/--city; config providers import a .conf. They cannot be combined,
     # and a .conf import never invents a country/city it can't know — except for
     # Customized, where the user states the location (see _conf_location).
+    if server is not None:
+        return _channel_add_pinned(
+            store, provider, server, country, city, config, name, label, port, any_city
+        )
+    if any_city:
+        raise ServiceError(
+            "any city only applies to a pinned server; a channel added by "
+            "country without a city already covers any city."
+        )
     if config:
         return _channel_add_config(
             store, provider, config, label, port, name, country, city
@@ -461,6 +481,97 @@ def channel_add(
     metrics.revive_channel(provider, channel.id)  # same identity re-created
     applog.log(
         f"added channel {provider}/{channel.id} ({channel.location}) on :{channel.port}"
+    )
+    daemon.ensure_running()
+    return {
+        "provider": provider,
+        "display_name": display_name(provider),
+        "channel": _channel_public(channel),
+    }
+
+
+def _check_server_free(
+    store: Store, provider: str, hostname: str, cid: str | None = None
+) -> None:
+    """Refuse a pin onto a server another channel of the account is on.
+
+    A provider like NordVPN gives every device of an account the same
+    WireGuard key, so a server tells its peers apart by key alone: two
+    channels on one server are one peer to it, flapping between two source
+    ports, and each would keep breaking the other.
+    """
+    for other in store.provider_channels(provider):
+        if other.id != cid and hostname in (other.server, other.current_server):
+            short = hostname.split(".", 1)[0]
+            raise ServiceError(
+                f"{short} is already in use by {provider}/{other.id}: "
+                f"{display_name(provider)} uses one WireGuard key per account, so "
+                "two channels on the same server would disrupt each other. "
+                "Pick another server."
+            )
+
+
+def _channel_add_pinned(
+    store: Store,
+    provider: str,
+    server: str,
+    country: str | None,
+    city: str | None,
+    config: str | None,
+    name: str | None,
+    label: str,
+    port: int,
+    any_city: bool = False,
+) -> dict:
+    """Add a channel pinned to one named server.
+
+    The server alone says where the channel is: a stated country/city could
+    only ever agree with it or contradict it, so they are refused outright.
+    ``any_city`` only *widens* that location to the server's whole country
+    (the channel is ``wg_us_1``, not ``wg_us_seattle_1``) — the scope a user
+    picked the server under, which re-pinning then lists from.
+    """
+    if not supports_servers(provider):
+        raise ServiceError(servers_unsupported(provider))
+    conflicting = [
+        flag
+        for flag, value in (
+            ("country", country),
+            ("city", city),
+            ("config", config),
+            ("name", name),
+        )
+        if value
+    ]
+    if conflicting:
+        raise ServiceError(
+            "a pinned server already determines the channel's location, so "
+            f"server cannot be combined with {', '.join(conflicting)}."
+        )
+    try:
+        found = lookup_server(provider, server)
+        _check_server_free(store, provider, found["hostname"])
+        wg = provider_wg(
+            provider, found["country"], found["city"], server=found["hostname"]
+        )
+    except ProviderError as e:
+        raise ServiceError(str(e)) from e
+    try:
+        channel = store.add_channel(
+            provider,
+            found["country"],
+            "" if any_city else found["city"],
+            wg,
+            label,
+            port,
+            server=found["hostname"],
+        )
+    except PortInUseError as e:
+        raise ServiceError(str(e)) from e
+    metrics.revive_channel(provider, channel.id)
+    applog.log(
+        f"added channel {provider}/{channel.id} pinned to {found['hostname']} "
+        f"({channel.location}) on :{channel.port}"
     )
     daemon.ensure_running()
     return {
@@ -698,6 +809,10 @@ def _channel_public(channel, revision: str | None = None) -> dict:
         "city": _city_display(channel),
         "enabled": channel.enabled,
         "ipv6": channel_ipv6(channel),
+        # the server the channel is on (when the provider names one), and
+        # whether it is pinned there or follows the provider's recommendation
+        "server": channel.server or channel.current_server,
+        "pinned": bool(channel.server),
     }
     if revision is not None:
         public["revision"] = revision
@@ -938,7 +1053,12 @@ def channel_set_enabled_many(
                     "--config <file>"
                 )
             try:
-                wg = provider_wg(item["provider"], ch.country, ch.city or "")
+                if ch.server:  # a pinned channel resolves its own server
+                    wg = provider_wg(
+                        item["provider"], ch.country, ch.city, server=ch.server
+                    )
+                else:
+                    wg = provider_wg(item["provider"], ch.country, ch.city or "")
             except ProviderError as e:
                 raise ServiceError(
                     f"cannot enable {item['ref']}: resolving a server failed ({e})."
@@ -1019,6 +1139,112 @@ def channel_set_label(ref: str, label: str, provider: str | None = None) -> dict
         "channel": item["channel"],
         "label": label,
         "cleared": not label,
+    }
+
+
+AUTO_SERVER = "auto"
+
+
+def channel_set_server(
+    ref: str,
+    server: str,
+    provider: str | None = None,
+    expected_revision: str | None = None,
+) -> dict:
+    """Pin one channel to ``server``, or with ``"auto"`` unpin it.
+
+    Pinning resolves the server first (nothing is written if it is not
+    available) and moves the channel's country/city to the server's — except
+    that a channel with no city (any city in its country) stays country-wide.
+    The id stays — it is the handle routing rules reference. Unpinning keeps the
+    channel on its current server and location: from then on reconnects and
+    token changes pick the recommended server for that location.
+    """
+    if _is_pattern(ref):
+        raise ServiceError("a glob cannot be used to set a single channel's server.")
+    server = (server or "").strip()
+    if not server:
+        raise ServiceError(f"name a server (e.g. de1398) or {AUTO_SERVER!r}.")
+    store = Store.load()
+    item = _resolve_channel_ref(store, ref, provider)[0]
+    prov, cid = item["provider"], item["channel"]
+    ch = store.get_channel(prov, cid)
+    if ch is None:  # vanished between the lookup and here
+        raise ServiceError(f"no channel {item['ref']!r} (see: anyhop channels ls).")
+    if not supports_servers(prov):
+        raise ServiceError(servers_unsupported(prov, item["ref"]))
+
+    if server.lower() == AUTO_SERVER:
+        if not ch.server:
+            return _server_result(ch, store, changed=False)
+        updated = store.set_channel_server(
+            prov, cid, "", expected_revision=expected_revision
+        )
+        applog.log(f"unpinned channel {prov}/{cid} from {ch.server}")
+    else:
+        try:
+            found = lookup_server(prov, server)
+            if found["hostname"] == ch.server:
+                return _server_result(ch, store, changed=False)
+            _check_server_free(store, prov, found["hostname"], cid)
+            wg = provider_wg(
+                prov, found["country"], found["city"], server=found["hostname"]
+            )
+        except ProviderError as e:
+            raise ServiceError(str(e)) from e
+        updated = store.set_channel_server(
+            prov,
+            cid,
+            found["hostname"],
+            wg=wg,
+            country=found["country"],
+            city=found["city"] if ch.city else "",
+            expected_revision=expected_revision,
+        )
+        applog.log(f"pinned channel {prov}/{cid} to {found['hostname']}")
+    if updated is None:
+        raise ServiceError(f"no channel {item['ref']!r} (see: anyhop channels ls).")
+    daemon.ensure_running()
+    return _server_result(updated, store, changed=True)
+
+
+def _server_result(channel, store: Store, *, changed: bool) -> dict:
+    return {
+        "provider": channel.provider,
+        "display_name": display_name(channel.provider),
+        "changed": changed,
+        "channel": _channel_public(
+            channel, store.channel_revision(channel.provider, channel.id)
+        ),
+    }
+
+
+def servers_list(provider: str, country: str | None, city: str | None = None) -> dict:
+    """The servers a channel can be pinned to in a location, least loaded first.
+
+    Loads are a snapshot of the moment of listing.
+    """
+    if not supports_servers(provider):
+        raise ServiceError(servers_unsupported(provider))
+    if not country:
+        raise ServiceError(
+            f"usage: anyhop servers {provider} --country <country> [--city <city>]"
+        )
+    try:
+        servers = list_servers(provider, country, city or "")
+    except ProviderError as e:
+        msg = str(e)
+        if "not a" in msg and "location" in msg:
+            msg += f"\nSee available locations: anyhop locations {provider}"
+        raise ServiceError(msg) from e
+    # echo the location as the provider spells it, not as typed ("germany")
+    first = servers[0] if servers else {}
+    return {
+        "provider": provider,
+        "display_name": display_name(provider),
+        "country": first.get("country") or country,
+        "city": (first.get("city") or city or "") if city else "",
+        "servers": servers,
     }
 
 
@@ -2435,6 +2661,8 @@ def status_snapshot() -> dict:
                 # per-provider policy AND this server's own config — see
                 # engine.channel_ipv6 (surfaced for channels ls / the UI)
                 "ipv6": channel_ipv6(channel),
+                "server": channel.server or channel.current_server,
+                "pinned": bool(channel.server),
                 "probe": probe,
                 "reconnect": recon,
                 "latency_ms": latency,

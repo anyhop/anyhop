@@ -163,6 +163,25 @@ two ways:
    copied from the site doesn't resolve, cross-check it with
    `anyhop locations nordvpn` — the CLI is authoritative.
 
+**Pinning a server.** To keep a channel on one concrete server instead of the
+recommended pick, write `server:` **in place of** `country`/`city` (a channel
+with both is rejected — the server determines the location); add
+`any_city: true` to record it for the server's whole country rather than its
+city. Find names with `anyhop servers nordvpn --country "<country>"`:
+
+```yaml
+    channels:
+      wg_de_frankfurt_1:
+        server: de1605              # or de1605.nordvpn.com
+      wg_us_1:
+        server: us9553
+        any_city: true              # "United States (Any City)", not Phoenix
+```
+
+A pinned server NordVPN no longer offers fails the apply for an enabled
+channel (it is never swapped for another); see
+[Bundle reference](bundle.md#token-channels-wg-is-derived-state).
+
 Getting the token: https://my.nordaccount.com/dashboard/nordvpn/access-tokens →
 generate an access token. It is a secret — see
 [the security note](#applying-it).
@@ -193,19 +212,19 @@ PersistentKeepalive = 25
 Every WireGuard field maps straight across; only the identity and the labels
 come from outside the file:
 
-| Bundle field                              | Comes from                               | Notes                                                                                                                                                                                                |
-| ----------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bundle field                              | Comes from                               | Notes                                                                                                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | channel id (`wg_us_ca_842`)               | the **filename**, slugged                | `wg-US-CA-842.conf` → drop `.conf`, lowercase, non-alnum → `_`. This is anyhop's own convention when it imports a `.conf`; matching it keeps a later re-import of a refreshed file an in-place update. |
-| `wg.private_key`                          | `[Interface] PrivateKey`                 | required                                                                                                                                                                                             |
-| `wg.address`                              | `[Interface] Address`                    | a YAML list                                                                                                                                                                                          |
-| `wg.peer.public_key`                      | `[Peer] PublicKey`                       | required                                                                                                                                                                                             |
-| `wg.peer.endpoint_host` / `endpoint_port` | `[Peer] Endpoint`, split on the last `:` |                                                                                                                                                                                                      |
-| `wg.peer.allowed_ips`                     | `[Peer] AllowedIPs`                      | optional; omit for the `0.0.0.0/0, ::/0` default                                                                                                                                                     |
-| `wg.peer.keepalive`                       | `[Peer] PersistentKeepalive`             | optional; defaults to 25                                                                                                                                                                             |
-| `wg.peer.preshared_key`                   | `[Peer] PresharedKey`, if present        | optional; Proton configs usually have none (`null`)                                                                                                                                                  |
-| `country` / `city`                        | **not in the file**                      | optional but recommended — copy them from the console where you downloaded the config. The filename parses best-effort (`US`/`CA`), but the console is authoritative.                                |
-| `label`                                   | **you choose it**                        | optional but recommended                                                                                                                                                                             |
-| `enabled`                                 | **you choose it**                        | optional, tri-state. `false` holds the channel without dialling it (no provider connection slot used); omitted = keep an existing channel's state on `import`, enabled for a new one.                |
+| `wg.private_key`                          | `[Interface] PrivateKey`                 | required                                                                                                                                                                                               |
+| `wg.address`                              | `[Interface] Address`                    | a YAML list                                                                                                                                                                                            |
+| `wg.peer.public_key`                      | `[Peer] PublicKey`                       | required                                                                                                                                                                                               |
+| `wg.peer.endpoint_host` / `endpoint_port` | `[Peer] Endpoint`, split on the last `:` |                                                                                                                                                                                                        |
+| `wg.peer.allowed_ips`                     | `[Peer] AllowedIPs`                      | optional; omit for the `0.0.0.0/0, ::/0` default                                                                                                                                                       |
+| `wg.peer.keepalive`                       | `[Peer] PersistentKeepalive`             | optional; defaults to 25                                                                                                                                                                               |
+| `wg.peer.preshared_key`                   | `[Peer] PresharedKey`, if present        | optional; Proton configs usually have none (`null`)                                                                                                                                                    |
+| `country` / `city`                        | **not in the file**                      | optional but recommended — copy them from the console where you downloaded the config. The filename parses best-effort (`US`/`CA`), but the console is authoritative.                                  |
+| `label`                                   | **you choose it**                        | optional but recommended                                                                                                                                                                               |
+| `enabled`                                 | **you choose it**                        | optional, tri-state. `false` holds the channel without dialling it (no provider connection slot used); omitted = keep an existing channel's state on `import`, enabled for a new one.                  |
 
 `[Interface] DNS` and the `# …` comment lines are ignored (anyhop reads only the
 fields sing-box acts on), so they have no bundle equivalent.
@@ -336,8 +355,9 @@ A few things to know — all covered in full in [bundle.md](bundle.md):
   tokens. Keep it private; anyhop writes exported files `0600`.
 - **The whole file is validated first** and rejected as a whole (per-entry
   errors) on any problem — an apply never half-applies.
-- **Token channels resolve a fresh server** via the token at apply time;
-  config channels apply exactly as written.
+- **Token channels resolve a fresh server** via the token at apply time (a
+  pinned channel resolves its own server); config channels apply exactly as
+  written.
 - **Ports are not set from the file** — they are allocated locally. After
   applying on a new machine, point apps at the ports from `anyhop status`.
 - **Don't run one setup on two machines at once** without care — token

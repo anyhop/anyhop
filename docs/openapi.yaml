@@ -410,6 +410,11 @@ paths:
     get:
       tags: [providers]
       summary: The known-provider registry
+      description: >
+        Per provider: name, kind (`token`/`config`), whether it is
+        functional, the credential fields to prompt for, the portal help,
+        and `servers` — whether its channels can be pinned to one server
+        (GET /api/v1/servers lists them).
       operationId: providerCatalog
       responses:
         "200": { $ref: "#/components/responses/GenericResult" }
@@ -496,7 +501,15 @@ paths:
         current location) — exactly as the CLI's --name/--country/--city.
         Every other provider refuses `name`. `port` declares the local
         proxy port instead of an OS-assigned one, exactly as the CLI's
-        --port; refused if already held.
+        --port; refused if already held. `server` pins the channel to one
+        server (providers whose catalog entry has `servers: true`; list
+        them with GET /api/v1/servers) instead of the recommended pick —
+        the server determines the location, so it is refused together
+        with `country`/`city`/`conf_text`/`name`, exactly as the CLI's
+        --server. `any_city` (with `server` only) records the channel for
+        the server's whole country instead of its city, as the CLI's
+        --any-city. Providers without server choice refuse `server` with
+        a "NordVPN-only feature" error.
       operationId: addChannel
       requestBody:
         required: true
@@ -536,10 +549,54 @@ paths:
                     type: integer,
                     description: Declare the local proxy port instead of an OS-assigned one,
                   }
+                server:
+                  {
+                    type: string,
+                    description: "Pin to this server (e.g. de1398 or de1398.nordvpn.com); excludes country/city",
+                  }
+                any_city:
+                  {
+                    type: boolean,
+                    description: "With server: record the channel for the server's whole country (any city) instead of its city",
+                  }
       responses:
         "200": { $ref: "#/components/responses/GenericResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/channels/{provider}/{channel}/server:
+    post:
+      tags: [channels]
+      summary: Pin a channel to one server, or unpin it
+      description: >
+        `server` is a server name (pin; the channel's country/city become
+        the server's — a country-wide channel, one with no city, stays
+        country-wide — and its id stays) or `auto` (unpin: the channel
+        stays on its current server and from then on follows the
+        recommended server for its location). Refused when the server is not available or
+        another channel of the account is already on it. A pinned channel
+        whose server is retired is marked failed by auto-reconnect, never
+        moved elsewhere.
+      operationId: setChannelServer
+      parameters:
+        - { $ref: "#/components/parameters/providerPath" }
+        - { $ref: "#/components/parameters/channelId" }
+        - { $ref: "#/components/parameters/ifMatch" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [server]
+              properties:
+                server: { type: string, description: "A server name, or auto" }
+      responses:
+        "200": { $ref: "#/components/responses/GenericResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /api/v1/channels/{provider}/{channel}/label:
     post:
@@ -675,6 +732,34 @@ paths:
           required: true
           schema: { type: string }
         - name: country
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/GenericResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/servers:
+    get:
+      tags: [channels]
+      summary: The servers a channel can be pinned to in a location
+      description: >
+        Least loaded first; `load` is a percentage snapshot of the moment
+        of listing. Only servers an ordinary account can use are listed
+        (no Dedicated IP or specialty servers). Providers without server
+        choice (catalog `servers: false`) answer 400.
+      operationId: listServers
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema: { type: string }
+        - name: country
+          in: query
+          required: true
+          schema: { type: string }
+        - name: city
           in: query
           required: false
           schema: { type: string }

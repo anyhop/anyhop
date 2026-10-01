@@ -86,6 +86,12 @@ containerized.
   rule wins for a destination without sending traffic.
 - **A probe is not a connection.** WireGuard is connectionless; health comes
   from the last probe, and no "connected" event will ever arrive.
+- **NordVPN channels can be pinned** to one server (`GET /servers`, then
+  `server` *instead of* `country`/`city`); a pinned channel never moves, and a
+  retired server fails it rather than swapping it. Every new channel or server
+  change starts a fresh provider session, and WireGuard cannot close the old
+  one — it keeps counting against the account's device limit for minutes, so
+  avoid churn on connection-capped accounts.
 - Removing or disabling a channel a ruleset targets is **refused** until the
   ruleset is retargeted. Destructive calls accept `dry_run=1`.
 - Speed tests stream NDJSON and end with exactly one terminal record.

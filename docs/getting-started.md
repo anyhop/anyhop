@@ -243,6 +243,17 @@ anyhop locations nordvpn --country "United States"
 anyhop channels add nordvpn --country "United States" --city "Seattle"
 ```
 
+Rather than the server NordVPN recommends, a channel can be **pinned** to one
+server: list a location's servers (least loaded first), then add by name — the
+server determines the location. See
+[`anyhop channels add`](cli-reference.md#anyhop-channels-add-provider-) and
+[`anyhop channels setserver`](cli-reference.md#anyhop-channels-setserver-channel-serverauto).
+
+```bash
+anyhop servers nordvpn --country "United States" --city "Seattle"
+anyhop channels add nordvpn --server us9553
+```
+
 To rotate a bad or expired token later, run `anyhop providers add nordvpn` again
 (or use the gear on the provider in the Web UI): it confirms, validates the new
 token, and re-resolves the provider's channels — no need to remove and re-add.

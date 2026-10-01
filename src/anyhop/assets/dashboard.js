@@ -7,6 +7,7 @@ const GRIP = `<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidd
 const GRAB = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-4 0"/><path d="M14 10V4a2 2 0 0 0-4 0v2"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>`;
 const COPY = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 const GEAR = `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const PIN = `<svg class="ico pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z"/></svg>`;
 const PEN = `<svg class="pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const PROVIDER_ICONS = {
   nordvpn: "/nordvpn.svg",
@@ -239,6 +240,37 @@ export function visibleTraffic(channel, measurement = {}) {
   };
 }
 function loc(c) { return c.city && !["(Unknown)", "(Any City)"].includes(c.city) ? `${c.city}, ${c.country}` : c.country; }
+function realCity(c) { return c.city && !["(Unknown)", "(Any City)"].includes(c.city) ? c.city : ""; }
+function shortServer(hostname) { return (hostname || "").split(".")[0]; }
+
+// The servers a channel can be pinned to in a location, least loaded first.
+async function fetchServers(provider, country, city, signal) {
+  const q = new URLSearchParams({ provider, country });
+  if (city) q.set("city", city);
+  return api.get(`/api/v1/servers?${q}`, { signal });
+}
+
+// One selectable card per server; ``selected`` (a hostname) is marked.
+// Shared by the add wizard and the change dialog. type="button": the wizard's
+// cards live inside its form and must never submit it.
+function serverCardHTML(value, title, sub, selected) {
+  return `<button type="button" class="loc-card${selected ? " selected" : ""}" data-server="${esc(value)}" aria-pressed="${selected}"><b>${esc(title)}</b><small>${esc(sub)}</small></button>`;
+}
+function serverCardsHTML(servers, selected = "") {
+  return servers.map((s) => serverCardHTML(s.server, s.server, `${s.city} · ${s.load ?? "?"}% load`, s.hostname === selected)).join("");
+}
+function autoCardHTML(sub, selected) {
+  return serverCardHTML("auto", "Automatic", sub, selected).replace('class="loc-card', 'class="loc-card srv-auto');
+}
+
+function wireServerFilter(root) {
+  const grid = root.querySelector("#srv-grid");
+  root.querySelector("#srv-search").oninput = (e) => {
+    const q = e.target.value.toLowerCase();
+    [...grid.children].forEach((b) => { b.hidden = !b.textContent.toLowerCase().includes(q); });
+  };
+  return grid;
+}
 function spin(key, kind, icon) { return busy.has(key) || busy.has(`${key}:${kind}`) ? '<span class="spinner small"></span>' : icon; }
 // A channel's action buttons are locked while it's being tested (either kind) or
 // while a batch run is in flight — so e.g. a channel's Probe is greyed while its
@@ -330,7 +362,7 @@ function chanRow(c) {
   return `<div class="row dashchan body${off ? " chan-off" : ""}" data-provider="${esc(c.provider)}" data-id="${esc(c.name)}">
     <span class="chan-label"><button class="name edit" data-label="${esc(c.label || "")}" title="Rename">${esc(c.label || c.name)}</button>
       <div class="ref">${esc(key)}${c.ipv6 ? '<span class="v6-badge" title="Carries IPv6 inside the tunnel (provider + server support)">IPv6</span>' : ""}</div></span>
-    <span class="loc" title="${esc(loc(c))}">${esc(loc(c))}</span>
+    <span class="loc" title="${esc(loc(c))}">${esc(loc(c))}${c.server ? `<button class="srv" type="button" data-server title="${c.pinned ? "Pinned server — click to change" : "Server picked automatically — click to pin one"}">${c.pinned ? PIN : ""}${esc(shortServer(c.server))}</button>` : ""}</span>
     <span class="port copyable" data-copy="${portCopy}" title="Click to copy" role="button" tabindex="0" aria-label="Copy proxy address ${portCopy}">${esc(c.port)}</span>
     ${ipCell}
     <span class="lat">${latText}</span>
@@ -572,6 +604,7 @@ async function onChannelClick(e) {
   if (e.target.closest("[data-speed]")) return runTest(channel, true);
   if (e.target.closest("[data-toggle]")) return toggleChannel(channel);
   if (e.target.closest("[data-remove]")) return removeChannel(channel);
+  if (e.target.closest("[data-server]")) return openChangeServer(channel);
   const nameBtn = e.target.closest(".name.edit");
   if (nameBtn) startRelabel(row, channel, nameBtn.dataset.label);
 }
@@ -1029,7 +1062,7 @@ async function openAddChannel() {
   const m = modal("Add channel", `<div id="wizard"></div>`);
   m.root.querySelector(".modal").classList.add("wide");
   const wiz = m.root.querySelector("#wizard");
-  const st = { provider: null, country: null, city: null, countriesData: null, citiesForCountry: [] };
+  const st = { provider: null, country: null, city: null, countriesData: null, citiesForCountry: [], server: null };
 
   async function renderProviders() {
     const provRes = await api.get("/api/v1/providers");
@@ -1258,17 +1291,32 @@ async function openAddChannel() {
 
   function renderLabelStep() {
     const where = st.city ? `${st.city}, ${st.country}` : st.country;
+    const pinnable = (catalog.find((x) => x.provider === st.provider) || {}).servers;
+    st.server = null; // Automatic is the default every time the step opens
+    const serverField = !pinnable ? "" : `<div class="server-choice" id="srv-choice">
+        ${autoCardHTML("the provider picks the server", true)}
+        <p class="srv-caption">Pick a server in ${esc(where)}</p>
+        <input class="loc-search" id="srv-search" placeholder="Filter servers…" spellcheck="false" autocomplete="off">
+        <div class="loc-grid srv-grid" id="srv-grid"><div class="loc-loading">Loading servers…</div></div>
+      </div>`;
     wiz.innerHTML = `<form id="lf">
       <p class="field-guide">New channel in <b>${esc(where)}</b>.</p>
       <label class="field"><span>Label <em>(optional)</em></span><input id="label" placeholder="e.g. Streaming — US" spellcheck="false"></label>
+      ${serverField}
       <p class="form-err" id="lerr"></p>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button><button class="btn primary" type="submit">Add Channel</button></div>
     </form>`;
     wiz.querySelector("[data-back]").onclick = renderCityStep;
+    if (pinnable) loadServerChoices(where);
     wiz.querySelector("#lf").onsubmit = async (e) => {
       e.preventDefault();
       const err = wiz.querySelector("#lerr"); err.textContent = "";
-      const body = { provider: st.provider, country: st.country, city: st.city, label: wiz.querySelector("#label").value.trim() };
+      const label = wiz.querySelector("#label").value.trim();
+      // A pinned server alone says where the channel is — never send both.
+      // Picked under "Any city", the pin keeps that country-wide scope.
+      const body = st.server
+        ? { provider: st.provider, server: st.server.server, label, ...(st.city ? {} : { any_city: true }) }
+        : { provider: st.provider, country: st.country, city: st.city, label };
       const btn = wiz.querySelector('button[type="submit"]');
       if (btn.disabled) return;
       btn.disabled = true;
@@ -1282,7 +1330,89 @@ async function openAddChannel() {
     wiz.querySelector("#label").focus();
   }
 
+  // Fill the label step's server grid; one click selects (Automatic or a
+  // server), so the choice is a radio group across both.
+  async function loadServerChoices(where) {
+    const choice = wiz.querySelector("#srv-choice");
+    const active = mountGuard();
+    const res = await fetchServers(st.provider, st.country, st.city, lifetime?.signal);
+    if (res.aborted || !active() || !choice.isConnected) return;
+    const grid = choice.querySelector("#srv-grid");
+    if (!res.ok) { grid.innerHTML = `<p class="form-err">${esc(res.error)}</p>`; return; }
+    const servers = res.data.servers || [];
+    grid.innerHTML = servers.length
+      ? serverCardsHTML(servers)
+      : `<div class="loc-loading">No servers listed in ${esc(where)}.</div>`;
+    wireServerFilter(choice);
+    choice.onclick = (e) => {
+      const card = e.target.closest("[data-server]");
+      if (!card) return;
+      st.server = servers.find((x) => x.server === card.dataset.server) || null;
+      choice.querySelectorAll("[data-server]").forEach((b) => {
+        const on = b === card;
+        b.classList.toggle("selected", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
+    };
+  }
+
   await renderProviders();
+}
+
+// Change which server a channel uses: pin one, or Automatic (the provider's
+// recommendation). Lists the channel's city (or whole country when it has
+// none), with a one-click widen to the whole country.
+async function openChangeServer(c) {
+  const key = chanKey(c);
+  const m = modal(`Server — ${c.label || c.name}`, `<div id="srv-wiz"><div class="loc-loading">Loading servers…</div></div>`);
+  m.root.querySelector(".modal").classList.add("wide");
+  const wiz = m.root.querySelector("#srv-wiz");
+  const active = mountGuard();
+  async function render(city) {
+    wiz.innerHTML = `<div class="loc-loading">Loading servers…</div>`;
+    const res = await fetchServers(c.provider, c.country, city, lifetime?.signal);
+    if (res.aborted || !active()) return;
+    if (!res.ok) { wiz.innerHTML = `<p class="form-err">${esc(res.error)}</p>`; return; }
+    const where = city ? `${city}, ${c.country}` : c.country;
+    const autoSub = c.pinned ? "let the provider pick" : `current · on ${shortServer(c.server) || "—"}`;
+    wiz.innerHTML = `<p class="field-guide">${c.pinned ? `Pinned to <b>${esc(shortServer(c.server))}</b>.` : "Following the provider's recommendation."}</p>
+      <div class="server-choice">
+        ${autoCardHTML(autoSub, !c.pinned)}
+        <p class="srv-caption">Pick a server in ${esc(where)}${city ? ` <button class="linkish" type="button" data-widen>Show all of ${esc(c.country)}</button>` : ""}</p>
+        <input class="loc-search" id="srv-search" placeholder="Filter servers…" spellcheck="false" autocomplete="off">
+        <div class="loc-grid srv-grid" id="srv-grid">${serverCardsHTML(res.data.servers || [], c.pinned ? c.server : "")}</div>
+      </div>
+      <p class="form-err" id="srv-err"></p>`;
+    wireServerFilter(wiz);
+    const widen = wiz.querySelector("[data-widen]");
+    if (widen) widen.onclick = () => render("");
+    wiz.querySelector(".server-choice").onclick = (e) => {
+      const card = e.target.closest("[data-server]");
+      if (!card || card.classList.contains("selected")) return;
+      apply(card.dataset.server);
+    };
+    wiz.querySelector("#srv-search").focus();
+  }
+  async function apply(server) {
+    await singleFlight(`${key}:server`, async () => {
+      const res = await api.post(
+        `/api/v1/channels/${c.provider}/${c.name}/server`,
+        { server },
+        { signal: lifetime?.signal, ifMatch: c.revision },
+      );
+      if (res.aborted || !active()) return;
+      if (!res.ok) {
+        wiz.querySelector("#srv-err").textContent = res.error;
+        if (res.status === 409) refreshStatus();
+        return;
+      }
+      m.close();
+      measured.delete(key); // the old server's probe/speed numbers no longer apply
+      toast(server === "auto" ? `${c.name} now follows the recommended server.` : `Pinned ${c.name} to ${server}.`);
+      refreshStatus();
+    });
+  }
+  await render(realCity(c));
 }
 
 function routeTargetOptions() {

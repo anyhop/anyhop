@@ -57,6 +57,15 @@ an existing same-location channel, else the bundle's ``wg`` snapshot, else it
 lands wg-less and a later ``anyhop channels enable`` resolves it. A bundle
 ruleset can never target a channel the same bundle disables, mirroring the
 live restrict-only invariant.
+
+A token channel pinned to one server (see ``anyhop channels setserver``) is
+written as ``server: <hostname>`` *instead of* ``country``/``city`` — the
+server determines its location, so a bundle carrying both is rejected. At
+apply the pin is honored exactly: the channel resolves that server (never a
+recommendation), and a server the provider no longer offers fails the apply
+for an enabled channel rather than quietly connecting somewhere else. An
+optional ``any_city: true`` keeps a pinned channel country-wide (its city is
+left empty instead of taking the server's), the scope it was pinned under.
 """
 
 from __future__ import annotations
@@ -71,13 +80,19 @@ import yaml
 from anyhop import credentials, metrics, routes, txn, wgconf
 from anyhop.providers import (
     ProviderError,
+    ProviderServerUnavailableError,
     WireGuardResolver,
     auth_fields,
     display_name,
     is_functional,
     kind,
     known,
+    lookup_server,
     provider_resolver,
+    server_country_offline,
+    server_name,
+    servers_unsupported,
+    supports_servers,
 )
 from anyhop.state import PortInUseError, ReferencedError, Store, _slug
 
@@ -239,7 +254,12 @@ def _export_channel(ch) -> dict:
     # `enabled` is written explicitly (never relying on an absent-key rule):
     # on a merge, an *omitted* key means "leave the channel's state alone",
     # so an export — a faithful backup — must always state it.
-    out: dict = {"country": ch.country, "city": ch.city, "enabled": ch.enabled}
+    if ch.server:  # the server alone says where a pinned channel is
+        out: dict = {"server": ch.server, "enabled": ch.enabled}
+        if not ch.city:  # pinned under "any city": keep the country-wide scope
+            out["any_city"] = True
+    else:
+        out = {"country": ch.country, "city": ch.city, "enabled": ch.enabled}
     if ch.label:
         out["label"] = ch.label
     if ch.wg:
@@ -293,7 +313,8 @@ def validate(
     """Check the whole bundle; raise :class:`BundleError` with every problem.
 
     Returns the normalized parse: ``{"providers": {provider: {"credential",
-    "channels": {id: {"country", "city", "label", "wg", "enabled"}}}},
+    "channels": {id: {"country", "city", "label", "server", "any_city",
+    "port", "wg", "enabled"}}}},
     "router": {"killswitch", "lan_direct", "rulesets"}}`` where ``wg`` is None
     for resolve-at-apply entries and each router key is None when the bundle
     leaves it unstated.
@@ -518,6 +539,7 @@ def _validate_provider(
             (f"{path}.channels", "must be a mapping of channel id -> channel")
         )
         raw_channels = {}
+    pinned_by: dict[str, str] = {}  # server -> the channel id pinning it
     for cid, spec in raw_channels.items():
         cpath = f"{path}.channels.{cid}"
         if not isinstance(cid, str) or cid != _slug(cid):
@@ -535,6 +557,19 @@ def _validate_provider(
             check_locations=check_locations,
         )
         if channel is not None:
+            if channel["server"] in pinned_by:
+                # one WireGuard key per account: two channels on one server
+                # would be one peer to it, each disrupting the other
+                errors.append(
+                    (
+                        f"{cpath}.server",
+                        f"{channel['server']} is also pinned by channel "
+                        f"{pinned_by[channel['server']]}; each channel needs "
+                        "its own server",
+                    )
+                )
+            elif channel["server"]:
+                pinned_by[channel["server"]] = cid
             channels[cid] = channel
     return {"credential": credential, "channels": channels}
 
@@ -620,7 +655,40 @@ def _validate_channel(
         errors.append((f"{path}.enabled", "must be true or false"))
         enabled = None
 
-    if token_provider:
+    server = spec.get("server")
+    if server is not None and not (isinstance(server, str) and server.strip()):
+        errors.append((f"{path}.server", "must be a server name (e.g. de1398)"))
+        server = None
+    elif server is not None:
+        if not (token_provider and supports_servers(provider)):
+            errors.append((f"{path}.server", servers_unsupported(provider)))
+            server = None
+        else:
+            try:
+                server = server_name(provider, server)
+            except ProviderError as e:
+                errors.append((f"{path}.server", str(e)))
+                server = None
+            for key in ("country", "city"):
+                if fields[key]:
+                    errors.append(
+                        (
+                            f"{path}.{key}",
+                            "cannot be combined with server — the pinned server "
+                            "determines the location",
+                        )
+                    )
+    any_city = spec.get("any_city")
+    if any_city is not None and not isinstance(any_city, bool):
+        errors.append((f"{path}.any_city", "must be true or false"))
+        any_city = None
+    elif any_city and spec.get("server") is None:
+        errors.append(
+            (f"{path}.any_city", "only applies to a channel pinned with server")
+        )
+    # A pinned channel (valid pin or not) has no country/city to check: its
+    # location comes from the server at apply.
+    if token_provider and spec.get("server") is None:
         # country is the input the API resolves from — required, and checked
         # against the provider's real list when we have it; city is optional
         # but must be a real city in that country when given. With
@@ -666,7 +734,14 @@ def _validate_channel(
                 "can resolve a channel without a snapshot",
             )
         )
-    return {**fields, "port": port, "wg": wg, "enabled": enabled}
+    return {
+        **fields,
+        "server": server or "",
+        "any_city": bool(any_city),
+        "port": port,
+        "wg": wg,
+        "enabled": enabled,
+    }
 
 
 def _validate_port(value, path: str, errors: list) -> int:
@@ -770,20 +845,23 @@ def _validate_wg(wg, path: str, errors: list) -> dict | None:
     if not isinstance(keepalive, int) or isinstance(keepalive, bool) or keepalive < 0:
         errors.append((f"{path}.peer.keepalive", "must be a number of seconds"))
 
+    hostname = peer.get("hostname")
+    if hostname is not None and not (isinstance(hostname, str) and hostname.strip()):
+        errors.append((f"{path}.peer.hostname", "must be the server's hostname"))
+
     if len(errors) > before:
         return None
-    return {
-        "private_key": private_key,
-        "address": address,
-        "peer": {
-            "public_key": public_key,
-            "endpoint_host": host.strip(),
-            "endpoint_port": port,
-            "preshared_key": preshared,
-            "allowed_ips": allowed,
-            "keepalive": keepalive,
-        },
+    out_peer = {
+        "public_key": public_key,
+        "endpoint_host": host.strip(),
+        "endpoint_port": port,
+        "preshared_key": preshared,
+        "allowed_ips": allowed,
+        "keepalive": keepalive,
     }
+    if hostname:  # the provider's name for the server (API-resolved channels)
+        out_peer["hostname"] = hostname.strip()
+    return {"private_key": private_key, "address": address, "peer": out_peer}
 
 
 def _validate_rulesets(
@@ -889,6 +967,14 @@ def _resolve_token_wg(
        later. Only a wg-less channel with no snapshot to fall back on fails the
        whole apply.
 
+    A **pinned** channel (``server``) follows the same order with the server
+    as its identity: an existing channel already on that server keeps its
+    params and location; otherwise the server is looked up (which also gives
+    the channel its country/city) and resolved — never a recommendation. A
+    server the provider no longer offers fails the apply for an enabled
+    channel; an unreachable API falls back to the snapshot, labelled with the
+    country its name implies.
+
     **Disabled channels are exempt from fresh resolution** — the provider API
     is never asked to pick a server for one. After the keep-existing check
     (step 1, no API call), a disabled channel keeps the bundle's snapshot if
@@ -927,6 +1013,20 @@ def _resolve_token_wg(
         for cid, ch in entry["channels"].items():
             ref = f"{provider}/{cid}"
             existing = existing_by_ref.get((provider, cid))
+            if ch.get("server"):
+                outcome = _resolve_pinned(
+                    provider,
+                    cid,
+                    ch,
+                    existing,
+                    merge=merge,
+                    resolver_for=lambda p=provider, c=creds: resolver_for(p, c),
+                )
+                if outcome == "resolved":
+                    resolved.append(ref)
+                elif outcome == "fallback":
+                    fallback.append(ref)
+                continue
             if (
                 existing is not None
                 and existing.wg
@@ -965,6 +1065,65 @@ def _resolve_token_wg(
                     ]
                 ) from e
     return resolved, fallback
+
+
+def _resolve_pinned(
+    provider: str, cid: str, ch: dict, existing, *, merge: bool, resolver_for
+) -> str:
+    """Settle one pinned channel spec in place (see :func:`_resolve_token_wg`).
+
+    Returns ``"resolved"`` (fresh params landed), ``"fallback"`` (the bundle's
+    snapshot stands in for a failed resolution) or ``"kept"`` (existing
+    params kept, or a disabled channel left unresolved).
+    """
+    path = f"providers.{provider}.channels.{cid}"
+    hostname = ch["server"]
+    if (
+        existing is not None
+        and existing.wg
+        and (existing.server or existing.current_server) == hostname
+    ):
+        ch["wg"] = copy.deepcopy(existing.wg)
+        ch["country"] = existing.country
+        ch["city"] = "" if ch.get("any_city") else existing.city
+        return "kept"
+    enabled = ch.get("enabled")
+    if enabled is None:
+        enabled = existing.enabled if merge and existing is not None else True
+    snapshot = ch["wg"]
+    try:
+        found = lookup_server(provider, hostname)
+    except ProviderServerUnavailableError as e:
+        if enabled:
+            raise BundleError([(f"{path}.server", str(e))]) from e
+        found = None  # disabled: never dialed; enabling re-checks the server
+    except ProviderError as e:
+        if enabled and snapshot is None:
+            raise BundleError(
+                [(f"{path}.server", f"could not look up the pinned server: {e}")]
+            ) from e
+        found = None
+    if found is None:
+        ch["country"] = server_country_offline(provider, hostname)
+        ch["city"] = ""
+        return "fallback" if enabled else "kept"
+    ch["country"] = found["country"]
+    ch["city"] = "" if ch.get("any_city") else found["city"]
+    if not enabled:
+        return "kept"  # never resolve a channel that will be (or stay) disabled
+    resolver = resolver_for()
+    try:
+        if isinstance(resolver, ProviderError):
+            raise resolver
+        ch["wg"] = resolver(ch["country"], ch["city"], server=hostname)
+        return "resolved"
+    except ProviderError as e:
+        if snapshot is not None and not isinstance(e, ProviderServerUnavailableError):
+            ch["wg"] = snapshot
+            return "fallback"
+        raise BundleError(
+            [(path, f"could not resolve the pinned server {hostname}: {e}")]
+        ) from e
 
 
 def apply_import(text: str, *, location_lookup=None) -> dict:

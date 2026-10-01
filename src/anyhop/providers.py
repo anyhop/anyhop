@@ -6,7 +6,9 @@ WireGuard parameters:
 * ``token`` — the provider has an API. You add the provider once with a token/login
   (``anyhop providers add <name>``); thereafter ``anyhop channels add <name>
   --country …`` resolves a concrete server from the API. NordVPN is the token
-  provider and is wired end-to-end.
+  provider and is wired end-to-end. A token provider may also let the user
+  **pin** one concrete server (``anyhop servers`` lists them; ``channels add
+  <name> --server <host>`` pins one) instead of taking the recommended pick.
 * ``config`` — portal-only providers (e.g. ProtonVPN) that hand out a WireGuard
   ``.conf``. There is no token; you add the provider so channels can be imported
   under it via ``channels add <name> --config <file>``. The ``customized``
@@ -23,19 +25,29 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol
 
-from anyhop import credentials
+from anyhop import credentials, geo
 from anyhop.constants import provider_order
 from anyhop.credentials import mask
 
 NORD_API = "https://api.nordvpn.com/v1"
 WG_PORT = 51820  # NordLynx / standard WireGuard UDP port
-WireGuardResolver = Callable[[str, str], dict]
+
+
+class WireGuardResolver(Protocol):
+    """``(country, city) -> WireGuard params``; ``server`` resolves one pinned
+    server instead of a recommendation, ``avoid`` names a server the pick
+    must not be (the one a reconnect is moving away from)."""
+
+    def __call__(
+        self, country: str, city: str = "", *, server: str = "", avoid: str = ""
+    ) -> dict: ...
 
 
 class ProviderError(Exception):
@@ -55,6 +67,12 @@ class ProviderUnreachableError(ProviderError):
     """The provider API could not be reached at all — DNS failure, refused
     connection, timeout. Environmental and retryable; never a credential or
     payload problem."""
+
+
+class ProviderServerUnavailableError(ProviderError):
+    """The provider API answered, and a named server is not among the usable
+    ones — retired, offline, or a kind the account cannot use. Retrying cannot
+    fix it: a pinned channel needs a human to pick another server."""
 
 
 class ProviderAPIError(ProviderError):
@@ -237,31 +255,46 @@ def _nord_server_host(server: dict) -> str | None:
     return station if isinstance(station, str) and station else None
 
 
-def nordvpn_resolve(country: str, city: str) -> dict:
-    """Pick the recommended WireGuard server for a location -> peer parameters."""
-    country_id, city_id = _nord_ids(country, city)
-    flt = (
+def _nord_wg_filter() -> str:
+    return "filters[servers_technologies][identifier]=wireguard_udp"
+
+
+def _nord_location_filter(country_id: int, city_id: int | None) -> str:
+    return (
         f"filters[country_city_id]={city_id}"
         if city_id
         else f"filters[country_id]={country_id}"
     )
+
+
+def _check_nord_servers(data, what: str) -> list[dict]:
+    if not isinstance(data, list) or not all(isinstance(s, dict) for s in data):
+        raise ProviderAPIError(f"nordvpn {what} have an unexpected shape.")
+    return data
+
+
+def nordvpn_resolve(country: str, city: str, avoid: str = "") -> dict:
+    """Pick the recommended WireGuard server for a location -> peer parameters.
+
+    ``avoid`` (a hostname) skips that server — a reconnect moving off a dead
+    server must not be handed the same one back by the API's shuffle.
+    """
+    country_id, city_id = _nord_ids(country, city)
     url = (
-        f"{NORD_API}/servers/recommendations?{flt}"
-        "&filters[servers_technologies][identifier]=wireguard_udp&limit=1"
+        f"{NORD_API}/servers/recommendations?"
+        f"{_nord_location_filter(country_id, city_id)}&{_nord_wg_filter()}"
+        f"&limit={5 if avoid else 1}"
     )
     try:
-        servers = _get_json(url)
+        servers = _check_nord_servers(_get_json(url), "server recommendations")
     except ProviderError as e:
         # same typed class, with the what-was-being-resolved context added
         raise type(e)(f"could not resolve a nordvpn server for {country}: {e}") from e
-    if not isinstance(servers, list) or not all(isinstance(s, dict) for s in servers):
-        raise ProviderAPIError(
-            "nordvpn server recommendations have an unexpected shape."
-        )
-    if not servers:
+    candidates = [s for s in servers if s.get("hostname") != avoid] or servers
+    if not candidates:
         where = f"{city}, {country}" if city else country
         raise ProviderError(f"nordvpn has no WireGuard server available in {where}.")
-    s = servers[0]
+    s = candidates[0]
     host = _nord_server_host(s)
     if not host:
         raise ProviderAPIError(f"nordvpn server {s.get('hostname')} has no usable IP.")
@@ -269,13 +302,244 @@ def nordvpn_resolve(country: str, city: str) -> dict:
         "host": host,
         "port": WG_PORT,
         "public_key": _nord_pubkey(s),
-        "hostname": s.get("hostname", host),
+        "hostname": s.get("hostname") or "",
     }
 
 
 def forget_nord_countries() -> None:
     global _nord_countries_cache
     _nord_countries_cache = None
+
+
+# ---- NordVPN: listing and pinning concrete servers --------------------------
+#
+# The server list is ``/servers`` narrowed to the Standard group: unfiltered it
+# also returns Dedicated IP servers (which need that add-on — and report the
+# lowest loads, so a naive "least loaded" pick lands on them). It is not the
+# recommendations endpoint, which at country level silently drops whole cities
+# (Japan answers with Tokyo only, never Osaka). ``fields[...]`` trims each
+# record to what is read here, which keeps even the whole-US list (~1600
+# servers) near 1.5 MB.
+
+NORD_SERVER_LIMIT = 10000
+NORD_SERVER_FIELDS = "&".join(
+    f"fields[servers.{name}]"
+    for name in (
+        "hostname",
+        "load",
+        "status",
+        "station",
+        "ips.ip.ip",
+        "technologies.identifier",
+        "technologies.metadata",
+        "locations.country.name",
+        "locations.country.city.name",
+    )
+)
+# Loads move by the minute; this only spares a "list, then pin" round trip
+# (and a bundle naming several servers in one country) a second fetch.
+NORD_SERVERS_TTL = 60.0
+_nord_servers_cache: dict[tuple[int, int | None], tuple[float, list[dict]]] = {}
+
+# A standard server is ``<prefix><n>.nordvpn.com``, the prefix being the
+# country's ISO 3166-1 alpha-2 code — except the UK, whose servers say ``uk``.
+# Specialty servers (Double VPN ``us-ca12``, Onion ``ch-onion3``, SOCKS
+# ``socks-nl5``) carry a dashed prefix and are never in the usable list.
+_NORD_HOST_RE = re.compile(r"([a-z]{2})(\d+)(?:\.nordvpn\.com)?")
+_NORD_SPECIALTY_RE = re.compile(r"[a-z]+-[a-z]+\d+(?:\.nordvpn\.com)?")
+_NORD_PREFIX_TO_CODE = {"uk": "gb"}
+
+
+def nordvpn_server_name(text: str) -> str:
+    """Canonical hostname (``de1398.nordvpn.com``) for a typed server name.
+
+    Accepts ``de1398`` or the full hostname, any case. Raises ProviderError
+    for anything that is not a standard NordVPN server name.
+    """
+    name = (text or "").strip().lower()
+    match = _NORD_HOST_RE.fullmatch(name)
+    if match:
+        return f"{match[1]}{match[2]}.nordvpn.com"
+    if _NORD_SPECIALTY_RE.fullmatch(name):
+        short = name.removesuffix(".nordvpn.com")
+        raise ProviderError(
+            f"{short} is a NordVPN specialty server (Double VPN, Onion or SOCKS); "
+            "only standard servers can be pinned."
+        )
+    raise ProviderError(
+        f"{text!r} is not a NordVPN server name (expected e.g. de1398 or "
+        "de1398.nordvpn.com)."
+    )
+
+
+def _nord_server_country(hostname: str) -> dict:
+    """The country record a canonical hostname's prefix belongs to."""
+    prefix = hostname.split(".", 1)[0].rstrip("0123456789")
+    code = _NORD_PREFIX_TO_CODE.get(prefix, prefix)
+    for c in _nord_countries():
+        if str(c.get("code") or "").lower() == code:
+            return c
+    raise ProviderError(f'no NordVPN country uses the server prefix "{prefix}".')
+
+
+def _nord_server_entry(server: dict) -> dict | None:
+    """One usable server record, or None when it lacks what a channel needs
+    (a connect address or a WireGuard key) — such a server cannot be pinned,
+    so it is left out of the list rather than failing the whole listing."""
+    hostname = server.get("hostname")
+    host = _nord_server_host(server)
+    if not isinstance(hostname, str) or not hostname or not host:
+        return None
+    if server.get("status", "online") != "online":
+        return None
+    try:
+        public_key = _nord_pubkey(server)
+    except ProviderAPIError:
+        return None
+    country = city = ""
+    locs = server.get("locations")
+    if isinstance(locs, list) and locs and isinstance(locs[0], dict):
+        c = locs[0].get("country")
+        if isinstance(c, dict):
+            if isinstance(c.get("name"), str):
+                country = c["name"]
+            ci = c.get("city")
+            if isinstance(ci, dict) and isinstance(ci.get("name"), str):
+                city = ci["name"]
+    load = server.get("load")
+    return {
+        "hostname": hostname.lower(),
+        "country": country,
+        "city": city,
+        "load": load if isinstance(load, int) and not isinstance(load, bool) else None,
+        "host": host,
+        "public_key": public_key,
+    }
+
+
+def _server_sort_key(entry: dict) -> tuple:
+    """Least loaded first; ties in server-number order (de2 before de10)."""
+    name = entry["hostname"].split(".", 1)[0]
+    digits = name.lstrip("abcdefghijklmnopqrstuvwxyz-")
+    load = entry["load"]
+    return (
+        load if load is not None else 101,
+        name[: len(name) - len(digits)],
+        int(digits) if digits.isdigit() else 0,
+    )
+
+
+def _nord_servers(country_id: int, city_id: int | None) -> list[dict]:
+    key = (country_id, city_id)
+    cached = _nord_servers_cache.get(key)
+    if cached is not None and time.monotonic() - cached[0] < NORD_SERVERS_TTL:
+        return cached[1]
+    url = (
+        f"{NORD_API}/servers?"
+        f"{_nord_location_filter(country_id, city_id)}&{_nord_wg_filter()}"
+        "&filters[servers_groups][identifier]=legacy_standard"
+        f"&limit={NORD_SERVER_LIMIT}&{NORD_SERVER_FIELDS}"
+    )
+    raw = _check_nord_servers(_get_json(url), "server list")
+    entries = [e for e in map(_nord_server_entry, raw) if e is not None]
+    entries.sort(key=_server_sort_key)
+    _nord_servers_cache[key] = (time.monotonic(), entries)
+    return entries
+
+
+def _public_server(entry: dict) -> dict:
+    return {
+        "server": entry["hostname"].split(".", 1)[0],
+        "hostname": entry["hostname"],
+        "country": entry["country"],
+        "city": entry["city"],
+        "load": entry["load"],
+    }
+
+
+def nordvpn_servers(country: str, city: str = "") -> list[dict]:
+    """Every server a channel can pin in a location, least loaded first."""
+    country_id, city_id = _nord_ids(country, city)
+    try:
+        entries = _nord_servers(country_id, city_id)
+    except ProviderError as e:
+        raise type(e)(f"could not list nordvpn servers for {country}: {e}") from e
+    return [_public_server(e) for e in entries]
+
+
+def _nord_dedicated_ip(hostname: str, country_id: int) -> bool:
+    """Whether ``hostname`` is one of the country's Dedicated IP servers.
+
+    Only refines the "not available" message, so any failure reads False.
+    """
+    url = (
+        f"{NORD_API}/servers?filters[country_id]={country_id}&{_nord_wg_filter()}"
+        "&limit=0&fields[servers.hostname]&fields[servers.groups.identifier]"
+    )
+    try:
+        servers = _check_nord_servers(_get_json(url), "server list")
+    except ProviderError:
+        return False
+    for s in servers:
+        if s.get("hostname") == hostname:
+            groups = s.get("groups")
+            return isinstance(groups, list) and any(
+                isinstance(g, dict) and g.get("identifier") == "legacy_dedicated_ip"
+                for g in groups
+            )
+    return False
+
+
+def _nord_lookup(server: str) -> dict:
+    hostname = nordvpn_server_name(server)
+    country = _nord_server_country(hostname)
+    try:
+        entries = _nord_servers(country["id"], None)
+    except ProviderError as e:
+        raise type(e)(f"could not look up nordvpn server {hostname}: {e}") from e
+    for entry in entries:
+        if entry["hostname"] == hostname:
+            return entry
+    short = hostname.split(".", 1)[0]
+    if _nord_dedicated_ip(hostname, country["id"]):
+        raise ProviderServerUnavailableError(
+            f"{short} is a NordVPN Dedicated IP server, which needs that add-on; "
+            "only standard servers can be pinned."
+        )
+    raise ProviderServerUnavailableError(
+        f"{short} is not an available NordVPN WireGuard server in "
+        f"{country['name']} (retired, offline, or never existed) — see: "
+        f'anyhop servers nordvpn --country "{country["name"]}"'
+    )
+
+
+def nordvpn_lookup_server(server: str) -> dict:
+    """Where a pinnable server is: ``{server, hostname, country, city, load}``."""
+    return _public_server(_nord_lookup(server))
+
+
+def nordvpn_resolve_server(server: str) -> dict:
+    """Peer parameters for one pinned server (its address and key are re-read
+    from the API every time, so a re-addressed server keeps working)."""
+    entry = _nord_lookup(server)
+    return {
+        "host": entry["host"],
+        "port": WG_PORT,
+        "public_key": entry["public_key"],
+        "hostname": entry["hostname"],
+    }
+
+
+def nordvpn_server_country_offline(hostname: str) -> str:
+    """Best-effort country name from a canonical hostname with no network
+    (ISO name, which may differ from NordVPN's own spelling) — only for
+    labelling a pinned channel when the API cannot be asked."""
+    prefix = hostname.split(".", 1)[0].rstrip("0123456789")
+    return geo.from_filename(_NORD_PREFIX_TO_CODE.get(prefix, prefix))[0]
+
+
+def forget_nord_servers() -> None:
+    _nord_servers_cache.clear()
 
 
 # ---- authentication --------------------------------------------------------
@@ -325,6 +589,13 @@ REGISTRY: dict[str, dict] = {
         # hits the API — what a forced refresh must do even in a long-lived
         # daemon process, not just a fresh CLI run.
         "forget_locations": forget_nord_countries,
+        # Server pinning: list a location's servers, canonicalize a typed
+        # server name, and resolve one named server instead of a pick.
+        "servers": nordvpn_servers,
+        "server_name": nordvpn_server_name,
+        "lookup_server": nordvpn_lookup_server,
+        "resolve_server": nordvpn_resolve_server,
+        "server_country_offline": nordvpn_server_country_offline,
     },
     "protonvpn": {
         "name": "Proton VPN",
@@ -426,6 +697,66 @@ def preview(provider: str, creds: dict) -> str:
     return ""
 
 
+def supports_servers(provider: str) -> bool:
+    """Whether channels under this provider can be pinned to one server."""
+    return "servers" in PROVIDERS.get(provider, {})
+
+
+def servers_unsupported(provider: str, channel: str = "") -> str:
+    """Why ``provider`` (or one of its channels) cannot choose a server —
+    naming the providers that can, so the message stays true as more do."""
+    able = " and ".join(
+        display_name(p) for p in sorted(PROVIDERS) if supports_servers(p)
+    )
+    brand = display_name(provider)
+    if kind(provider) == "config":
+        one, many = (
+            "uses the server in its imported",
+            "use the server in their imported",
+        )
+        source = " WireGuard .conf"
+    else:
+        one, many = "uses", "use"
+        source = " the provider's recommended server"
+    detail = (
+        f"{channel} is a {brand} channel, which {one}{source}"
+        if channel
+        else f"{brand} channels {many}{source}"
+    )
+    return f"choosing a server is a {able}-only feature; {detail}."
+
+
+def _server_spec(provider: str) -> dict:
+    if not supports_servers(provider):
+        raise ProviderError(servers_unsupported(provider))
+    return PROVIDERS[provider]
+
+
+def list_servers(provider: str, country: str, city: str = "") -> list[dict]:
+    """The servers a channel can be pinned to in a location, least loaded
+    first: ``[{server, hostname, country, city, load}]``."""
+    return _server_spec(provider)["servers"](country, city)
+
+
+def server_name(provider: str, text: str) -> str:
+    """The canonical hostname for a typed server name (no network)."""
+    return _server_spec(provider)["server_name"](text)
+
+
+def lookup_server(provider: str, server: str) -> dict:
+    """Find one pinnable server — ``{server, hostname, country, city, load}``.
+
+    Raises :class:`ProviderServerUnavailableError` when the provider answered
+    and the server is not among the usable ones.
+    """
+    return _server_spec(provider)["lookup_server"](server)
+
+
+def server_country_offline(provider: str, hostname: str) -> str:
+    """A pinned server's country from its name alone ("" when unknown)."""
+    return _server_spec(provider)["server_country_offline"](hostname)
+
+
 def match(name: str) -> str | None:
     """Resolve a user-typed provider (key or brand name, any case) to its key."""
     low = name.strip().lower()
@@ -435,12 +766,15 @@ def match(name: str) -> str | None:
     return None
 
 
-def provider_wg(provider: str, country: str, city: str = "") -> dict:
+def provider_wg(
+    provider: str, country: str, city: str = "", *, server: str = ""
+) -> dict:
     """Resolve a functional provider + location into WireGuard params for a channel.
 
     Uses the stored credential to derive the account's private key and the
-    provider API to pick a server, producing the ``wgconf.parse`` shape so
-    API-derived and config-imported channels are identical at rest.
+    provider API to pick a server (or, with ``server``, to resolve that one
+    pinned server), producing the ``wgconf.parse`` shape so API-derived and
+    config-imported channels are identical at rest.
     """
     if provider not in PROVIDERS:
         raise ProviderError(
@@ -451,13 +785,21 @@ def provider_wg(provider: str, country: str, city: str = "") -> dict:
         raise ProviderAuthError(
             f"{display_name(provider)} is not authenticated — run `anyhop providers add {provider}`."
         )
-    return provider_resolver(provider, creds)(country, city)
+    resolve = provider_resolver(provider, creds)
+    if server:
+        return resolve(country, city, server=server)
+    return resolve(country, city)
 
 
 def provider_resolver(provider: str, creds: dict) -> WireGuardResolver:
     """A ``(country, city) -> WireGuard params`` resolver with the account key
     derived once up front — a bundle apply resolves many channels under one
-    provider, and the key is per-account, not per-channel."""
+    provider, and the key is per-account, not per-channel.
+
+    The resolved server's hostname, when the provider names one, rides along
+    as ``peer.hostname``: it is what ``channels ls`` shows and what a
+    reconnect steers away from.
+    """
     spec = PROVIDERS.get(provider)
     if spec is None:
         raise ProviderError(
@@ -467,19 +809,29 @@ def provider_resolver(provider: str, creds: dict) -> WireGuardResolver:
         raise ProviderAuthError(f"{display_name(provider)} has no credential.")
     private_key = spec["derive_key"](creds)
 
-    def resolve(country: str, city: str = "") -> dict:
-        peer = spec["resolve"](country, city)
+    def resolve(
+        country: str, city: str = "", *, server: str = "", avoid: str = ""
+    ) -> dict:
+        if server:
+            peer = _server_spec(provider)["resolve_server"](server)
+        elif avoid:
+            peer = spec["resolve"](country, city, avoid=avoid)
+        else:
+            peer = spec["resolve"](country, city)
+        wg_peer = {
+            "public_key": peer["public_key"],
+            "endpoint_host": peer["host"],
+            "endpoint_port": peer["port"],
+            "preshared_key": None,
+            "allowed_ips": ["0.0.0.0/0", "::/0"],
+            "keepalive": 25,
+        }
+        if peer.get("hostname"):
+            wg_peer["hostname"] = peer["hostname"]
         return {
             "private_key": private_key,
             "address": list(spec["wg_address"]),
-            "peer": {
-                "public_key": peer["public_key"],
-                "endpoint_host": peer["host"],
-                "endpoint_port": peer["port"],
-                "preshared_key": None,
-                "allowed_ips": ["0.0.0.0/0", "::/0"],
-                "keepalive": 25,
-            },
+            "peer": wg_peer,
         }
 
     return resolve

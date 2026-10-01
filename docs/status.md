@@ -5,11 +5,11 @@ UI, and REST API for per-app and per-workflow VPN exits.
 
 ## Providers
 
-| Provider   | Support                                                                                  |
-| ---------- | ---------------------------------------------------------------------------------------- |
-| NordVPN    | Token/API setup, location selection, automatic WireGuard channel creation                |
-| Proton VPN | WireGuard `.conf` import                                                                 |
-| Customized | Self-hosted (or any other) WireGuard server: named `.conf` import, optional country/city |
+| Provider   | Support                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| NordVPN    | Token/API setup, location selection, automatic WireGuard channel creation, server pinning |
+| Proton VPN | WireGuard `.conf` import                                                                  |
+| Customized | Self-hosted (or any other) WireGuard server: named `.conf` import, optional country/city  |
 
 Which providers can come next, and why some cannot, is in
 [VPN provider research](vpn-provider-research.md).

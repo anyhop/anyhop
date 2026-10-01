@@ -22,3 +22,16 @@ GHSA-6v7p-g79w-8964
 # check that could not see SBOM attributions (see above). Drop when: the
 # base SBOM stops claiming setuptools 70.3.0 or claims >= 78.1.1.
 CVE-2025-47273
+
+# urllib3 2.7.0 vendored inside pip (CVE-2026-97687, HIGH: HTTPS-proxy TLS
+# configuration override enabling traffic interception; CVE-2026-97689,
+# HIGH: unbounded memory allocation in the chunked-response parser). pip is
+# urllib3's only copy in the image — anyhop's runtime deps (requirements.lock)
+# do not include it — and pip runs only at build time, against PyPI and the
+# hash-pinned requirements.lock plus the checksum-verified wheel, so an
+# intercepted download would fail its hash check rather than install.
+# Nothing in the running container imports pip's urllib3.
+# Added: 2026-10-01 (pip 26.2.1, the latest release, still vendors 2.7.0).
+# Drop when: the base ships pip with vendored urllib3 >= 2.8.0.
+CVE-2026-97687
+CVE-2026-97689

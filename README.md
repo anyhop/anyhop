@@ -113,10 +113,7 @@ providers and your own servers. Different traffic leaves through different VPN s
 anyhop's routing rules:
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/why-anyhop-dark.svg">
-    <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/why-anyhop.svg" alt="Three apps routed through anyhop to three different VPN exits at the same time" width="700">
-  </picture>
+  <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/why-anyhop.svg" alt="Three apps routed through anyhop to three different VPN exits at the same time" width="700">
 </p>
 
 ### For programs

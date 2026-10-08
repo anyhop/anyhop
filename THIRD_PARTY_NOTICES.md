@@ -93,7 +93,7 @@ trademark holders.
   logo are trademarks of Proton AG. This SVG was derived from an upstream asset
   whose embedded Inkscape/RDF metadata mislabeled it "Proton Mail"; that stale
   metadata has been corrected to "Proton VPN."
-- **Customized** (`src/anyhop/assets/customized.svg`, `customized-dark.svg`) —
+- **Customized** (`src/anyhop/assets/customized.svg`) —
   anyhop's own artwork for the bring-your-own WireGuard provider, not a third-party
   mark. Its wordmark is outlined (converted to vector paths) from the Inter Display
   typeface by Rasmus Andersson (https://github.com/rsms/inter), licensed under the

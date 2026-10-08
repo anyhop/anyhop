@@ -133,23 +133,6 @@ textarea {
   opacity: .82;
 }
 
-/* provider logos are tuned for light surfaces — NordVPN's slate wordmark and
-   Proton's navy half of the wordmark vanish on dark. Swap each to its white-
-   wordmark cut (icon untouched; Customized's badge also takes the brighter
-   dark-theme brand gradient). Attribute-matched so any <img> using them,
-   now or later, picks up the dark variant. */
-:root.dark img[src$="/nordvpn.svg"] {
-  content: url("/nordvpn-dark.svg");
-}
-
-:root.dark img[src$="/protonvpn.svg"] {
-  content: url("/protonvpn-dark.svg");
-}
-
-:root.dark img[src$="/customized.svg"] {
-  content: url("/customized-dark.svg");
-}
-
 .mast-left {
   display: flex;
   align-items: center;

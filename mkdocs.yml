@@ -9,7 +9,7 @@ docs_dir: docs
 theme:
   name: material
   # The wordmark carries the name, so the header title text is hidden via
-  # stylesheets/site.css, which also swaps in the dark wordmark under slate.
+  # stylesheets/site.css. One SVG reads on the black header and on the page.
   logo: assets/wordmark.svg
   favicon: assets/icon.svg
   palette:

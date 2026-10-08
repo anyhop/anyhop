@@ -1,15 +1,12 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/wordmark-dark.svg">
-    <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/wordmark.svg" alt="anyhop" width="320">
-  </picture>
+  <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/wordmark.svg" alt="anyhop" width="320">
 </p>
 
 <p align="center">
-  <a href="https://github.com/anyhop/anyhop/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/anyhop/anyhop/ci.yml?branch=main&amp;label=CI" alt="CI"></a>
-  <a href="https://pypi.org/project/anyhop/"><img src="https://img.shields.io/pypi/v/anyhop.svg?label=PyPI" alt="PyPI"></a>
-  <a href="https://github.com/anyhop/homebrew-tap"><img src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fanyhop%2Fhomebrew-tap%2Fmain%2FFormula%2Fanyhop.rb&amp;search=anyhop-(%5B0-9.%5D%2B)%5C.tar&amp;replace=v%241&amp;label=Homebrew" alt="Homebrew"></a>
-  <a href="https://github.com/anyhop/anyhop/pkgs/container/anyhop"><img src="https://img.shields.io/badge/ghcr.io-anyhop%2Fanyhop-2496ED?logo=docker&amp;logoColor=white" alt="Container image"></a>
+  <a href="https://github.com/anyhop/anyhop/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/anyhop/anyhop/ci.yml?branch=main&amp;label=CI&amp;logo=githubactions&amp;logoColor=white&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
+  <a href="https://pypi.org/project/anyhop/"><img alt="PyPI" src="https://img.shields.io/pypi/v/anyhop?label=PyPI&amp;logo=pypi&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
+  <a href="https://github.com/anyhop/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fanyhop%2Fhomebrew-tap%2Fmain%2FFormula%2Fanyhop.rb&amp;search=anyhop-(%5B0-9.%5D%2B)%5C.tar&amp;replace=v%241&amp;label=Homebrew&amp;logo=homebrew&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
+  <a href="https://github.com/anyhop/anyhop/pkgs/container/anyhop"><img alt="ghcr.io" src="https://img.shields.io/github/v/tag/anyhop/anyhop?sort=semver&amp;label=ghcr.io&amp;logo=docker&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
 </p>
 
 # anyhop

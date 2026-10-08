@@ -133,12 +133,6 @@ textarea {
   opacity: .82;
 }
 
-/* the wordmark's solid navy "any" vanishes on dark surfaces; swap to the
-   white-and-bright-gradient cut of the same indigo→cyan identity. */
-:root.dark .wordmark-img {
-  content: url("/wordmark-dark.svg");
-}
-
 /* provider logos are tuned for light surfaces — NordVPN's slate wordmark and
    Proton's navy half of the wordmark vanish on dark. Swap each to its white-
    wordmark cut (icon untouched; Customized's badge also takes the brighter

@@ -72,8 +72,8 @@ with this application without prior consent.
 
 ## anyhop wordmark typeface
 
-The "anyhop" lettering in `src/anyhop/assets/wordmark.svg` and
-`wordmark-dark.svg` is outlined (converted to vector paths) from the Space
+The "anyhop" lettering in `src/anyhop/assets/wordmark.svg` is outlined
+(converted to vector paths) from the Space
 Grotesk typeface by Florian Karsten — Copyright 2020 The Space Grotesk Project
 Authors (https://github.com/floriankarsten/space-grotesk) — licensed under the
 **SIL Open Font License 1.1**. No font file is shipped; the mark beside the

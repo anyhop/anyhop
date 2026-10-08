@@ -12,7 +12,6 @@ on:
       - "src/anyhop/assets/icon.svg"
       # the site logo (build-docs-site.sh copies both in for mkdocs.yml)
       - "src/anyhop/assets/wordmark.svg"
-      - "src/anyhop/assets/wordmark-dark.svg"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 

@@ -7,6 +7,7 @@
   <a href="https://pypi.org/project/anyhop/"><img alt="PyPI" src="https://img.shields.io/pypi/v/anyhop?label=PyPI&amp;logo=pypi&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
   <a href="https://github.com/anyhop/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fanyhop%2Fhomebrew-tap%2Fmain%2FFormula%2Fanyhop.rb&amp;search=anyhop-(%5B0-9.%5D%2B)%5C.tar&amp;replace=v%241&amp;label=Homebrew&amp;logo=homebrew&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
   <a href="https://github.com/anyhop/anyhop/pkgs/container/anyhop"><img alt="ghcr.io" src="https://img.shields.io/github/v/tag/anyhop/anyhop?sort=semver&amp;label=ghcr.io&amp;logo=docker&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
+  <a href="https://github.com/anyhop/anyhop/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/anyhop/anyhop?label=License&amp;logo=opensourceinitiative&amp;logoColor=white&amp;color=2563eb&amp;style=for-the-badge&amp;labelColor=1f2328"></a>
 </p>
 
 # anyhop
@@ -20,7 +21,7 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
 <table>
   <tr>
     <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/docker.svg" alt="" height="56"><br>Docker</td>
-    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/terminal.svg" alt="" height="56"><br>CLI (macOS/Linux)</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/terminal.svg" alt="" height="56"><br>macOS/Linux CLI</td>
     <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/browser.svg" alt="" height="56"><br>Web UI</td>
   </tr>
 </table>
@@ -113,7 +114,7 @@ providers and your own servers. Different traffic leaves through different VPN s
 anyhop's routing rules:
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/why-anyhop.svg" alt="Three apps routed through anyhop to three different VPN exits at the same time" width="700">
+  <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/why-anyhop.svg" alt="Three apps routed through anyhop to three different VPN exits at the same time" width="720">
 </p>
 
 ### For programs

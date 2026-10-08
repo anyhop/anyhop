@@ -1,26 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 210" width="700" height="210" role="img" aria-label="Three apps routed through anyhop to three different VPN exits at the same time">
-<title>anyhop routes each app to the exit it needs</title>
-<defs>
-<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#06b6d4"/></linearGradient>
-<!-- #6e70f4 sits in the band that clears both porcelain and a near-black page. -->
-<marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#6e70f4"/></marker>
-</defs>
-<style>.l{font:15px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}.s{font:12.5px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}.b{font:600 17px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}</style>
-<text x="232" y="50" text-anchor="end" class="l" fill="#6e70f4">streaming + admin</text>
-<path d="M246 45 C261.0 45 261.0 105.0 276 105.0" fill="none" stroke="#6e70f4" stroke-width="1.6" marker-end="url(#a)"/>
-<path d="M404 105.0 C421.0 105.0 421.0 45 438 45" fill="none" stroke="#6e70f4" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="452" y="50" class="l" fill="#6e70f4">United States</text>
-<text x="620" y="49" class="s" fill="#6e70f4">NordVPN</text>
-<text x="232" y="110" text-anchor="end" class="l" fill="#6e70f4">test runner</text>
-<path d="M246 105 C261.0 105 261.0 105.0 276 105.0" fill="none" stroke="#6e70f4" stroke-width="1.6" marker-end="url(#a)"/>
-<path d="M404 105.0 C421.0 105.0 421.0 105 438 105" fill="none" stroke="#6e70f4" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="452" y="110" class="l" fill="#6e70f4">Japan</text>
-<text x="620" y="109" class="s" fill="#6e70f4">NordVPN</text>
-<text x="232" y="170" text-anchor="end" class="l" fill="#6e70f4">bank login</text>
-<path d="M246 165 C261.0 165 261.0 105.0 276 105.0" fill="none" stroke="#6e70f4" stroke-width="1.6" marker-end="url(#a)"/>
-<path d="M404 105.0 C421.0 105.0 421.0 165 438 165" fill="none" stroke="#6e70f4" stroke-width="1.6" marker-end="url(#a)"/>
-<text x="452" y="170" class="l" fill="#6e70f4">United Kingdom</text>
-<text x="620" y="169" class="s" fill="#6e70f4">Proton VPN</text>
-<rect x="286" y="78.0" width="108" height="54" rx="14" fill="url(#g)"/>
-<text x="340.0" y="111.0" text-anchor="middle" class="b" fill="#ffffff">anyhop</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 256" width="720" height="256" role="img" aria-label="Three apps routed through anyhop to three different VPN exits at the same time">
+  <title>anyhop routes each app to the exit it needs</title>
+  <defs>
+    <linearGradient id="mark" x1="288" y1="96" x2="424" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="wire" x1="192" y1="0" x2="520" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6e70f4"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <marker id="into" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#6e70f4"/>
+    </marker>
+    <marker id="out" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#0891b2"/>
+    </marker>
+  </defs>
+  <style>
+    .name { font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #1f2328; }
+    .meta { font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #59636e; }
+    .brand { font: 600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #ffffff; }
+  </style>
+
+  <!-- Routes sit under the chips. Each lands on its own point so the heads do not stack. -->
+  <g fill="none" stroke="url(#wire)" stroke-width="2" stroke-linecap="round">
+    <path d="M192 52 C 236 52, 248 108, 286 108" marker-end="url(#into)"/>
+    <path d="M192 128 C 236 128, 248 128, 286 128" marker-end="url(#into)"/>
+    <path d="M192 204 C 236 204, 248 148, 286 148" marker-end="url(#into)"/>
+    <path d="M426 108 C 464 108, 476 52, 518 52" marker-end="url(#out)"/>
+    <path d="M426 128 C 464 128, 476 128, 518 128" marker-end="url(#out)"/>
+    <path d="M426 148 C 464 148, 476 204, 518 204" marker-end="url(#out)"/>
+  </g>
+
+  <g fill="#ffffff" stroke="#6e70f4" stroke-width="1.5">
+    <rect x="16" y="32" width="176" height="40" rx="20"/>
+    <rect x="16" y="108" width="176" height="40" rx="20"/>
+    <rect x="16" y="184" width="176" height="40" rx="20"/>
+    <rect x="520" y="24" width="184" height="56" rx="14"/>
+    <rect x="520" y="100" width="184" height="56" rx="14"/>
+    <rect x="520" y="176" width="184" height="56" rx="14"/>
+  </g>
+
+  <rect x="288" y="96" width="136" height="64" rx="18" fill="url(#mark)"/>
+  <text x="356" y="134" text-anchor="middle" class="brand">anyhop</text>
+
+  <text x="104" y="57" text-anchor="middle" class="name">streaming + admin</text>
+  <text x="104" y="133" text-anchor="middle" class="name">test runner</text>
+  <text x="104" y="209" text-anchor="middle" class="name">bank login</text>
+
+  <text x="612" y="46" text-anchor="middle" class="name">United States</text>
+  <text x="612" y="64" text-anchor="middle" class="meta">NordVPN</text>
+  <text x="612" y="122" text-anchor="middle" class="name">Japan</text>
+  <text x="612" y="140" text-anchor="middle" class="meta">NordVPN</text>
+  <text x="612" y="198" text-anchor="middle" class="name">United Kingdom</text>
+  <text x="612" y="216" text-anchor="middle" class="meta">Proton VPN</text>
 </svg>

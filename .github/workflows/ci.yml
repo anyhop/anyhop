@@ -254,8 +254,12 @@ jobs:
       - name: Assert the root-repair profile (chown + setpriv drop)
         run: |
           docker volume rm -f anyhop-ci-root-state
-          docker run --rm --user 0:0 -v anyhop-ci-root-state:/state anyhop:ci \
-            sh -c 'echo x > /state/junk.txt && chown -R 0:0 /state'
+          # Seed outside the entrypoint. A root start otherwise drops to uid
+          # 1000 before this command, and a fresh volume is root-owned, so the
+          # write is denied and the repair profile never gets a fixture.
+          docker run --rm --user 0:0 --entrypoint sh \
+            -v anyhop-ci-root-state:/state anyhop:ci \
+            -c 'echo x > /state/junk.txt && chown -R 0:0 /state'
           docker run -d --name anyhop-ci-root --user 0:0 --network anyhop-ci-net \
             -e ANYHOP_API_SECRET=ci-test-secret-0123456789 \
             --mount type=volume,src=anyhop-ci-root-state,dst=/var/lib/anyhop \

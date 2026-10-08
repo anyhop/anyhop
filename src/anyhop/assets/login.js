@@ -25,7 +25,7 @@ form.addEventListener("submit", async (e) => {
     err.textContent = "That token wasn't accepted. Check it and try again.";
   } catch (error_) {
     const detail = error_ instanceof Error ? error_.message : String(error_);
-    err.textContent = `Couldn't reach the dashboard: ${detail}`;
+    err.textContent = `Can't reach the daemon: ${detail}`;
   }
   err.classList.add("show");
 });

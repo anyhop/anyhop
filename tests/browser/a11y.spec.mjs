@@ -116,6 +116,29 @@ test("keyboard-only: focus survives a routes panel re-render", async ({
   await expect(page.locator(".overlay .modal")).toBeVisible();
 });
 
+test("keyboard-only: rulesets reorder with Arrow Up/Down on the handle", async ({
+  app,
+}) => {
+  const { page } = app;
+  const names = page.locator(".rule-row[data-id] .rule-name");
+  await expect(names).toHaveText(["Streaming", "Home lab", "Trackers"]);
+  const handle = page
+    .locator(".rule-row[data-id]", { hasText: "Streaming" })
+    .locator(".rule-handle");
+  await handle.scrollIntoViewIfNeeded();
+  await handle.focus();
+  // Arrow Up on the first ruleset is a no-op — the LAN row owns priority 0
+  await page.keyboard.press("ArrowUp");
+  await expect(page.locator(".apply-bar")).toHaveCount(0);
+  // Arrow Down stages the swap exactly like a drag: bar appears, focus follows
+  await page.keyboard.press("ArrowDown");
+  await expect(page.locator(".apply-bar")).toBeVisible();
+  await expect(names).toHaveText(["Home lab", "Streaming", "Trackers"]);
+  await expect(handle).toBeFocused();
+  await page.locator("#dash-reorder-apply").click();
+  await expect(page.locator("#toasts")).toContainText("Order applied.");
+});
+
 test("keyboard-only: the custom select is a listbox with arrow-key flow", async ({
   app,
 }) => {

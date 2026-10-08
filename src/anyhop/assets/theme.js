@@ -17,12 +17,6 @@ function saved() {
   }
 }
 
-export function resolvedTheme() {
-  const s = saved();
-  if (s === "light" || s === "dark") return s;
-  return mq.matches ? "dark" : "light";
-}
-
 function apply(t) {
   root.classList.toggle("dark", t === "dark");
 }

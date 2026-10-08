@@ -1,6 +1,6 @@
 // Dashboard page: the consolidated control surface (entrypoint, channels, routes).
 
-import { api, esc, toast, modal, confirmDialog, customSelectHTML, wireCustomSelects, bytes, mbps } from "./core.js";
+import { api, esc, toast, modal, confirmDialog, customSelectHTML, wireCustomSelects, bytes, mbps, node } from "./core.js";
 
 const GAUGE = `<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="m13.4 10.6 2.6-2.6"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg>`;
 const GRIP = `<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`;
@@ -36,8 +36,8 @@ const SHELL = `
       <div id="channels"></div>
     </section>
     <section class="dash-panel dash-panel-routes rise">
-      <div class="table-title"><span class="eyebrow">Router rules</span></div>
-      <p class="route-banner">When a matcher (domain or IP) appears in multiple rules, <b>the first match wins</b>. Drag to reorder.</p>
+      <div class="table-title"><span class="eyebrow">Router rulesets</span></div>
+      <p class="route-banner">When a matcher (domain or IP) appears in multiple rulesets, <b>the first match wins</b>. Drag — or press Arrow Up / Down on a focused handle — to reorder.</p>
       <form class="trace-box" id="trace-form">
         <input type="text" id="trace-input" class="trace-input" placeholder="Test a destination — e.g. netflix.com, 8.8.8.8, or a URL" aria-label="Destination to trace" autocomplete="off" spellcheck="false" />
         <button type="submit" class="btn" id="trace-btn">Trace</button>
@@ -96,6 +96,7 @@ export function mount(view, ctx) {
   el.routes.addEventListener("dragover", onRouteDragOver);
   el.routes.addEventListener("drop", onRouteDrop);
   el.routes.addEventListener("dragend", onRouteDragEnd);
+  el.routes.addEventListener("keydown", onRouteHandleKeydown);
   refreshRoutes();
 }
 
@@ -386,9 +387,8 @@ function renderChannels() {
   let grid = el.channels.querySelector(".grid");
   if (!grid) { grid = document.createElement("div"); grid.className = "grid"; el.channels.replaceChildren(grid); }
   const head = `<div class="row dashchan head"><span>Channel</span><span>Location</span><span>Port</span><span>IP</span><span>Latency</span><span>Sent</span><span>Received</span><span>Down Speed</span><span>Up Speed</span><span class="row-actions channel-actions channel-all-actions"><button class="icon-btn" id="probe-all" title="Probe All" aria-label="Probe all" data-probe-all>◉</button><button class="icon-btn" id="speed-all" title="Speed Test All" aria-label="Speed test all" data-speed-all>${GAUGE}</button></span></div>`;
-  const htmlNode = (html) => { const template = document.createElement("template"); template.innerHTML = html.trim(); return template.content.firstElementChild; };
   const wanted = [];
-  if (chans.length) wanted.push(grid.querySelector(".dashchan.head") || htmlNode(head));
+  if (chans.length) wanted.push(grid.querySelector(".dashchan.head") || node(head));
   for (const channel of chans) {
     const key = chanKey(channel);
     const rowBusy = [...busy].filter(
@@ -397,10 +397,10 @@ function renderChannels() {
     const signature = JSON.stringify([channel, measured.get(key), rowBusy]);
     const current = grid.querySelector(`.dashchan.body[data-provider="${CSS.escape(channel.provider)}"][data-id="${CSS.escape(channel.name)}"]`);
     if (current?.dataset.render === signature) wanted.push(current);
-    else { const row = htmlNode(chanRow(channel)); row.dataset.render = signature; wanted.push(row); }
+    else { const row = node(chanRow(channel)); row.dataset.render = signature; wanted.push(row); }
   }
   const currentAdd = grid.querySelector("[data-add-channel]");
-  wanted.push(currentAdd || htmlNode(addRow));
+  wanted.push(currentAdd || node(addRow));
   // A poll that changed nothing must not touch the DOM. Every row above is
   // either a reused node (its render signature matched) or a fresh one, so
   // node identity is the whole comparison — and replaceChildren detaches and
@@ -647,7 +647,7 @@ function startRelabel(rowEl, c, current) {
   paused = true;
   const cell = rowEl.querySelector(".chan-label");
   const ref = cell.querySelector(".ref").outerHTML;
-  cell.innerHTML = `<input class="relabel" value="${esc(current)}" placeholder="${esc(c.name)}" spellcheck="false" maxlength="80">${ref}`;
+  cell.innerHTML = `<input class="relabel" value="${esc(current)}" placeholder="${esc(c.name)}" aria-label="New label for ${esc(c.name)}" spellcheck="false" maxlength="80">${ref}`;
   const input = cell.querySelector(".relabel"); input.focus(); input.select();
   let done = false;
   const finish = async (save) => {
@@ -727,9 +727,9 @@ function rulesetBar(rs, index) {
   const destLabel = rs.target === "direct" ? "Direct" : "Block";
   const via = isChannel
     ? `<span class="rule-via"><span class="vw">via</span><span class="vch">${esc(channelLabel)}</span></span>`
-    : `<span class="rule-via ${rs.target}"><span class="vch">${destLabel}</span></span>`;
+    : `<span class="rule-via ${esc(rs.target)}"><span class="vch">${destLabel}</span></span>`;
   return `<div class="rule-row" draggable="true" data-id="${esc(rs.id)}">
-    <div class="rule-handle" title="Drag to reorder" aria-label="Drag ${esc(name)} to reorder">
+    <div class="rule-handle" tabindex="0" data-handle="${esc(rs.id)}" title="Drag, or focus and press Arrow Up / Arrow Down, to reorder" aria-label="Reorder ${esc(name)} — Arrow Up moves it earlier, Arrow Down later">
       <span class="hh rest">${GRIP} Priority ${index + 1}</span>
       <span class="hh sort">${GRAB} Sort</span>
     </div>
@@ -751,7 +751,7 @@ function renderRoutes() {
       : `LAN traffic follows the rules below; local devices (printers, NAS, router admin, local discovery, etc.) may not be reachable`}</div>
     <button type="button" class="toggle ${lanOn ? "on" : ""}" data-lan-toggle aria-pressed="${lanOn}" aria-label="Toggle LAN/local direct"><span class="toggle-knob"></span></button>
   </div>`;
-  const addRow = `<div class="rule-row add" data-add-rule role="button" tabindex="0"><span class="rule-add-cell" aria-hidden="true">＋</span><span class="add-label">Add Rule</span></div>`;
+  const addRow = `<div class="rule-row add" data-add-rule role="button" tabindex="0"><span class="rule-add-cell" aria-hidden="true">＋</span><span class="add-label">Add ruleset</span></div>`;
   const bars = list.map((rs, i) => rulesetBar(rs, i)).join("");
   const ks = !!router?.killswitch;
   const allow = !ks;
@@ -763,7 +763,7 @@ function renderRoutes() {
   const body = lanBar + bars + addRow + unmatchedRow;
   const dirty = !!pendingIds;
   const applyBar = dirty ? `<div class="apply-bar">
-    <span class="apply-copy">Order changed — drag more, or apply to save.</span>
+    <span class="apply-copy">Order changed — apply to save.</span>
     <span class="apply-actions"><button class="btn ghost" id="dash-reorder-cancel">Cancel</button><button class="btn primary" id="dash-reorder-apply">Apply new order</button></span>
   </div>` : "";
   // Rebuilding the panel destroys whatever had keyboard focus in it, and it
@@ -934,6 +934,26 @@ function onRouteDragEnd() {
   }
 }
 
+// The keyboard twin of the drag path: the handle is focusable, Arrow Up/Down
+// swaps the row with its neighbour in the DOM, and the same staging as a drop
+// takes over from there (dirty bar, Apply/Cancel). Focus carries across the
+// re-render via the handle's data-handle attribute (see focusKey).
+function onRouteHandleKeydown(e) {
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  const handle = e.target.closest("[data-handle]");
+  const card = handle?.closest(".rule-row");
+  const list = card?.parentElement;
+  if (!card || !list) return;
+  e.preventDefault();
+  const rows = [...list.querySelectorAll(".rule-row:not(.add):not(.lan):not(.unmatched)")];
+  const i = rows.indexOf(card);
+  const j = e.key === "ArrowUp" ? i - 1 : i + 1;
+  if (j < 0 || j >= rows.length) return;
+  list.insertBefore(card, e.key === "ArrowUp" ? rows[j] : rows[j].nextSibling);
+  handle.focus({ preventScroll: true });
+  stageDraggedOrder();
+}
+
 function stageDraggedOrder() {
   const list = el.routes?.querySelector(".ruleset-list");
   if (!list) return;
@@ -1093,7 +1113,7 @@ async function openAddChannel() {
       <p class="field-guide"><b>${esc(p.display_name)}</b> — ${status}${g.url ? ` <a href="${esc(g.url)}" target="_blank" rel="noopener">Open portal ↗</a>` : ""}</p>
       <label class="field"><span>Replace token</span><input name="token" type="password" autocomplete="off" spellcheck="false" placeholder="paste a new token"></label>
       <p class="hint">Replacing the token re-resolves this provider's channels with the new credential. The token is never shown back.</p>
-      <p class="form-err" id="pserr"></p>
+      <p class="form-err" role="alert" id="pserr"></p>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button><button class="btn primary" type="submit">Replace token</button></div>
     </form>`;
     wiz.onclick = null;
@@ -1138,7 +1158,7 @@ async function openAddChannel() {
     wiz.innerHTML = `<form id="pf">
       <label class="field"><span>Provider</span>${customSelectHTML("prov", opts, opts[0].value)}</label>
       <div id="guide"></div><div id="pfields"></div>
-      <p class="form-err" id="perr"></p>
+      <p class="form-err" role="alert" id="perr"></p>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button><button class="btn primary" type="submit">Add provider</button></div>
     </form>`;
     wireCustomSelects(wiz);
@@ -1193,7 +1213,7 @@ async function openAddChannel() {
         </div></label>
       ${nameField}
       <label class="field"><span>Label <em>(optional)</em></span><input id="label" placeholder="e.g. Streaming — US" spellcheck="false"></label>
-      <p class="form-err" id="cerr"></p>
+      <p class="form-err" role="alert" id="cerr"></p>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button><button class="btn primary" type="submit">Add Channel</button></div>
     </form>`;
     const conf = wiz.querySelector("#conf"), fname = wiz.querySelector("[data-file-name]");
@@ -1237,7 +1257,7 @@ async function openAddChannel() {
     wiz.innerHTML = `<p class="field-guide">Pick a country for the new channel.</p><div class="loc-loading">Loading countries…</div>`;
     if (!st.countriesData) {
       const res = await api.get(`/api/v1/locations?provider=${encodeURIComponent(st.provider)}`);
-      if (!res.ok) { wiz.innerHTML = `<p class="form-err">${esc(res.error)}</p><div class="confirm-actions"><button class="btn" type="button" data-back>Back</button></div>`; wiz.querySelector("[data-back]").onclick = renderProviders; return; }
+      if (!res.ok) { wiz.innerHTML = `<p class="form-err" role="alert">${esc(res.error)}</p><div class="confirm-actions"><button class="btn" type="button" data-back>Back</button></div>`; wiz.querySelector("[data-back]").onclick = renderProviders; return; }
       st.countriesData = res.data;
     }
     const data = st.countriesData;
@@ -1248,7 +1268,7 @@ async function openAddChannel() {
     }
     const items = data.countries.map((c) => `<button class="loc-card" data-country="${esc(c.country)}"><b>${esc(c.country)}</b><small>${c.cities.length} ${c.cities.length === 1 ? "city" : "cities"}</small></button>`).join("");
     wiz.innerHTML = `<p class="field-guide">Pick a country.</p>
-      <input class="loc-search" id="loc-search" placeholder="Filter countries…" spellcheck="false" autocomplete="off">
+      <input class="loc-search" id="loc-search" placeholder="Filter countries…" aria-label="Filter countries" spellcheck="false" autocomplete="off">
       <div class="loc-grid" id="loc-grid">${items}</div>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button></div>`;
     const grid = wiz.querySelector("#loc-grid");
@@ -1271,7 +1291,7 @@ async function openAddChannel() {
     const anyCard = `<button class="loc-card" data-city=""><b>Any city</b><small>fastest available</small></button>`;
     const items = st.citiesForCountry.map((ci) => `<button class="loc-card" data-city="${esc(ci)}"><b>${esc(ci)}</b></button>`).join("");
     wiz.innerHTML = `<p class="field-guide">Pick a city in ${esc(st.country)} — or any.</p>
-      <input class="loc-search" id="loc-search" placeholder="Filter cities…" spellcheck="false" autocomplete="off">
+      <input class="loc-search" id="loc-search" placeholder="Filter cities…" aria-label="Filter cities" spellcheck="false" autocomplete="off">
       <div class="loc-grid" id="loc-grid">${anyCard}${items}</div>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button></div>`;
     const grid = wiz.querySelector("#loc-grid");
@@ -1296,14 +1316,14 @@ async function openAddChannel() {
     const serverField = !pinnable ? "" : `<div class="server-choice" id="srv-choice">
         ${autoCardHTML("the provider picks the server", true)}
         <p class="srv-caption">Pick a server in ${esc(where)}</p>
-        <input class="loc-search" id="srv-search" placeholder="Filter servers…" spellcheck="false" autocomplete="off">
+        <input class="loc-search" id="srv-search" placeholder="Filter servers…" aria-label="Filter servers" spellcheck="false" autocomplete="off">
         <div class="loc-grid srv-grid" id="srv-grid"><div class="loc-loading">Loading servers…</div></div>
       </div>`;
     wiz.innerHTML = `<form id="lf">
       <p class="field-guide">New channel in <b>${esc(where)}</b>.</p>
       <label class="field"><span>Label <em>(optional)</em></span><input id="label" placeholder="e.g. Streaming — US" spellcheck="false"></label>
       ${serverField}
-      <p class="form-err" id="lerr"></p>
+      <p class="form-err" role="alert" id="lerr"></p>
       <div class="confirm-actions"><button class="btn ghost" type="button" data-back>Back</button><button class="btn primary" type="submit">Add Channel</button></div>
     </form>`;
     wiz.querySelector("[data-back]").onclick = renderCityStep;
@@ -1338,7 +1358,7 @@ async function openAddChannel() {
     const res = await fetchServers(st.provider, st.country, st.city, lifetime?.signal);
     if (res.aborted || !active() || !choice.isConnected) return;
     const grid = choice.querySelector("#srv-grid");
-    if (!res.ok) { grid.innerHTML = `<p class="form-err">${esc(res.error)}</p>`; return; }
+    if (!res.ok) { grid.innerHTML = `<p class="form-err" role="alert">${esc(res.error)}</p>`; return; }
     const servers = res.data.servers || [];
     grid.innerHTML = servers.length
       ? serverCardsHTML(servers)
@@ -1372,17 +1392,17 @@ async function openChangeServer(c) {
     wiz.innerHTML = `<div class="loc-loading">Loading servers…</div>`;
     const res = await fetchServers(c.provider, c.country, city, lifetime?.signal);
     if (res.aborted || !active()) return;
-    if (!res.ok) { wiz.innerHTML = `<p class="form-err">${esc(res.error)}</p>`; return; }
+    if (!res.ok) { wiz.innerHTML = `<p class="form-err" role="alert">${esc(res.error)}</p>`; return; }
     const where = city ? `${city}, ${c.country}` : c.country;
     const autoSub = c.pinned ? "let the provider pick" : `current · on ${shortServer(c.server) || "—"}`;
     wiz.innerHTML = `<p class="field-guide">${c.pinned ? `Pinned to <b>${esc(shortServer(c.server))}</b>.` : "Following the provider's recommendation."}</p>
       <div class="server-choice">
         ${autoCardHTML(autoSub, !c.pinned)}
         <p class="srv-caption">Pick a server in ${esc(where)}${city ? ` <button class="linkish" type="button" data-widen>Show all of ${esc(c.country)}</button>` : ""}</p>
-        <input class="loc-search" id="srv-search" placeholder="Filter servers…" spellcheck="false" autocomplete="off">
+        <input class="loc-search" id="srv-search" placeholder="Filter servers…" aria-label="Filter servers" spellcheck="false" autocomplete="off">
         <div class="loc-grid srv-grid" id="srv-grid">${serverCardsHTML(res.data.servers || [], c.pinned ? c.server : "")}</div>
       </div>
-      <p class="form-err" id="srv-err"></p>`;
+      <p class="form-err" role="alert" id="srv-err"></p>`;
     wireServerFilter(wiz);
     const widen = wiz.querySelector("[data-widen]");
     if (widen) widen.onclick = () => render("");
@@ -1442,7 +1462,7 @@ function matcherInputHTML(buttonText) {
           <div class="mx-item"><code>geoip:us</code>destination IPs in a country (<a href="https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2" target="_blank" rel="noopener">ISO codes ↗</a>)</div>
         </div></label>
     </div>
-    <p class="form-err" id="err"></p><button class="btn primary" type="submit">${esc(buttonText)}</button>`;
+    <p class="form-err" role="alert" id="err"></p><button class="btn primary" type="submit">${esc(buttonText)}</button>`;
 }
 
 function wireMatchers(root) {

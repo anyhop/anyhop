@@ -4,6 +4,9 @@
 // dark token swap in one place, with no flash of the wrong theme.
 //
 // Preference order: an explicit saved choice wins; otherwise follow the OS.
+// (This script cannot import the theme module — it must run before paint — so
+// the storage key "anyhop-theme" is necessarily duplicated here and in
+// theme.js's KEY constant; change both together.)
 (function () {
   try {
     const saved = localStorage.getItem("anyhop-theme");

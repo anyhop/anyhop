@@ -8,7 +8,7 @@ export function esc(s) {
 }
 
 // Build a DOM node from an HTML string (single root).
-function node(html) {
+export function node(html) {
   const t = document.createElement("template");
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
@@ -258,7 +258,12 @@ function _wireOneCSelect(box) {
     };
   });
   btn.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+    // Escape must also work while focus is still on the button (mouse-opened
+    // menu), not only once focus has moved into the option list.
+    if (e.key === "Escape" && box.classList.contains("open")) {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
       e.preventDefault(); setOpen(true);
       (opts.find((o) => o.classList.contains("selected")) || opts[0]).focus();
     }

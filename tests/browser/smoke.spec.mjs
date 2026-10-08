@@ -158,7 +158,8 @@ test("route reorder stages locally, applies once, survives reload", async ({ app
   await expect(
     page.locator('.rule-row[data-id]', { hasText: "Streaming" }).locator(".rule-via"),
   ).toContainText("via");
-  // drag Streaming below Home lab (the only reorder control — buttons are gone).
+  // drag Streaming below Home lab (reorder is drag or the handle's Arrow
+  // Up/Down — there are no up/down buttons).
   // HTML5 drag-and-drop is driven with explicit mouse moves: locator.dragTo
   // does not reliably synthesize dragstart/dragover/drop. Both rows must be
   // on-screen first — the dashboard stacks entry/channels/routes, so with the

@@ -55,7 +55,7 @@ const PAGE = `
         <button class="btn ghost" type="button" id="bundle-validate">Validate file</button>
         <span class="bundle-validate-ok" id="bundle-valid-msg"></span>
       </div>
-      <p class="form-err pre" id="bundle-err"></p>
+      <p class="form-err pre" role="alert" id="bundle-err"></p>
       <div class="bundle-ops">
         <div class="bundle-op">
           <div class="bundle-op-text">
@@ -93,7 +93,9 @@ export function mount(v, ctx) {
     // Fetch (not a blind navigation) so a non-2xx response is reported instead
     // of silently downloaded as a fake bundle. The session cookie authenticates.
     const btn = view.querySelector("#bundle-download");
-    const label = btn.textContent;
+    // innerHTML, not textContent: the button carries an inline SVG icon, and a
+    // text-only restore would drop it after the first download.
+    const label = btn.innerHTML;
     btn.disabled = true; btn.textContent = "Downloading…";
     try {
       let res;
@@ -127,7 +129,7 @@ export function mount(v, ctx) {
       URL.revokeObjectURL(url);
       toast("Downloaded bundle.");
     } finally {
-      if (active()) { btn.disabled = false; btn.textContent = label; }
+      if (active()) { btn.disabled = false; btn.innerHTML = label; }
     }
   };
 

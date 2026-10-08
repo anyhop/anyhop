@@ -8,7 +8,7 @@ import * as logs from "./logs.js";
 import { followSystem, bindToggle } from "./theme.js";
 
 const pages = { "": dashboard, bundle, logs };
-const el = { pill: $("pill"), pillText: $("pill-text"), ver: $("ver"), banner: $("banner") };
+const el = { pill: $("pill"), pillText: $("pill-text"), ver: $("ver"), banner: $("banner"), connLive: $("conn-live") };
 let current = null;
 let lastStatus = null;
 let lifetime = null;
@@ -17,6 +17,13 @@ let statusGeneration = 0;
 let appliedGeneration = 0;
 
 function setPill(up, text) { el.pill.classList.toggle("up", up); el.pillText.textContent = text; }
+
+// The visual banner is display:none until offline, and a hidden live region
+// announces nothing. This always-in-tree region is what screen readers hear;
+// guard the write so an unchanged state is not re-announced on every tick.
+function announceConn(text) {
+  if (el.connLive.textContent !== text) el.connLive.textContent = text;
+}
 
 function updateMasthead(s) {
   setPill(!!s.running, s.running ? "running" : "stopped");
@@ -60,9 +67,11 @@ async function tick() {
     lastStatus = data;
     updateMasthead(data);
     el.banner.classList.remove("show");
+    announceConn("");
     current?.onStatus?.(data);
   } else {
     el.banner.classList.add("show");
+    announceConn("Disconnected from the daemon — retrying…");
     setPill(false, "offline");
   }
 }

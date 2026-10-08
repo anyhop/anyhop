@@ -27,4 +27,19 @@ if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
+
+// The shipped CSP is img-src 'self' (src/anyhop/api/server.py _CSP), so a
+// data: URI in any stylesheet is refused by the browser — the decoration
+// silently never renders. Referenced files must be bundled assets instead.
+for (const name of readdirSync(assets).filter((n) => n.endsWith(".css"))) {
+  const source = readFileSync(join(assets, name), "utf8");
+  for (const match of source.matchAll(/url\(\s*["']?data:/gi)) {
+    failures.push(`${name}: data: URI under img-src 'self' CSP — bundle an asset file`);
+  }
+}
+
+if (failures.length) {
+  console.error(failures.join("\n"));
+  process.exit(1);
+}
 console.log(`web static checks passed (${files.length} modules)`);

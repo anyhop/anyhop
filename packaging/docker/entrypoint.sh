@@ -2,11 +2,13 @@
 # anyhop container entrypoint: converge on the declared setup, then hand PID 1
 # to the daemon loop (exec, so `docker stop`'s SIGTERM reaches it directly).
 #
-# Started as root (the image default), it fixes state-volume ownership and
-# drops to the unprivileged `anyhop` user — unless ANYHOP_RUN_AS_ROOT=1, which
+# The image's USER is the unprivileged `anyhop` (1000); a plain `docker run`
+# never runs as root. Started as root — the explicit override (`--user 0`) —
+# it fixes state-volume ownership and drops to the unprivileged `anyhop`
+# user — unless ANYHOP_RUN_AS_ROOT=1, which
 # TUN/gateway mode needs in v1 (sing-box must be able to create the tun
 # device; the capability comes from --cap-add NET_ADMIN + /dev/net/tun).
-# Started with --user, it runs as that user and touches no ownership.
+# Started with any other --user, it runs as that user and touches no ownership.
 set -eu
 
 BUNDLE="${ANYHOP_BUNDLE-/etc/anyhop/bundle.yaml}"

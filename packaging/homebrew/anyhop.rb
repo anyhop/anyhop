@@ -7,6 +7,12 @@
 # digest PyPI recorded for the published sdist. The resource pins are taken from
 # uv.lock (tests/test_homebrew_formula.py keeps them from drifting).
 #
+# The `url`/`sha256` committed here are whatever release they were last filled
+# with (they lag on purpose: the rewrite lands only in the tap's copy, never
+# back in this repo). Install from the tap (`brew install anyhop/tap/anyhop`),
+# not from this file — a direct install from this checkout builds a stale
+# version.
+#
 # Product boundary: this channel is deliberately headless. It installs the CLI,
 # background daemon, loopback control API, and the version-locked bundled Web UI
 # — no GUI surface of any kind. The base wheel enforces that boundary for every

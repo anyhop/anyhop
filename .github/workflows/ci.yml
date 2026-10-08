@@ -247,6 +247,29 @@ jobs:
           [ "$(docker exec anyhop-ci id -u)" = "1000" ]
           [ "$(docker exec anyhop-ci sh -c "awk '/^Uid:/{print \$2}' /proc/1/status")" = "1000" ]
           docker exec anyhop-ci sh -c 'test -O /var/lib/anyhop/state.json'
+      # The root-repair profile: `--user 0` WITHOUT ANYHOP_RUN_AS_ROOT must
+      # repair a wrong-owned state volume and drop to the unprivileged user
+      # via setpriv before PID 1 starts — the documented bind-mount repair
+      # path, exercised by no other boot shape here.
+      - name: Assert the root-repair profile (chown + setpriv drop)
+        run: |
+          docker volume rm -f anyhop-ci-root-state
+          docker run --rm --user 0:0 -v anyhop-ci-root-state:/state anyhop:ci \
+            sh -c 'echo x > /state/junk.txt && chown -R 0:0 /state'
+          docker run -d --name anyhop-ci-root --user 0:0 --network anyhop-ci-net \
+            -e ANYHOP_API_SECRET=ci-test-secret-0123456789 \
+            --mount type=volume,src=anyhop-ci-root-state,dst=/var/lib/anyhop \
+            --mount type=bind,src=/tmp/anyhop-bundle.yaml,dst=/etc/anyhop/bundle.yaml,readonly \
+            anyhop:ci
+          for _ in $(seq 1 30); do
+            if docker exec anyhop-ci-root anyhop health; then break; fi
+            sleep 5
+          done
+          docker exec anyhop-ci-root anyhop health
+          # PID 1 dropped to the unprivileged user despite the root start
+          [ "$(docker exec anyhop-ci-root sh -c "awk '/^Uid:/{print \$2}' /proc/1/status")" = "1000" ]
+          # and the wrong-owned state entry was repaired to that user
+          [ "$(docker exec anyhop-ci-root sh -c 'stat -c %u /var/lib/anyhop/junk.txt')" = "1000" ]
       # Startup sync must be idempotent: a restart re-syncs the same bundle
       # and must neither duplicate its ruleset nor change the managed setup.
       - name: Assert restart idempotency (startup sync)
@@ -341,3 +364,4 @@ jobs:
         run: |
           docker logs anyhop-ci || true
           docker logs anyhop-ci-gw || true
+          docker logs anyhop-ci-root || true

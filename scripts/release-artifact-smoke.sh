@@ -19,7 +19,15 @@ python3 -m venv "$work/venv"
 "$work/venv/bin/pip" install --no-deps "$artifact"
 
 export ANYHOP_HOME="$work/state"
-export ANYHOP_API_LISTEN=127.0.0.1:18080
+# Bind a free loopback port, not a fixed one: a dev machine commonly has
+# whatever fixed port the CI default names already taken by another service.
+port=$(python3 -c 'import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()')
+export ANYHOP_API_LISTEN="127.0.0.1:$port"
+export ANYHOP_API_PORT="$port"
 export ANYHOP_API_SECRET=release-artifact-smoke-secret
 "$work/venv/bin/anyhop" version
 "$work/venv/bin/anyhop" --help >/dev/null
@@ -48,7 +56,7 @@ done
 "$work/venv/bin/anyhop" health
 "$work/venv/bin/python" - <<'PY'
 import json, os, urllib.error, urllib.request
-base = "http://127.0.0.1:18080"
+base = f"http://127.0.0.1:{os.environ['ANYHOP_API_PORT']}"
 auth = {"Authorization": "Bearer " + os.environ["ANYHOP_API_SECRET"]}
 data = json.load(urllib.request.urlopen(urllib.request.Request(base + "/api/v1/status", headers=auth), timeout=10))
 assert "channel_count" in data, data

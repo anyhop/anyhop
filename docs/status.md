@@ -28,7 +28,7 @@ Which providers can come next, and why some cannot, is in
 | Area         | Status                                                                                                           |
 | ------------ | ---------------------------------------------------------------------------------------------------------------- |
 | Core CLI     | Providers, channels, per-channel proxies, status, tests (probe + speed + traffic), logs                          |
-| Routing      | Ruleset-based router entrypoint with domain/CIDR/all matchers, kill-switch, CLI shadow lint, built-in LAN bypass |
+| Routing      | Ruleset-based router entrypoint with domain/CIDR/geosite/geoip/all matchers, kill-switch, CLI shadow lint, built-in LAN bypass |
 | Web UI       | Dashboard (channels, probe/speed, routes, kill-switch) + Bundle + Logs pages                                     |
 | REST API     | Everything the CLI does over `/api/v1` (Bearer auth) — for scripts and compose siblings                          |
 | Docker       | Container profile: proxy hub for compose networks, VPN gateway container (tun), declarative boot config          |

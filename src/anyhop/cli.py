@@ -1991,8 +1991,9 @@ def build_parser() -> argparse.ArgumentParser:
     te.add_argument(
         "--fail",
         action="store_true",
-        help="exit 1 when any probed channel is unhealthy (or nothing was "
-        "probed) — for monitoring; `anyhop health` covers daemon liveness",
+        help="exit 1 when any probed channel is unhealthy (nothing probed, or "
+        "every channel disabled, counts too) — for monitoring; `anyhop health` "
+        "covers daemon liveness",
     )
     te.add_argument(
         "--channel",

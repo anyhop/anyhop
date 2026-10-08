@@ -79,7 +79,7 @@ See [docker.md](docker.md) for the image design.
 ## TUN mode: the elevated trust surface
 
 Explicit-proxy mode (the default) runs entirely as your OS user and the
-boundary above is the whole story. **[TUN mode](cli-reference.md#anyhop-tun-onoff)
+boundary above is the whole story. **[TUN mode](cli-reference.md#anyhop-tun-onoffconfirm)
 widens it**, because creating the TUN device and rewriting the system route
 table is privileged. Two things change while TUN mode is on:
 

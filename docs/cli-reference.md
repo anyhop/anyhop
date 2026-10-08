@@ -46,7 +46,7 @@ exposes `anyhop` directly; see the README's Quick Start or
   - [`anyhop upgrade [--check] [--prerelease]`](#anyhop-upgrade---check---prerelease)
   - [`anyhop run`](#anyhop-run)
   - [`anyhop health [--json]`](#anyhop-health---json)
-  - [`anyhop tun [on|off]`](#anyhop-tun-onoff)
+  - [`anyhop tun [on|off|confirm]`](#anyhop-tun-onoffconfirm)
   - [`anyhop test`](#anyhop-test)
   - [`anyhop export [--out FILE]`](#anyhop-export---out-file)
   - [`anyhop backup [on|off|now]`](#anyhop-backup-onoffnow)
@@ -74,7 +74,7 @@ exposes `anyhop` directly; see the README's Quick Start or
 - **Help** — run `anyhop`, `anyhop <group>`, or any command with `-h/--help` to see usage.
   A group or command invoked with no action prints its help instead of erroring.
 - **`--json`** — read commands (`providers ls`, `channels ls`, `routes ls`,
-  `routes trace`, `routes reorder`, `routes geo`, `locations`, `status`,
+  `routes trace`, `routes reorder`, `routes geo`, `locations`, `servers`, `status`,
   `test`, `health`, `backup`, `daemon status`, `helper status`,
   `upgrade --check`) accept `--json` for a stable,
   machine-readable projection of the same data. This is the scripting/cross-language interface (pipe to `jq`, etc.).
@@ -467,7 +467,7 @@ earlier rule (or the built-in LAN block, when on) already covers it.
   apps at the proxy with **remote DNS** — `socks5h://` (not `socks5://`) or an
   HTTP proxy that resolves remotely — so sing-box resolves the destination,
   not the host.
-- *[TUN mode](#anyhop-tun-onoff):* anyhop **owns the resolver** — plain DNS from
+- *[TUN mode](#anyhop-tun-onoffconfirm):* anyhop **owns the resolver** — plain DNS from
   every app is hijacked and answered by sing-box, so the `socks5h://` advice
   becomes moot and local-resolver leakage disappears. See the tun section for
   where the upstream query goes (a public resolver, dialed direct).
@@ -603,7 +603,7 @@ anyhop routes killswitch on
 anyhop routes killswitch
 ```
 
-- Applies to the router entrypoint **and**, when [TUN mode](#anyhop-tun-onoff) is
+- Applies to the router entrypoint **and**, when [TUN mode](#anyhop-tun-onoffconfirm) is
   on, to all system traffic — per-channel ports are always unaffected.
   (Commercial VPN apps use "kill switch" for a system-wide block; anyhop's is
   system-wide exactly when TUN mode is on.)
@@ -657,7 +657,7 @@ Notes:
   *less* than the built-in block, turn it off and recreate just the ranges you
   want as your own ruleset. Recipes and the design rationale:
   [routing.md](routing.md#the-built-in-lan-block-one-toggle-fixed-contents).
-- Applies to the router entrypoint **and**, when [TUN mode](#anyhop-tun-onoff) is
+- Applies to the router entrypoint **and**, when [TUN mode](#anyhop-tun-onoffconfirm) is
   on, to all system traffic; per-channel ports are unaffected.
 - DNS is deliberately **not** excluded from the tunnel: sending plain DNS direct
   by default would leak browsing activity, so DNS traffic stays subject to your
@@ -877,7 +877,7 @@ anyhop health --json    # {"ok": true, "daemon": true, "singbox": true, ...}
 
 ---
 
-## `anyhop tun [on|off]`
+## `anyhop tun [on|off|confirm]`
 
 System-wide VPN mode: sing-box creates a TUN device and takes over the
 system's default route, so **all** system traffic — every app, raw sockets,
@@ -1010,8 +1010,10 @@ California      protonvpn/wg_us_ca_842    :53126  United States  California     
 ```
 
 Add `--fail` for monitoring use: exit code 1 when any probed channel is
-unhealthy — or when nothing was probed at all (a monitor that watched nothing
-must not report success). Without it, `anyhop test` is informational and always
+unhealthy — when nothing was probed at all (a monitor that watched nothing
+must not report success), or when every channel is administratively disabled
+(a fleet that cannot probe must not report success either). Without it,
+`anyhop test` is informational and always
 exits 0. The daemon-liveness counterpart is [`anyhop health`](#anyhop-health---json).
 
 Add `--speed` to run the slower download/upload test after the fresh
@@ -1389,7 +1391,7 @@ daemon is older than the CLI (`run anyhop restart to pick up the upgrade`).
 `anyhop helper install` · `anyhop helper uninstall` · `anyhop helper status`
 
 The privileged TUN helper — macOS only (Linux uses `setcap`, no helper). It is
-the one-time grant that makes [`anyhop tun on`](#anyhop-tun-onoff) need no sudo:
+the one-time grant that makes [`anyhop tun on`](#anyhop-tun-onoffconfirm) need no sudo:
 install once, and the helper (a root LaunchDaemon) owns sing-box while tun mode
 is on, so `tun on`/`off` and the Web UI toggle run as your normal user with no
 password, across reboots.
@@ -1458,7 +1460,7 @@ anyhop version --singbox-path
   credential, missing config file, etc.); the message explains what to fix.
   Two commands also use `1` as a deliberate monitoring signal: `anyhop health`
   (daemon/sing-box liveness) and `anyhop test --fail` (any probed channel
-  unhealthy, or nothing probed).
+  unhealthy, nothing probed, or every channel disabled).
 - `2` — argument/usage error (argparse); help is printed.
 - `130` — interrupted (Ctrl-C).
 
@@ -1481,8 +1483,9 @@ several — see `docs/docker.md`) and for hermetic testing:
 | `ANYHOP_API_SECRET_FILE` | Same, read from a file (compose/k8s secrets). Exactly one of the two; setting both, an unreadable file, or a weak value makes the API refuse to start.                                                                                                                                                         |
 | `ANYHOP_BUNDLE`          | Read by the container entrypoint only: the bundle path applied at boot (default `/etc/anyhop/bundle.yaml`).                                                                                                                                                                                                    |
 
-(`ANYHOP_SERVICE` / `ANYHOP_APPLIER` are internal markers set by the login service,
-the image, and `anyhop run` — not user knobs.)
+(`ANYHOP_SERVICE`, `ANYHOP_APPLIER`, `ANYHOP_SERVICE_OWNER`, `ANYHOP_SERVICE_PREFIX`,
+`ANYHOP_EXECUTABLE`, and `ANYHOP_HELPER_ALLOWED_UID` are internal markers — set by
+the login service, the image, `anyhop run`, and the privileged helper; not user knobs.)
 
 ## Files
 
@@ -1499,6 +1502,13 @@ testing: `ANYHOP_HOME=/tmp/anyhop-test anyhop status`):
 - `clash_api.json` — generated address + secret for the internal stats API (`0600`).
 - `control_api.json` — generated address + secret for the Web UI control server
   (`0600`); the contract port the dashboard is served on.
+- `web_consumed.json` — digests of spent one-time login tokens, so a spent token
+  cannot be replayed within its TTL (`0600`).
+- `web_revocation.json` — the last logout time; revokes every session issued
+  before it (`0600`).
+- `setup-journal.json` — the rollback copy used while a compound setup change
+  (provider add/remove, token replace, bundle import/restore) is in flight;
+  exists only during such a change (`0600`).
 - `bin/sing-box@<version>` — pinned, checksum-verified sing-box binary.
 - `anyhop.log`, plus `*.pid` and `applier.info.json` (daemon pid + version, read by
   `anyhop status` for the skew warning) / runtime files while running.

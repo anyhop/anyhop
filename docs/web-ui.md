@@ -11,7 +11,7 @@ This opens your browser to a **Dashboard**, a **Bundle** page, and a **Logs**
 page:
 
 - **Router entrypoint** — `http://127.0.0.1:<port>` at the top (click to copy).
-- **Channels table** — every channel with Location, Port, Latency, IP, and
+- **Channels table** — every channel with Location, Port, IP, Latency, and
   Sent / Received / Down Speed / Up Speed columns. The measured columns stay
   blank until you run a **Probe** (latency + IP + traffic totals) or **Speed
   Test** (adds download/upload) from the row or the column header, with a
@@ -21,10 +21,14 @@ page:
   Speed Test buttons are disabled, so a test can't be fired twice at once.
   Rename a channel inline, remove one, and add channels through a provider-guided wizard.
 - **Add channel wizard** — pick a provider (an icon-only row of providers plus
-  an always-present "+" to add NordVPN or Proton VPN). For token providers like
-  NordVPN, choose a **country and city from a searchable list** (no typing); for
-  Proton VPN, upload a WireGuard `.conf` (with a link to the portal). Each added
-  token provider carries a **gear** to replace its stored token (write-only — the
+  an always-present "+" to add NordVPN, Proton VPN, or Customized). For token
+  providers like NordVPN, choose a **country and city from a searchable list**
+  (no typing); for Proton VPN and Customized, upload a WireGuard `.conf` (with a
+  link to the portal). Customized is the bring-your-own provider for
+  self-hosted or unknown WireGuard servers: it requires a **Name** — which
+  becomes the channel id (`customized/<name>`) — and takes an optional
+  free-text country/city shown with the channel. Each added token provider
+  carries a **gear** to replace its stored token (write-only — the
   token is never shown back); replacing it re-resolves that provider's channels.
   For NordVPN the last step lists the location's servers right below the
   label: **Automatic** (the provider picks — the default) on its own row, then
@@ -33,18 +37,28 @@ page:
 - **Channel servers** — a NordVPN channel shows the server it is on under its
   location, with a pin icon when pinned. Click it to pin another server (the
   city's list, widenable to the whole country) or pick **Automatic** to unpin.
-- **Router rules** — add/delete rules, **drag to reorder** (first match wins),
+- **TUN switch** — in the entry row, flips system-wide capture mode: on, *all*
+  system traffic follows the routing rules (and the kill switch, if on, turns
+  system-wide too); off, only apps pointed at the proxy ports are routed. Same
+  as `anyhop tun on|off`.
+- **Router rulesets** — add/delete rulesets, **drag to reorder** (or focus a
+  row's handle and press **Arrow Up / Arrow Down** — staged changes get an
+  Apply bar; first match wins),
   and toggle **Allow Non-VPN Traffic** (the Unmatched row: on lets unmatched
   destinations reach the Internet, off blocks them). A fixed **Priority 0 / LAN**
-  row at the top keeps local traffic direct ahead of every rule, with a toggle
+  row at the top keeps local traffic direct ahead of every ruleset, with a toggle
   to turn that protection off. A **test box** on the panel traces a destination
   (domain, IP, or URL) through the rule table offline — it renders the verdict
-  and **highlights the winning rule's row** in place, so you can see at a glance
+  and **highlights the winning ruleset's row** in place, so you can see at a glance
   why traffic to a site goes where it goes. Same evaluation as
   `anyhop routes trace`; nothing is sent through the tunnel.
+- **Version badge** — the `ver` chip in the masthead is an on-demand update
+  check: clicking it asks the owning source (Homebrew tap or PyPI) once — never
+  on a timer — reports what's current, and offers a confirmed one-click upgrade.
 - **Bundle** — download the whole setup as a bundle file (it contains
   credentials — the UI warns first), and upload one to **merge** it in or
   **replace** the whole setup (with a confirmation dialog).
+- **Logs page** — the daemon log with a **Last 50 / 200 / 500 lines** selector.
 - Start / stop / restart are host/CLI controls (`anyhop start|stop|restart`); the
   masthead links to the project on GitHub.
 
@@ -82,8 +96,9 @@ defenses, revocation — is documented in [security.md](security.md).
 Two CI layers guard the Web UI:
 
 - **Static + protocol checks** (`npm run check:web`): JS syntax/import
-  resolution, forbidden-sink lint, and Node-level tests of the NDJSON
-  speed-stream framing.
+  resolution, forbidden-sink lint, a guard against `data:` URIs in CSS (the
+  shipped CSP is `img-src 'self'`, so such an image would silently never
+  render), and Node-level tests of the NDJSON speed-stream framing.
 - **Real-browser smoke** (`npm run test:browser`, Playwright/Chromium): the
   actual stdlib server and assets, driven in a real browser against a
   synthetic fixture daemon (`tests/browser/fixture_server.py` — deterministic

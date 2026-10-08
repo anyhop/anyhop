@@ -23,12 +23,12 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
 <table>
   <tr>
     <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/docker.svg" alt="" height="56"><br>Docker</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/terminal.svg" alt="" height="56"><br>CLI</td>
+    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/terminal.svg" alt="" height="56"><br>CLI — macOS &amp; Linux</td>
     <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/browser.svg" alt="" height="56"><br>Web UI</td>
   </tr>
 </table>
 
-### Planned
+### Planned — native apps
 
 <table>
   <tr>
@@ -37,10 +37,10 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
         <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/apple-dark.svg">
         <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/apple.svg" alt="" height="56">
       </picture>
-      <br>macOS
+      <br>macOS app
     </td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/tux.svg" alt="" height="56"><br>Linux</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/windows.svg" alt="" height="56"><br>Windows</td>
+    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/tux.svg" alt="" height="56"><br>Linux GUI</td>
+    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/windows.svg" alt="" height="56"><br>Windows app</td>
     <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/openwrt.svg" alt="" height="56"><br>OpenWrt&nbsp;(LuCI)</td>
   </tr>
 </table>
@@ -152,7 +152,7 @@ vopono](docs/vopono-comparison.md) compare anyhop to each.
 proxy. One router entrypoint sends traffic by rule to an exit, straight out, or
 nowhere at all — see [Rule-based routing](docs/routing.md). For a whole-machine
 VPN through those same rules there is an optional **TUN mode** (`anyhop tun on`,
-one-time privilege grant): [CLI reference](docs/cli-reference.md#anyhop-tun-onoff),
+one-time privilege grant): [CLI reference](docs/cli-reference.md#anyhop-tun-onoffconfirm),
 [runbook](docs/tun-runbook.md).
 
 The runtime model — one `sing-box` process, state, ports, probes — is in

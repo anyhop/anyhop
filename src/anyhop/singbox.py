@@ -87,9 +87,10 @@ def bin_path() -> Path:
     Public: the CLI prints it (``anyhop version --singbox-path``) and the TUN
     privilege gate inspects its file capabilities.
 
-    ``ANYHOP_SINGBOX`` points at a pre-provisioned binary instead (the container
-    image bakes one outside the state volume; air-gapped hosts stage their
-    own). The trust model is unchanged: the bytes are still verified against
+    ``ANYHOP_SINGBOX`` points at a pre-provisioned binary instead (nothing is
+    baked into the container image — it fetches the pinned binary into the
+    state volume on first start — so an air-gapped host stages its own). The
+    trust model is unchanged: the bytes are still verified against
     the pinned SHA-256 on every start, and an override that fails is an error
     — never a fallback download over (or beside) a path the user chose.
     """

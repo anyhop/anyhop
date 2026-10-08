@@ -19,9 +19,9 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
 
 <table>
   <tr>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/docker.svg" alt="" height="56"><br>Docker</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/terminal.svg" alt="" height="56"><br>CLI — macOS &amp; Linux</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/browser.svg" alt="" height="56"><br>Web UI</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/docker.svg" alt="" height="56"><br>Docker</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/terminal.svg" alt="" height="56"><br>CLI (macOS/Linux)</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/browser.svg" alt="" height="56"><br>Web UI</td>
   </tr>
 </table>
 
@@ -29,16 +29,10 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
 
 <table>
   <tr>
-    <td align="center" width="150">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/apple-dark.svg">
-        <img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/apple.svg" alt="" height="56">
-      </picture>
-      <br>macOS app
-    </td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/tux.svg" alt="" height="56"><br>Linux GUI</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/windows.svg" alt="" height="56"><br>Windows app</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/openwrt.svg" alt="" height="56"><br>OpenWrt&nbsp;(LuCI)</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/apple.svg" alt="" height="56"><br>macOS app</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/tux.svg" alt="" height="56"><br>Linux GUI</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/windows.svg" alt="" height="56"><br>Windows app</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/platforms/openwrt.svg" alt="" height="56"><br>OpenWrt&nbsp;(LuCI)</td>
   </tr>
 </table>
 
@@ -48,9 +42,9 @@ A universal VPN client that manages multiple VPN connections with rule-based rou
 
 <table>
   <tr>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/nordvpn.png" alt="" height="56"><br>NordVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/protonvpn.png" alt="" height="56"><br>Proton VPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/customized.png" alt="" height="56"><br>Self-hosted<br><sub><code>customized</code></sub></td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/nordvpn.png" alt="" height="56"><br>NordVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/protonvpn.png" alt="" height="56"><br>Proton VPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/customized.png" alt="" height="56"><br><code>customized</code></td>
   </tr>
 </table>
 
@@ -68,32 +62,32 @@ anyhop channels add customized --name home --config ~/wg/home.conf --country Ger
 
 <table>
   <tr>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/expressvpn.png" alt="" height="56"><br>ExpressVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/surfshark.png" alt="" height="56"><br>Surfshark</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/cyberghost.png" alt="" height="56"><br>CyberGhost</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/pia.png" alt="" height="56"><br>PIA</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/windscribe.png" alt="" height="56"><br>Windscribe</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/expressvpn.png" alt="" height="56"><br>ExpressVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/surfshark.png" alt="" height="56"><br>Surfshark</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/cyberghost.png" alt="" height="56"><br>CyberGhost</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/pia.png" alt="" height="56"><br>PIA</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/windscribe.png" alt="" height="56"><br>Windscribe</td>
   </tr>
   <tr>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/ipvanish.png" alt="" height="56"><br>IPVanish</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/mullvad.png" alt="" height="56"><br>Mullvad</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/purevpn.png" alt="" height="56"><br>PureVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vyprvpn.png" alt="" height="56"><br>VyprVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/hidemyass.png" alt="" height="56"><br>HideMyAss</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/ipvanish.png" alt="" height="56"><br>IPVanish</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/mullvad.png" alt="" height="56"><br>Mullvad</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/purevpn.png" alt="" height="56"><br>PureVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vyprvpn.png" alt="" height="56"><br>VyprVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/hidemyass.png" alt="" height="56"><br>HideMyAss</td>
   </tr>
   <tr>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vpnunlimited.png" alt="" height="56"><br>VPN&nbsp;Unlimited</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/privadovpn.png" alt="" height="56"><br>PrivadoVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/torguard.png" alt="" height="56"><br>TorGuard</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/privatevpn.png" alt="" height="56"><br>PrivateVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/fastestvpn.png" alt="" height="56"><br>FastestVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vpnunlimited.png" alt="" height="56"><br>VPN&nbsp;Unlimited</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/privadovpn.png" alt="" height="56"><br>PrivadoVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/torguard.png" alt="" height="56"><br>TorGuard</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/privatevpn.png" alt="" height="56"><br>PrivateVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/fastestvpn.png" alt="" height="56"><br>FastestVPN</td>
   </tr>
   <tr>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/ivpn.png" alt="" height="56"><br>IVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/airvpn.png" alt="" height="56"><br>AirVPN</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vpnac.png" alt="" height="56"><br>VPN.ac</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vpnsecure.png" alt="" height="56"><br>VPNSecure.me</td>
-    <td align="center" width="150"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/slickvpn.png" alt="" height="56"><br>SlickVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/ivpn.png" alt="" height="56"><br>IVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/airvpn.png" alt="" height="56"><br>AirVPN</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vpnac.png" alt="" height="56"><br>VPN.ac</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/vpnsecure.png" alt="" height="56"><br>VPNSecure.me</td>
+    <td align="center" width="160"><img src="https://raw.githubusercontent.com/anyhop/anyhop/main/src/anyhop/assets/readme/providers/slickvpn.png" alt="" height="56"><br>SlickVPN</td>
   </tr>
 </table>
 

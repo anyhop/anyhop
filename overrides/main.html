@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% set seo = namespace(title=config.site_name, desc=config.site_description) %}
+{% if page and page.meta and page.meta.title %}
+  {% set seo.title = page.meta.title %}
+{% elif page and page.title and not page.is_homepage %}
+  {% set seo.title = page.title %}
+{% endif %}
+{% if "anyhop" not in seo.title %}
+  {% set seo.title = seo.title ~ " — anyhop" %}
+{% endif %}
+{% if page and page.meta and page.meta.description %}
+  {% set seo.desc = page.meta.description %}
+{% endif %}
+
+{% block htmltitle %}
+  <title>{{ seo.title }}</title>
+{% endblock %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% set image = config.site_url ~ "og.png" %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="anyhop">
+  <meta property="og:title" content="{{ seo.title }}">
+  <meta property="og:description" content="{{ seo.desc }}">
+  <meta property="og:url" content="{{ page.canonical_url if page else config.site_url }}">
+  <meta property="og:image" content="{{ image }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ seo.title }}">
+  <meta name="twitter:description" content="{{ seo.desc }}">
+  <meta name="twitter:image" content="{{ image }}">
+  {% if page and page.is_homepage %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "anyhop",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "macOS, Linux",
+    "url": "https://anyhop.github.io/anyhop/",
+    "description": "anyhop keeps several VPN exits live and routes each connection by rule — domain, IP range, or a default you choose. CLI, web UI, REST API.",
+    "license": "https://spdx.org/licenses/MIT.html",
+    "isAccessibleForFree": true,
+    "sameAs": "https://github.com/anyhop/anyhop"
+  }
+  </script>
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0e1416"/>
+  <rect x="564" y="168" width="72" height="8" rx="4" fill="#6e70f4"/>
+  <text x="600" y="310" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="96" font-weight="700" fill="#f7f8f8">anyhop</text>
+  <text x="600" y="380" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="36" fill="#c5d0d4">Several VPN exits. One set of rules.</text>
+  <text x="600" y="470" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="24" fill="#6e70f4">anyhop.github.io</text>
+</svg>

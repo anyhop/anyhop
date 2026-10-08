@@ -38,9 +38,19 @@ def _only_light_dark(match: re.Match[str]) -> str:
     )
 
 
+# Tab title and meta description for the docs homepage. The visible heading
+# stays the README's own "# anyhop".
+_HOME_META = """---
+title: "anyhop — several VPN exits at once"
+description: "anyhop keeps several VPN exits live and routes each connection by rule — domain, IP range, or a default you choose. CLI, web UI, REST API."
+---
+
+"""
+
+
 def generate(readme: str) -> str:
     content = readme.replace("](docs/", "](")
-    return _PICTURE.sub(_only_light_dark, content)
+    return _HOME_META + _PICTURE.sub(_only_light_dark, content)
 
 
 def main() -> None:

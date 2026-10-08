@@ -1,5 +1,5 @@
 site_name: anyhop
-site_description: A universal VPN client that manages multiple VPN connections with rule-based routing.
+site_description: "anyhop keeps several VPN exits live and routes each connection by rule — domain, IP range, or a default you choose. CLI, web UI, REST API."
 site_url: https://anyhop.github.io/anyhop/
 repo_url: https://github.com/anyhop/anyhop
 repo_name: anyhop/anyhop
@@ -8,6 +8,7 @@ docs_dir: docs
 
 theme:
   name: material
+  custom_dir: overrides
   # The wordmark carries the name, so the header title text is hidden via
   # stylesheets/site.css. One SVG reads on the black header and on the page.
   logo: assets/wordmark.svg

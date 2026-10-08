@@ -188,3 +188,17 @@ def test_bearer_and_secret_checks_are_constant_style():
     assert auth.check_bearer(SECRET, None) is False
     assert auth.secret_matches(SECRET, SECRET) is True
     assert auth.secret_matches(SECRET, "nope") is False
+
+
+def test_non_ascii_credentials_are_rejected_never_raising():
+    """Header, cookie, URL and JSON bytes are attacker-controlled, and
+    hmac.compare_digest raises TypeError on non-ASCII str — every credential
+    comparison must answer False instead of turning the request into a 500."""
+    assert auth.check_bearer(SECRET, "Bearer mösel") is False
+    assert auth.check_bearer(SECRET, f"Bearer {SECRET}é") is False
+    assert auth.secret_matches(SECRET, "s3cr3t-ü") is False
+    # a valid session cookie with a non-ASCII byte appended to its signature
+    assert auth.verify_session(SECRET, auth.make_session(SECRET) + "é") is False
+    # a real token body whose signature picked up a non-ASCII byte
+    tok = auth.mint_login_token(SECRET)
+    assert auth.verify_login_token(SECRET, tok + "é") is False

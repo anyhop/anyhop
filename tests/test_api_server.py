@@ -1544,6 +1544,86 @@ def test_a_second_concurrent_speed_test_is_refused(live, monkeypatch):
     first.join(5)
 
 
+def test_a_second_concurrent_geo_refresh_is_refused(live, monkeypatch):
+    """Both geo-refresh routes share one limiter kind: while one refresh runs,
+    the other route (and a repeat of itself) gets 503 instead of a second
+    download pass racing the first's cache writes."""
+    import threading
+    import time
+
+    base, secret = live
+    origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
+    release = threading.Event()
+
+    def blocking_refresh():
+        release.wait(5)
+        return {"refreshed": []}
+
+    monkeypatch.setattr(service, "routes_geo_refresh", blocking_refresh)
+
+    first = threading.Thread(
+        target=lambda: _req(
+            base + "/api/v1/routes/geo/refresh", method="POST", headers=origin, data={}
+        )
+    )
+    first.start()
+    time.sleep(0.2)  # let the first request acquire the "geo" job
+    st, body, _ = _req(
+        base + "/api/v1/routes/geo",
+        method="POST",
+        headers=origin,
+        data={"action": "refresh"},
+    )
+    assert st == 503
+    assert "already running" in json.loads(body)["error"]
+    release.set()
+    first.join(5)
+
+
+def test_a_plain_probe_shares_the_speed_test_limiter(live, monkeypatch):
+    """POST /api/v1/test with speed=false dials every channel like a speed
+    test, so it takes the same limiter kind: while one runs, another — in
+    either mode — is refused with 503."""
+    import threading
+    import time
+
+    base, secret = live
+    origin = {"Origin": base, "Authorization": f"Bearer {secret}"}
+    release = threading.Event()
+
+    def blocking_test(*, speed=True, channel=None, **_):
+        release.wait(5)
+        return {"probed": True, "channel_count": 1, "channels": []}
+
+    monkeypatch.setattr(service, "test", blocking_test)
+
+    first = threading.Thread(
+        target=lambda: _req(
+            base + "/api/v1/test", method="POST", headers=origin, data={"speed": False}
+        )
+    )
+    first.start()
+    time.sleep(0.2)
+    st, body, _ = _req(
+        base + "/api/v1/test", method="POST", headers=origin, data={"speed": False}
+    )
+    assert st == 503
+    assert "already running" in json.loads(body)["error"]
+    release.set()
+    first.join(5)
+
+
+def test_non_ascii_bearer_is_refused_not_500(live):
+    """A bearer header with non-ASCII bytes must answer 401/403 like any other
+    wrong credential — never an internal-error 500 (the comparison must
+    tolerate any bytes an attacker can put in a header)."""
+    base, _secret = live
+    st, _body, _ = _req(
+        base + "/api/v1/status", headers={"Authorization": "Bearer mösel"}
+    )
+    assert st in (401, 403)
+
+
 def test_lifecycle_endpoints_call_service(live, monkeypatch):
     base, secret = live
     origin = {"Origin": base, "Authorization": f"Bearer {secret}"}

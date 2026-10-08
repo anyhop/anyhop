@@ -258,6 +258,14 @@ class _JobLimiter:
 _jobs = _JobLimiter()
 
 
+def _client_error(e: Exception) -> str:
+    """The client-visible message for a service/provider error: the
+    ``web_message`` the call staged for the UI when the CLI text would
+    mislead, else its own text. One mapping for every route that surfaces
+    these errors (JSON, streams, downloads alike), so they cannot drift."""
+    return getattr(e, "web_message", None) or str(e)
+
+
 @contextmanager
 def _guarded(kind: str):
     """Serialize one expensive job ``kind``. Yields ``acquired``: False means a
@@ -415,7 +423,11 @@ def _listen_config(api: dict) -> dict:
     host, port = parsed
     if port is None:
         port = int(api["address"].rsplit(":", 1)[1])
-    loopback = host in ("localhost", "::1") or host.startswith("127.")
+    # getaddrinfo resolves "LocalHost" to loopback exactly like "localhost",
+    # so the posture must classify case-insensitively too — a spelling variant
+    # may narrow (unknown spelling), never widen (this line).
+    lowered = host.lower()
+    loopback = lowered in ("localhost", "::1") or lowered.startswith("127.")
     client_host = "127.0.0.1" if host == "0.0.0.0" else host  # noqa: S104 — ANYHOP_API_LISTEN opt-in
     return {
         "bind": f"{host}:{port}",
@@ -1206,8 +1218,7 @@ class _Handler(BaseHTTPRequestHandler):
         except service.ServiceBusyError as e:
             return self._json(503, {"error": str(e)})
         except (service.ServiceError, ProviderError) as e:
-            message = getattr(e, "web_message", None) or str(e)
-            return self._json(400, {"error": message})
+            return self._json(400, {"error": _client_error(e)})
 
     def _stream_test(self, channel: str | None):
         """Stream a speed test as newline-delimited JSON — a framed protocol.
@@ -1280,7 +1291,7 @@ class _Handler(BaseHTTPRequestHandler):
         except _StreamClosed:
             return  # client disconnected — nothing more to write, work cancelled
         except (service.ServiceError, ProviderError) as e:
-            write({"type": "error", "data": {"error": str(e)}})
+            write({"type": "error", "data": {"error": _client_error(e)}})
             return
         except Exception:  # keep unexpected failures credential-free on the wire
             request_id = secrets.token_hex(6)
@@ -1382,7 +1393,7 @@ class _Handler(BaseHTTPRequestHandler):
         try:
             result = service.setup_export()
         except service.ServiceError as e:
-            return self._json(400, {"error": str(e)})
+            return self._json(400, {"error": _client_error(e)})
         name = f"anyhop-backup-{time.strftime('%Y%m%d-%H%M%S')}.yaml"
         self._send(
             200,
@@ -1654,7 +1665,12 @@ class _Handler(BaseHTTPRequestHandler):
             _fields(body, "action", "source")
             action = _opt_str_field(body, "action")
             if action == "refresh":
-                return self._call(service.routes_geo_refresh)
+                with _guarded("geo") as acquired:
+                    if not acquired:
+                        return self._json(
+                            503, {"error": "a geo database refresh is already running"}
+                        )
+                    return self._call(service.routes_geo_refresh)
             if action == "source":
                 source = _opt_str_field(body, "source")
                 if not source:
@@ -1663,7 +1679,14 @@ class _Handler(BaseHTTPRequestHandler):
             raise _BadRequest(400, "action must be 'refresh' or 'source'")
         if method == "POST" and seg == ["routes", "geo", "refresh"]:
             _fields(body)
-            return self._call(service.routes_geo_refresh)
+            # Both geo-refresh routes share one limiter kind: two concurrent
+            # refresh passes race each other's cache writes and prune windows.
+            with _guarded("geo") as acquired:
+                if not acquired:
+                    return self._json(
+                        503, {"error": "a geo database refresh is already running"}
+                    )
+                return self._call(service.routes_geo_refresh)
         if method == "POST" and seg == ["routes", "geo", "source"]:
             _fields(body, "source")
             return self._call(service.routes_geo_source, _opt_str_field(body, "source"))
@@ -1686,7 +1709,12 @@ class _Handler(BaseHTTPRequestHandler):
             channel = _opt_str_field(body, "channel")
             if _bool_field(body, "speed"):
                 return self._stream_test(channel)
-            return self._call(service.test, speed=False, channel=channel or None)
+            # Plain probes are the same expensive job as a speed test (every
+            # channel dialed through its proxy), so they share its limiter kind.
+            with _guarded("test") as acquired:
+                if not acquired:
+                    return self._json(503, {"error": "a speed test is already running"})
+                return self._call(service.test, speed=False, channel=channel or None)
         if method == "POST" and seg == ["upgrade"]:
             from anyhop import daemon as daemon_runtime
 

@@ -91,6 +91,10 @@ def test_listen_config_loopback_values_are_not_net(monkeypatch):
     assert server._listen_config(server.control_api())["net"] is False
     monkeypatch.setenv("ANYHOP_API_LISTEN", "localhost:9999")
     assert server._listen_config(server.control_api())["net"] is False
+    # getaddrinfo resolves the cased spelling to the same loopback address, so
+    # classifying it as a network bind would widen the posture on a typo
+    monkeypatch.setenv("ANYHOP_API_LISTEN", "LocalHost:9999")
+    assert server._listen_config(server.control_api())["net"] is False
 
 
 # ---- ANYHOP_API_SECRET[_FILE] ---------------------------------------------------

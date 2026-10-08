@@ -38,6 +38,22 @@ from pathlib import Path
 from anyhop import applog, fsio
 
 LOGIN_TTL = 120  # seconds a one-time login token is valid
+
+
+def _ct_equal(a: str, b: str) -> bool:
+    """Constant-time equality for credential material of any origin.
+
+    ``hmac.compare_digest`` raises ``TypeError`` on non-ASCII ``str`` — and the
+    compared values come straight from headers, cookies, URLs and JSON bodies,
+    where an attacker controls the bytes. Both sides are compared as encoded
+    bytes instead: encoding never fails, and malformed input simply never
+    matches.
+    """
+    return hmac.compare_digest(
+        a.encode("utf-8", "replace"), b.encode("utf-8", "replace")
+    )
+
+
 SESSION_IDLE = 30 * 60  # a session ends after this much inactivity
 SESSION_MAX = 12 * 3600  # absolute session cap, regardless of activity
 
@@ -91,7 +107,7 @@ def _check_login_token(secret: str, token: str, now: int) -> tuple[str, int] | N
     except ValueError:
         return None
     canonical = f"{_b64(payload)}.{_sign(secret, payload)}"
-    if not hmac.compare_digest(token, canonical):
+    if not _ct_equal(token, canonical):
         return None
     if abs(now - issued) > LOGIN_TTL:
         return None
@@ -255,7 +271,7 @@ def verify_session(
         return False
     if revoked_at and issued <= revoked_at:
         return False
-    return hmac.compare_digest(sig, _sign(secret, f"session:{issued}:{expiry}"))
+    return _ct_equal(sig, _sign(secret, f"session:{issued}:{expiry}"))
 
 
 def refresh_session(secret: str, cookie: str, *, now: int | None = None) -> str | None:
@@ -294,13 +310,13 @@ def health_proof(secret: str, nonce: str) -> str:
 def check_bearer(secret: str, header: str | None) -> bool:
     if not header or not header.startswith("Bearer "):
         return False
-    return hmac.compare_digest(header[len("Bearer ") :].strip(), secret)
+    return _ct_equal(header[len("Bearer ") :].strip(), secret)
 
 
 def secret_matches(secret: str, value: str | None) -> bool:
     """Constant-time equality with the raw secret — the manual login fallback
     (paste the ``secret`` from control_api.json when not using ``anyhop ui``)."""
-    return hmac.compare_digest(value or "", secret)
+    return _ct_equal(value or "", secret)
 
 
 def _rand(n: int) -> bytes:

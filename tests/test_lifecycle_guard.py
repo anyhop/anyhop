@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from anyhop import paths, singbox
+from anyhop import paths, service, singbox
 from anyhop.singbox import Runner
 
 _FAKE = """#!/usr/bin/env python3
@@ -195,6 +195,28 @@ def test_two_hand_started_copies_collapse_to_one(fake_binary):
         for child in children:
             if child.poll() is None:
                 child.kill()
+
+
+def test_status_and_health_accept_a_backend_with_only_is_running(monkeypatch):
+    """CLI and gateway tests stub a runner that has no ``running_pid``.
+
+    Calling that method unconditionally is an AttributeError on CI even when
+    the lifecycle tests, which use the real Runner, stay green.
+    """
+
+    class _Runner:
+        def is_running(self) -> bool:
+            return True
+
+    monkeypatch.setattr(service, "runtime_backend", lambda: _Runner())
+    monkeypatch.setattr(service.daemon, "running_pid", lambda: 7)
+    monkeypatch.setattr(service.daemon, "daemon_info", lambda: None)
+    monkeypatch.setattr(singbox, "census", lambda **_kwargs: [])
+
+    assert service.status_snapshot()["running"] is True
+    health = service.health()
+    assert health["singbox"] is True
+    assert health["ok"] is True
 
 
 def test_pidfile_unlink_ignores_a_replaced_record():

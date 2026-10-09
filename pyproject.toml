@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anyhop"
-version = "0.1.21"
+version = "0.1.22"
 description = "A universal VPN client that manages multiple VPN connections with rule-based routing."
 readme = "README.md"
 requires-python = ">=3.11"

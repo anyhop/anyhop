@@ -21,6 +21,7 @@ from anyhop import fsio, paths
 
 
 MAX_LOG_BYTES = 5 * 1024 * 1024  # rotate a log file that grows past this
+LOG_BACKUPS = 5  # anyhop.log.1 .. anyhop.log.5 (and the same for sing-box)
 TAIL_BLOCK_BYTES = 8192
 
 # Foreground mode (`anyhop run`, the container's PID 1): every log line is also
@@ -33,16 +34,21 @@ def _log_path() -> Path:
     return paths.state_dir() / "anyhop.log"
 
 
-def rotate_if_needed(p: Path, max_bytes: int) -> None:
-    """Move ``p`` to ``<p>.1`` once it exceeds ``max_bytes`` (one backup kept).
+def rotate_if_needed(p: Path, max_bytes: int, backups: int = LOG_BACKUPS) -> None:
+    """Rotate ``p`` once it exceeds ``max_bytes``, keeping ``backups`` generations.
 
-    Keeps append-forever logs (this one, sing-box's) from growing without
-    bound. Concurrent writers can race the rename; worst case a few lines land
-    in the rotated file, which is fine for an operations log.
+    ``p`` becomes ``<p>.1``, and each older generation shifts up by one. The
+    oldest is dropped. Concurrent writers can race the rename; worst case a
+    few lines land in a rotated file, which is fine for an operations log.
     """
     try:
-        if p.stat().st_size >= max_bytes:
-            os.replace(p, p.with_name(p.name + ".1"))
+        if p.stat().st_size < max_bytes or backups < 1:
+            return
+        for generation in range(backups, 1, -1):
+            src = p.with_name(f"{p.name}.{generation - 1}")
+            if src.exists():
+                os.replace(src, p.with_name(f"{p.name}.{generation}"))
+        os.replace(p, p.with_name(p.name + ".1"))
     except OSError:
         pass
 

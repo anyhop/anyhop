@@ -76,11 +76,17 @@ paths:
                       description: 'HMAC-SHA256(secret, "health:"+nonce), urlsafe-base64',
                     }
                   ok:
-                    {
-                      type: boolean,
-                      description: "True only while sing-box (the data plane) is running",
-                    }
+                    type: boolean
+                    description: >
+                      True only while the vouched sing-box is running and no
+                      second process is holding this home's config. A stray
+                      instance keeps provider tunnels the API cannot see.
                   sing_box: { type: string, enum: [running, stopped] }
+                  processes:
+                    {
+                      type: integer,
+                      description: "sing-box processes running this home's config",
+                    }
                   runtime:
                     type: [object, "null"]
                     description: >
@@ -118,6 +124,13 @@ paths:
                   channel_count: { type: integer }
                   enabled_count: { type: integer }
                   disabled_count: { type: integer }
+                  processes:
+                    type: array
+                    description: >
+                      sing-box processes on this home's config (pid, age,
+                      sockets, whether the pidfile vouches for it). More
+                      than one means an untracked tunnel.
+                    items: { type: object }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/metrics:

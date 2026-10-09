@@ -522,6 +522,7 @@ def test_health_reports_down_on_a_fresh_state():
         "singbox": False,
         "channels": 0,
         "runtime": None,
+        "processes": [],
     }
 
 

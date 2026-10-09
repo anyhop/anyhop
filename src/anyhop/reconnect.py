@@ -65,11 +65,68 @@ FAIL_THRESHOLD = (
 )
 MAX_ATTEMPTS = 5  # give up after this many reconnect attempts
 BACKOFF = [30, 60, 120, 300, 600]  # seconds between successive attempts
+# A config-channel recovery restarts the one sing-box, which re-handshakes
+# every provider. One successful probe clears that channel's counter, so a
+# flapping channel used to restart the process forever. This budget survives
+# that reset: five process restarts in six hours, then further ones wait.
+PROCESS_RESTART_LIMIT = 5
+PROCESS_RESTART_WINDOW = 6 * 3600
 
 
 def _backoff(attempt: int) -> int:
     """Seconds to wait after the ``attempt``-th reconnect (0-indexed), capped."""
     return BACKOFF[min(attempt, len(BACKOFF) - 1)]
+
+
+def _budget_path():
+    from anyhop import paths
+
+    return paths.state_dir() / "restart-budget.json"
+
+
+def _budget_stamps(now: float) -> list[int]:
+    """Process-restart timestamps still inside the window. Corrupt reads are
+    an empty budget (allow a restart) rather than a permanent stop."""
+    import json
+
+    try:
+        raw = json.loads(_budget_path().read_text())
+    except (OSError, ValueError, TypeError):
+        return []
+    if not isinstance(raw, list):
+        return []
+    cutoff = now - PROCESS_RESTART_WINDOW
+    return [int(stamp) for stamp in raw if isinstance(stamp, int) and stamp >= cutoff]
+
+
+def process_restart_allowed(now: float) -> bool:
+    """False once this home has restarted sing-box too often in the window."""
+    return len(_budget_stamps(now)) < PROCESS_RESTART_LIMIT
+
+
+def note_process_restart(now: float) -> None:
+    """Record one process restart. A later successful probe does not remove it."""
+    import json
+
+    from anyhop import fsio
+
+    stamps = _budget_stamps(now)
+    stamps.append(int(now))
+    fsio.write_durably(
+        _budget_path(),
+        lambda handle: handle.write(json.dumps(stamps)),
+        prefix=".restart-budget-",
+        suffix=".json",
+        mode=0o600,
+    )
+
+
+def clear_process_restart_budget() -> None:
+    """Drop the budget. Human ``anyhop restart`` is the intervention that may."""
+    try:
+        _budget_path().unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def _is_non_retryable(err: Exception) -> bool:
@@ -293,14 +350,26 @@ def run_pass(
             )
 
     if restart_refs:
-        try:
-            runner.restart()
+        if not process_restart_allowed(now):
             applog.log(
-                "reconnect: restarted sing-box once for "
-                f"{len(restart_refs)} channel(s): {', '.join(restart_refs)}"
+                "reconnect: sing-box restart skipped — "
+                f"{PROCESS_RESTART_LIMIT} process restarts already used in "
+                f"{PROCESS_RESTART_WINDOW // 3600}h "
+                f"({', '.join(restart_refs)}). A recovered probe does not "
+                "reset this; anyhop restart does"
             )
-        except Exception as e:  # noqa: BLE001 — bookkeeping is already persisted
-            applog.log(
-                f"reconnect: sing-box restart failed — {e} "
-                "(attempt bookkeeping kept; the next due pass retries)"
-            )
+        else:
+            # Count the attempt even when restart raises: a failed bounce
+            # still tore tunnels down, and must not retry in a tight loop.
+            note_process_restart(now)
+            try:
+                runner.restart()
+                applog.log(
+                    "reconnect: restarted sing-box once for "
+                    f"{len(restart_refs)} channel(s): {', '.join(restart_refs)}"
+                )
+            except Exception as e:  # noqa: BLE001 — bookkeeping is already persisted
+                applog.log(
+                    f"reconnect: sing-box restart failed — {e} "
+                    "(attempt bookkeeping kept; the next due pass retries)"
+                )

@@ -1157,17 +1157,21 @@ class _Handler(BaseHTTPRequestHandler):
         nonce = (query.get("nonce") or [""])[0]
         if not nonce or len(nonce) > 128:
             raise _BadRequest(400, "a nonce query parameter (<=128 chars) is required")
-        from anyhop import daemon
+        from anyhop import daemon, singbox
         from anyhop.backend import runtime_backend
 
-        up = runtime_backend().is_running()
+        runner = runtime_backend()
+        up = runner.is_running()
+        singbox_pid = singbox.pidfile_pid() if up else None
+        processes = len(singbox.census(vouched=singbox_pid, verified=True, fresh=True))
         info = daemon.daemon_info() or {}
         self._json(
             200,
             {
                 "proof": auth.health_proof(self.secret, nonce),
-                "ok": up,
+                "ok": up and processes <= 1,
                 "sing_box": "running" if up else "stopped",
+                "processes": processes,
                 "runtime": info.get("runtime"),
             },
             {"Cache-Control": "no-store"},

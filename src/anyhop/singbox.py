@@ -388,6 +388,387 @@ def _reap_exited_children() -> None:
         _reap_child(pid)
 
 
+# One lock for every spawn, stop, and reload. The probe thread restarts
+# sing-box while the main loop supervises it; without this, the supervisor
+# reads the gap inside stop() as a crash and starts a second process. The
+# loser of the bind then deletes the pidfile and the winner keeps the tunnel
+# with no owner. Held across the whole stop+start, so a liveness check that
+# also takes the lock cannot observe that gap.
+lifecycle_lock = threading.RLock()
+_restarting = False
+
+
+def restart_in_progress() -> bool:
+    """True while this process is inside an intentional stop or restart.
+
+    Only meaningful while holding :data:`lifecycle_lock`. Other threads block
+    on that lock instead of observing the flag mid-update.
+    """
+    return _restarting
+
+
+def _config_text() -> str:
+    return str(_config_path())
+
+
+def _alive(pid: int) -> bool:
+    """True for a process we could still signal. Zombies are not alive.
+
+    ``kill(pid, 0)`` succeeds on a zombie, and a stray we just terminated
+    stays a zombie until its parent waits. Treating that as alive made the
+    next start refuse to spawn.
+    """
+    if pid <= 0 or pid == os.getpid():
+        return False
+    state = proc.process_state_of(pid)
+    return state is not None and state != "Z"
+
+
+def _reap_os(pid: int) -> None:
+    """Collect a child we spawned or inherited, so a zombie leaves the table."""
+    _reap_child(pid)
+    try:
+        os.waitpid(pid, os.WNOHANG)
+    except OSError:
+        pass
+
+
+def _iter_commands():
+    """Yield ``(pid, argv)`` for every process we can see.
+
+    Linux reads ``/proc/<pid>/cmdline`` (NUL-separated, exact). Elsewhere one
+    ``ps`` supplies a whitespace-split approximation — good enough to recognise
+    our own ``sing-box run -c <this home's singbox.json>``.
+    """
+    proc_root = Path("/proc")
+    if proc_root.is_dir():
+        for entry in proc_root.iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                raw = (entry / "cmdline").read_bytes()
+            except OSError:
+                continue
+            argv = [part.decode(errors="replace") for part in raw.split(b"\0") if part]
+            if argv:
+                yield int(entry.name), argv
+        return
+    try:
+        out = subprocess.run(
+            [proc.PS, "-ax", "-o", "pid=,command="],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    for line in out.stdout.splitlines():
+        text = line.strip()
+        if not text:
+            continue
+        pid_text, _, command = text.partition(" ")
+        try:
+            pid = int(pid_text)
+        except ValueError:
+            continue
+        if command:
+            yield pid, command.split()
+
+
+def _is_managed_singbox(argv: list[str], config: str) -> bool:
+    """A sing-box ``run`` of this home's config, not ``check`` and not a stranger."""
+    if not argv or config not in argv:
+        return False
+    blob = " ".join(argv)
+    if "sing-box" not in blob:
+        return False
+    if "check" in argv and "run" not in argv:
+        return False
+    return True
+
+
+def managed_pids() -> list[int]:
+    """PIDs running this home's ``singbox.json``. Empty when the scan fails."""
+    config = _config_text()
+    found = []
+    for pid, argv in _iter_commands():
+        if pid != os.getpid() and _is_managed_singbox(argv, config):
+            found.append(pid)
+    return found
+
+
+# Status polls several times a minute. The scan is a /proc walk or one ``ps``,
+# so reuse it briefly instead of paying it on every poll. Lifecycle changes
+# drop the cache so a spawn or reclaim shows up at once.
+_scan_cache: dict = {"at": 0.0, "pids": []}
+_SCAN_TTL = 30.0
+
+
+def _managed_pids_cached(*, fresh: bool) -> list[int]:
+    now = time.monotonic()
+    if not fresh and _scan_cache["at"] and now - _scan_cache["at"] < _SCAN_TTL:
+        return list(_scan_cache["pids"])
+    pids = managed_pids()
+    _scan_cache["at"] = now
+    _scan_cache["pids"] = list(pids)
+    return pids
+
+
+def invalidate_scan_cache() -> None:
+    _scan_cache["at"] = 0.0
+
+
+def _ppid_of(pid: int) -> int | None:
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+        return int(stat.rsplit(")", 1)[1].split()[1])
+    except (OSError, IndexError, ValueError):
+        pass
+    try:
+        out = subprocess.run(
+            [proc.PS, "-p", str(pid), "-o", "ppid="],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        return int(out.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def _age_s(pid: int) -> int | None:
+    try:
+        uptime = float(Path("/proc/uptime").read_text().split()[0])
+        stat = Path(f"/proc/{pid}/stat").read_text()
+        ticks = int(stat.rsplit(")", 1)[1].split()[19])
+        hz = os.sysconf("SC_CLK_TCK")
+        return max(0, int(uptime - ticks / hz))
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _socket_count(pid: int) -> int | None:
+    """Open sockets, from procfs only.
+
+    Status and health call this on their poll. ``lsof`` is too slow to run
+    there; hosts without procfs report ``None`` and the pid list still stands.
+    """
+    fd_dir = Path(f"/proc/{pid}/fd")
+    if not fd_dir.is_dir():
+        return None
+    count = 0
+    for fd in fd_dir.iterdir():
+        try:
+            if os.readlink(fd).startswith("socket:"):
+                count += 1
+        except OSError:
+            continue
+    return count
+
+
+def _life_log(action: str, pid: int | None) -> None:
+    """Pid, parent, and start time for one lifecycle event. No config, no keys."""
+    if pid is None:
+        applog.log(f"sing-box {action}")
+        return
+    applog.log(
+        f"sing-box {action} pid={pid} ppid={_ppid_of(pid)} "
+        f"start={proc.start_time_of(pid)}"
+    )
+
+
+def pidfile_pid() -> int | None:
+    """The pid recorded in the pidfile, without checking that it is alive."""
+    try:
+        record = proc.parse_record(_pid_path().read_text())
+    except OSError:
+        return None
+    pid = record.get("pid") if record else None
+    if isinstance(pid, int) and not isinstance(pid, bool):
+        return pid
+    return None
+
+
+def census(
+    *, vouched: int | None = None, verified: bool = False, fresh: bool = False
+) -> list[dict]:
+    """Every sing-box on this home's config: pid, age, sockets, pidfile match.
+
+    ``vouched`` is true only for the pid the pidfile currently proves. More
+    than one row means a tunnel the API is not tracking.
+
+    Pass ``verified=True`` with the pid a caller already proved (status and
+    health just called ``running_pid``) so this does not verify it again.
+    ``fresh`` skips the short scan cache; health checks do, status polls do not.
+    """
+    try:
+        if not verified:
+            vouched = proc.read_pidfile(_pid_path(), ("sing-box",))
+        rows = []
+        for pid in _managed_pids_cached(fresh=fresh):
+            rows.append(
+                {
+                    "pid": pid,
+                    "ppid": _ppid_of(pid),
+                    "age_s": _age_s(pid),
+                    "sockets": _socket_count(pid),
+                    "vouched": pid == vouched,
+                }
+            )
+        return rows
+    except Exception:  # noqa: BLE001 — a census failure must not fail health
+        applog.log("sing-box census failed")
+        return []
+
+
+def reap_strays(keep: int | None = None) -> list[int]:
+    """SIGTERM, then SIGKILL, every managed sing-box except ``keep``.
+
+    Returns pids that were still alive after the grace period. Callers that
+    are about to spawn must refuse to continue when this is non-empty.
+    """
+    victims = [pid for pid in managed_pids() if pid != keep]
+    invalidate_scan_cache()
+    if not victims:
+        return []
+    for pid in victims:
+        _life_log("stray terminating", pid)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            pass
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        if not any(_alive(pid) for pid in victims):
+            break
+        time.sleep(0.05)
+    for pid in victims:
+        if _alive(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+    for pid in victims:
+        _reap_os(pid)
+    return [pid for pid in victims if _alive(pid)]
+
+
+def _unlink_pidfile_if(pid: int) -> bool:
+    """Remove the pidfile only when it still names ``pid``.
+
+    The process that lost the bind used to unlink unconditionally, which
+    deleted the winner's record and left that process untracked.
+    """
+    path = _pid_path()
+    try:
+        record = proc.parse_record(path.read_text())
+    except OSError:
+        return False
+    if not record or record.get("pid") != pid:
+        return False
+    path.unlink(missing_ok=True)
+    _started_path().unlink(missing_ok=True)
+    _life_log("pidfile removed", pid)
+    return True
+
+
+def _drop_unverified_pidfile() -> None:
+    """Delete a pidfile that does not name a live process we spawned."""
+    path = _pid_path()
+    try:
+        text = path.read_text()
+    except OSError:
+        return
+    record = proc.parse_record(text)
+    if record and proc.verify(record, ("sing-box",)):
+        return
+    pid = record.get("pid") if record else None
+    path.unlink(missing_ok=True)
+    _started_path().unlink(missing_ok=True)
+    _life_log("stale pidfile removed", pid if isinstance(pid, int) else None)
+
+
+def _listen_pids(port: int) -> list[int] | None:
+    """PIDs listening on TCP ``port``, or None when the host can't be asked.
+
+    None is "could not tell", which is different from an empty list. Callers
+    that renumber ports treat "could not tell" as the old recovery.
+    """
+    tcp = Path("/proc/net/tcp")
+    if tcp.exists():
+        inodes: set[str] = set()
+        hex_port = f"{port:04X}"
+        for name in ("tcp", "tcp6"):
+            try:
+                lines = Path(f"/proc/net/{name}").read_text().splitlines()[1:]
+            except OSError:
+                continue
+            for line in lines:
+                fields = line.split()
+                if len(fields) < 10 or fields[3] != "0A":
+                    continue
+                if fields[1].rsplit(":", 1)[-1].upper() == hex_port:
+                    inodes.add(fields[9])
+        if not inodes:
+            return []
+        found: list[int] = []
+        for entry in Path("/proc").iterdir():
+            if not entry.name.isdigit():
+                continue
+            fd_dir = entry / "fd"
+            try:
+                fds = list(fd_dir.iterdir())
+            except OSError:
+                continue
+            for fd in fds:
+                try:
+                    target = os.readlink(fd)
+                except OSError:
+                    continue
+                if target.startswith("socket:[") and target.endswith("]"):
+                    if target[8:-1] in inodes:
+                        found.append(int(entry.name))
+                        break
+        return found
+    lsof = "/usr/sbin/lsof" if os.path.exists("/usr/sbin/lsof") else "lsof"
+    try:
+        out = subprocess.run(
+            [lsof, "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode not in (0, 1):
+        return None
+    pids = []
+    for line in out.stdout.splitlines():
+        text = line.strip()
+        if text.isdigit():
+            pids.append(int(text))
+    return pids
+
+
+def port_holder(port: int) -> str:
+    """Who holds ``port``: ``ours``, ``foreign``, or ``unknown``.
+
+    ``ours`` is a sing-box running this home's config. ``unknown`` covers a
+    failed lookup and a port with no listener — a start error can name a port
+    whose socket is already gone, and that case keeps the previous recovery.
+    """
+    try:
+        pids = _listen_pids(port)
+    except Exception:  # noqa: BLE001 — identification must not break reconcile
+        return "unknown"
+    if not pids:
+        return "unknown"
+    ours = set(managed_pids())
+    if any(pid in ours for pid in pids):
+        return "ours"
+    return "foreign"
+
+
 class ApplyOutcome(Enum):
     """What :meth:`Runner.apply` actually achieved — a delivered signal is not
     proof of a healthy applied generation, so the boolean it replaced could not
@@ -517,6 +898,11 @@ class Runner:
         return self.running_pid() is not None
 
     def apply(self, config: dict) -> ApplyResult:
+        """Serialize with start/stop/restart, then apply. See :meth:`_apply_locked`."""
+        with lifecycle_lock:
+            return self._apply_locked(config)
+
+    def _apply_locked(self, config: dict) -> ApplyResult:
         """Write the config and (re)start sing-box to match it.
 
         Restarts only when the config actually changed (so a no-op reconcile
@@ -727,7 +1113,19 @@ class Runner:
         )
 
     def start(self, binary: Path | None = None) -> None:
-        if self.is_running():
+        with lifecycle_lock:
+            self._start_locked(binary)
+
+    def _start_locked(self, binary: Path | None = None) -> None:
+        """Spawn the one sing-box. Caller holds :data:`lifecycle_lock`."""
+        vouched = self.running_pid()
+        left = reap_strays(keep=vouched)
+        if left:
+            raise SingBoxRuntimeError(
+                "refusing to start sing-box while another instance of this "
+                f"home's config is still alive: {left}"
+            )
+        if vouched is not None:
             return
         if binary is None:
             binary = ensure_binary()
@@ -745,20 +1143,33 @@ class Runner:
         # the recorded start time provably belongs to this sing-box.
         proc.write_pidfile(_pid_path(), child.pid)
         _started_path().write_text(str(int(time.time())))
+        _life_log("spawned", child.pid)
+        invalidate_scan_cache()
         # A config can pass `check` yet still die at startup (a port stolen by
         # another process binds only at run time). Catch an immediate exit so
         # the failure is loud instead of a dead PID behind a fresh pidfile.
+        # Unlink only when the pidfile still names THIS child: a concurrent
+        # starter may already have written the winner's pid.
         time.sleep(0.3)
         if child.poll() is not None:
             _reap_child(child.pid)
-            _pid_path().unlink(missing_ok=True)
-            _started_path().unlink(missing_ok=True)
+            _unlink_pidfile_if(child.pid)
             raise SingBoxRuntimeError(
                 f"sing-box exited immediately (code {child.returncode}); "
                 f"last log lines:\n{self.logs(10)}"
             )
 
     def stop(self) -> None:
+        global _restarting
+        with lifecycle_lock:
+            _restarting = True
+            try:
+                self._stop_locked()
+            finally:
+                _restarting = False
+
+    def _stop_locked(self) -> None:
+        """Stop sing-box. Caller holds :data:`lifecycle_lock`."""
         # Only the helper can stop a root sing-box it owns; a user SIGTERM
         # would get EPERM. Delegate when it owns the process.
         from anyhop import helper as helper_mod
@@ -773,9 +1184,16 @@ class Runner:
         """Stop a user-owned sing-box by pidfile (no helper involvement)."""
         pid = proc.read_pidfile(_pid_path(), ("sing-box",))
         if pid is None:
-            _pid_path().unlink(missing_ok=True)
-            _started_path().unlink(missing_ok=True)
+            applog.log(
+                "sing-box stop: pidfile does not name a live process; "
+                "reclaiming any instance of this home's config"
+            )
+            _drop_unverified_pidfile()
+            left = reap_strays(keep=None)
+            if left:
+                applog.log(f"sing-box stop: still alive after reclaim: {left}")
             return
+        _life_log("stopping", pid)
         try:
             os.kill(pid, signal.SIGTERM)
         except OSError:  # exited between the liveness check and the signal
@@ -797,12 +1215,26 @@ class Runner:
             except subprocess.TimeoutExpired:
                 pass
             _reap_child(pid)
-        _pid_path().unlink(missing_ok=True)
-        _started_path().unlink(missing_ok=True)
+        _unlink_pidfile_if(pid)
+        left = reap_strays(keep=None)
+        if left:
+            applog.log(f"sing-box stop: still alive after reclaim: {left}")
 
     def restart(self, binary: Path | None = None) -> None:
-        self.stop()
-        self.start(binary=binary)
+        """Stop and start as one critical section.
+
+        The intentional-stop flag is set before the process is signaled, and
+        the lifecycle lock is held until the replacement is running, so the
+        supervisor cannot treat the gap as a crash and spawn a second copy.
+        """
+        global _restarting
+        with lifecycle_lock:
+            _restarting = True
+            try:
+                self._stop_locked()
+                self._start_locked(binary)
+            finally:
+                _restarting = False
 
     def check(self, binary: Path | None = None) -> bool:
         """Validate the on-disk config with ``sing-box check``. True if it passes.

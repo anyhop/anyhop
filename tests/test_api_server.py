@@ -2096,6 +2096,15 @@ def test_health_reports_the_data_plane(live, monkeypatch):
     assert payload["ok"] is True
     assert payload["sing_box"] == "running"
 
+    monkeypatch.setattr(
+        "anyhop.singbox.census",
+        lambda **_kwargs: [{"pid": 11}, {"pid": 22}],
+    )
+    st, body, _ = _req(base + "/health?nonce=n3")
+    payload = json.loads(body)
+    assert payload["ok"] is False
+    assert payload["processes"] == 2
+
 
 def test_wait_until_serving_verifies_the_listener(live, monkeypatch):
     base, _ = live

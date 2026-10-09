@@ -239,6 +239,35 @@ def test_config_channels_coalesce_into_one_restart(monkeypatch):
         assert ch.reconnect["attempts"] == 1  # bookkeeping advanced for each
 
 
+def test_process_restart_budget_survives_a_recovered_probe(channel, monkeypatch):
+    """One good probe clears the channel counter. It must not clear the
+    process-wide budget, or a flapping channel restarts sing-box forever."""
+    monkeypatch.setattr(reconnect, "is_functional", lambda _p: False)
+    monkeypatch.setattr(reconnect, "kind", lambda _p: "config")
+    monkeypatch.setattr(reconnect, "PROCESS_RESTART_LIMIT", 1)
+    store = Store.load()
+    runner = _Runner()
+
+    def drive(now: int) -> None:
+        for offset in range(reconnect.FAIL_THRESHOLD):
+            store.set_probe("nordvpn", channel, dict(FAIL))
+            reconnect.run_pass(
+                Store.load(), cast(singbox.Runner, runner), now=now + offset
+            )
+
+    drive(1_000)
+    assert runner.restarts == 1
+    store.set_probe("nordvpn", channel, dict(OK))
+    reconnect.run_pass(Store.load(), cast(singbox.Runner, runner), now=2_000)
+    assert _rc(channel) == {}
+    drive(3_000)
+    assert runner.restarts == 1
+    assert "restart skipped" in applog.tail()
+    reconnect.clear_process_restart_budget()
+    drive(4_000)
+    assert runner.restarts == 2
+
+
 def test_attempt_bookkeeping_persists_when_resolve_raises(channel):
     """A crash or error mid-attempt must not lose the backoff state — otherwise
     the next pass would treat the attempt as never-made and retry immediately,

@@ -13,8 +13,10 @@ start time, so matching it proves the process is the very one anyhop spawned,
 not merely one that looks similar. Legacy plain-integer pidfiles (and records
 whose start time could not be captured) fall back to the older, weaker
 command-line marker check. Every ambiguity resolves to *not ours*: wrongly
-reporting "stopped" costs at most a redundant start; wrongly reporting
-"running" would let ``stop()`` signal a stranger.
+reporting "running" would let ``stop()`` signal a stranger. A wrong
+"stopped" must not be followed by a blind spawn — the caller has to reclaim
+any live sing-box for this home first, or the untracked process keeps the
+provider tunnel.
 """
 
 from __future__ import annotations

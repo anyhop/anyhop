@@ -1312,6 +1312,11 @@ class Store:
                         held.append((provider, cid, old))
                         continue
                     new = _next_free_port(data)
+                    # Remember the first automatic port so a later reconcile
+                    # can move back once the foreign holder is gone. A second
+                    # move must not overwrite that home port with the drifted one.
+                    if ch.get("port_home") is None:
+                        ch["port_home"] = old
                     ch["port"] = new
                     moved.append((provider, cid, old, new))
             router = data.setdefault("router", _router_blank())
@@ -1321,10 +1326,62 @@ class Store:
                     held.append(("router", "entrypoint", old))
                 else:
                     new = _next_free_port(data)
+                    if router.get("port_home") is None:
+                        router["port_home"] = old
                     router["port"] = new
                     moved.append(("router", "entrypoint", old, new))
         self.data = _read_raw()
         return moved, held
+
+    def restore_home_ports(self) -> list[tuple[str, str, int]]:
+        """Move automatic ports back to the port they had before a renumber.
+
+        A foreign holder is the only reason a port leaves home. When that
+        port is free again, consumers wired to the original allocation start
+        working without an edit. Explicit declarations never move, so they
+        have no home to restore. Returns ``(provider, id, port)`` for each
+        port put back.
+
+        A Store built from a detached dict (a render, a unit test) is left
+        untouched: recovery writes the on-disk state, and reloading that
+        would discard the dict.
+        """
+        if self.data != _read_raw():
+            return []
+        restored: list[tuple[str, str, int]] = []
+        with transaction() as data:
+            used = set(_used_ports(data))
+            for provider, prov in sorted((data.get("providers") or {}).items()):
+                for cid, ch in sorted((prov.get("channels") or {}).items()):
+                    if ch.get("port_explicit"):
+                        continue
+                    home = ch.get("port_home")
+                    current = int(ch.get("port") or 0)
+                    if not isinstance(home, int) or isinstance(home, bool):
+                        continue
+                    if home == current or home in used:
+                        continue
+                    if not _os_port_free(home):
+                        continue
+                    ch["port"] = home
+                    used.discard(current)
+                    used.add(home)
+                    restored.append((provider, cid, home))
+            router = data.get("router") or {}
+            home = router.get("port_home")
+            current = int(router.get("port") or 0)
+            if (
+                not router.get("port_explicit")
+                and isinstance(home, int)
+                and not isinstance(home, bool)
+                and home != current
+                and home not in used
+                and _os_port_free(home)
+            ):
+                router["port"] = home
+                restored.append(("router", "entrypoint", home))
+        self.data = _read_raw()
+        return restored
 
     # ---- router entrypoint + rules -------------------------------------------
     @property

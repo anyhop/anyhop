@@ -1345,6 +1345,9 @@ def cmd_health(args):
         detail = f"daemon={'up' if result['daemon'] else 'down'} "
         detail += f"sing-box={'up' if result['singbox'] else 'down'} "
         detail += f"channels={result['channels']}"
+        process_count = len(result.get("processes") or [])
+        if process_count > 1:
+            detail += f" sing-box-processes={process_count}"
         runtime_status = (result.get("runtime") or {}).get("singbox")
         if runtime_status and runtime_status != "ok":
             detail += f" ({runtime_status})"

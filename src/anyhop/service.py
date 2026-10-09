@@ -2614,7 +2614,16 @@ def setup_validate(text: str) -> dict:
 def status_snapshot() -> dict:
     store = Store.load()
     runner = runtime_backend()
-    running = runner.is_running()
+    # One identity check for the whole snapshot. The census must not verify
+    # the same pidfile again — a Web UI tab polls this every few seconds.
+    # Stand-in runners in tests only implement is_running.
+    pid_fn = getattr(runner, "running_pid", None)
+    if callable(pid_fn):
+        singbox_pid = pid_fn()
+        running = singbox_pid is not None
+    else:
+        singbox_pid = None
+        running = bool(runner.is_running())
     channels = []
     for channel in store.channels():
         probe = channel.probe or {}
@@ -2689,6 +2698,7 @@ def status_snapshot() -> dict:
         # structural route changes from another client (a second tab, the CLI)
         # and re-fetch /routes — without it the onStatus guard is dead code.
         "config_revision": config_signature(store.data),
+        "processes": singbox.census(vouched=singbox_pid, verified=True),
     }
 
 
@@ -3017,9 +3027,22 @@ def stop() -> dict:
     return {"was_running": was_running}
 
 
+def _clear_reconnect_state() -> int:
+    """Forget per-channel give-up flags and the process-wide restart budget.
+
+    A human restart is the intervention that may try again. A single
+    successful probe must not do this — that reset is what let two unhealthy
+    channels bounce sing-box for days.
+    """
+    from anyhop import reconnect
+
+    reconnect.clear_process_restart_budget()
+    return Store.load().clear_reconnect_all()
+
+
 def restart() -> dict:
     if daemon.in_daemon_process():
-        cleared = Store.load().clear_reconnect_all()
+        cleared = _clear_reconnect_state()
         daemon.schedule_lifecycle("restart")
         applog.log(
             f"restart requested from web ui (cleared reconnect state for {cleared} channel(s))"
@@ -3027,7 +3050,7 @@ def restart() -> dict:
         return {"reconnect_cleared": cleared, "restarting": True}
     # A manual restart is the user's cue that they've dealt with whatever broke,
     # so clear any give-up flags and let dead channels be retried from scratch.
-    cleared = Store.load().clear_reconnect_all()
+    cleared = _clear_reconnect_state()
     if daemonctl.is_installed():
         # One atomic manager restart instead of stop+start: no window where
         # the stop landed but the start was lost, and nothing for KeepAlive/
@@ -3049,22 +3072,29 @@ def health() -> dict:
     and scripts. Deliberately lighter than ``status()``: two pidfile checks
     and a state read, no probes, no network, no Clash API.
 
-    ``ok`` means the daemon is running and sing-box is up (sing-box runs idle
-    even with zero channels, so its absence under a live daemon is a real
-    finding, not a fresh-install artifact). ``runtime`` carries the daemon's
+    ``ok`` means the daemon is running, sing-box is up, and at most one
+    sing-box is running this home's config (a second one is an untracked
+    tunnel). sing-box runs idle even with zero channels, so its absence under
+    a live daemon is a real finding. ``runtime`` carries the daemon's
     published sing-box status ("degraded", "crash_looping", …) when one is
     recorded — informational; a degraded-but-supervised runtime still counts
-    as alive.
+    as alive. ``processes`` is the census.
     """
     pid = daemon.running_pid()
-    singbox_up = runtime_backend().is_running()
+    runner = runtime_backend()
+    singbox_up = runner.is_running()
+    # is_running already proved the pid. Reading the file again does not
+    # spawn ps; calling running_pid() here would verify a second time.
+    singbox_pid = singbox.pidfile_pid() if singbox_up else None
+    processes = singbox.census(vouched=singbox_pid, verified=True, fresh=True)
     info = daemon.daemon_info() if pid is not None else None
     result = {
-        "ok": pid is not None and singbox_up,
+        "ok": pid is not None and singbox_up and len(processes) <= 1,
         "daemon": pid is not None,
         "singbox": singbox_up,
         "channels": len(Store.load().channels()),
         "runtime": (info or {}).get("runtime"),
+        "processes": processes,
     }
     if gateway_profile_active():
         # Under the gateway profile, readiness is a data-plane contract, not

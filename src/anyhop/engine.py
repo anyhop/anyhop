@@ -586,6 +586,11 @@ class Engine:
         state change can) and :class:`singbox.SingBoxRuntimeError` when a valid
         config failed at runtime (environmental — worth retrying).
         """
+        for provider, cid, port in self.store.restore_home_ports():
+            applog.log(
+                f"reconcile: {provider}/{cid} returned to :{port} "
+                "(the holder that pushed it aside is gone)"
+            )
         config, errors = self._build_config()
         for ref, err in sorted(errors.items()):
             applog.log(f"reconcile: {ref}: {err}")
@@ -602,6 +607,27 @@ class Engine:
             )
             time.sleep(delay)
             result = self.runner.apply(config)
+        if result.outcome is singbox.ApplyOutcome.RUNTIME_FAILED and _ports_in_use(
+            result.detail
+        ):
+            stolen = _ports_in_use(result.detail)
+            ours = {port for port in stolen if singbox.port_holder(port) == "ours"}
+            if ours:
+                applog.log(
+                    "reconcile: port "
+                    + ", ".join(str(port) for port in sorted(ours))
+                    + " is held by this home's sing-box — reclaiming it "
+                    "instead of renumbering"
+                )
+                keep = None
+                running_pid = getattr(self.runner, "running_pid", None)
+                if callable(running_pid):
+                    try:
+                        keep = running_pid()
+                    except Exception:  # noqa: BLE001 — a probe of the runner must not wedge reconcile
+                        keep = None
+                singbox.reap_strays(keep=keep)
+                result = self.runner.apply(config)
         if result.outcome is singbox.ApplyOutcome.RUNTIME_FAILED and (
             self._recover_stolen_ports(result.detail)
         ):

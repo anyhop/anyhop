@@ -606,6 +606,53 @@ def test_reconcile_regenerates_a_stolen_clash_api_port(monkeypatch):
     assert runner.applied[-1]["experimental"]["clash_api"]["secret"] == after["secret"]
 
 
+def test_reconcile_reclaims_our_singbox_instead_of_renumbering(monkeypatch):
+    """A port held by this home's own sing-box is not a foreign steal."""
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    store = Store.load()
+    store.add_provider("nordvpn")
+    channel = store.add_channel("nordvpn", "US", "", dict(WG))
+    reaped: list[int | None] = []
+    monkeypatch.setattr(
+        singbox,
+        "port_holder",
+        lambda port: "ours" if port == channel.port else "unknown",
+    )
+    monkeypatch.setattr(
+        singbox, "reap_strays", lambda keep=None: reaped.append(keep) or []
+    )
+
+    class _Runner:
+        def __init__(self):
+            self.applied: list = []
+
+        def apply(self, config):
+            self.applied.append(config)
+            ports = [item.get("listen_port") for item in config["inbounds"]]
+            if channel.port in ports and not reaped:
+                return singbox.ApplyResult(
+                    singbox.ApplyOutcome.RUNTIME_FAILED,
+                    "FATAL[0000] listen tcp "
+                    f"127.0.0.1:{channel.port}: bind: address already in use",
+                )
+            return singbox.ApplyResult(singbox.ApplyOutcome.APPLIED)
+
+        def is_running(self):
+            return False
+
+        def running_pid(self):
+            return None
+
+    eng = Engine(Store.load())
+    runner = _Runner()
+    eng.runner = cast(singbox.Runner, runner)
+    assert eng.reconcile() == {}
+    assert reaped == [None]
+    moved = Store.load().get_channel("nordvpn", channel.id)
+    assert moved is not None and moved.port == channel.port
+    assert runner.applied[-1]["inbounds"][0]["listen_port"] == channel.port
+
+
 def test_reconcile_waits_out_a_transiently_held_port(monkeypatch):
     """An address-in-use start failure right after a crash is usually anyhop's
     own previous sing-box not having released its sockets yet: the SAME config

@@ -525,13 +525,21 @@ def daemon_status(data: dict) -> str:
 
 def _runtime_lines(snapshot: dict) -> list[str]:
     """A warning line when the daemon reports sing-box in a degraded state."""
+    lines = []
+    processes = snapshot.get("processes") or []
+    if len(processes) > 1:
+        pids = ", ".join(str(row.get("pid")) for row in processes)
+        lines.append(
+            f"  ⚠ {len(processes)} sing-box processes ({pids}); "
+            "only one should be running this config"
+        )
     rt = (snapshot.get("daemon") or {}).get("runtime") or {}
     status = rt.get("singbox")
     if status in {"crashed", "crash_looping", "config_rejected", "degraded"}:
         label = str(status).replace("_", "-")
         detail = rt.get("detail")
-        return [f"  ⚠ sing-box {label}" + (f": {detail}" if detail else "")]
-    return []
+        lines.append(f"  ⚠ sing-box {label}" + (f": {detail}" if detail else ""))
+    return lines
 
 
 def _skew_lines(snapshot: dict) -> list[str]:

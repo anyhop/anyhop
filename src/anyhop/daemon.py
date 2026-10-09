@@ -501,6 +501,21 @@ def run_applier(own_children: bool = False) -> None:
         applog.log(f"router port allocation failed: {e}")
 
     try:
+        # A previous daemon may have left sing-box processes this pidfile does
+        # not name. Keep the vouched one (adoption across a daemon restart)
+        # and terminate every other run of this home's config before the
+        # first reconcile starts another.
+        kept = proc.read_pidfile(singbox._pid_path(), ("sing-box",))
+        left = singbox.reap_strays(keep=kept)
+        if left:
+            applog.log(
+                "startup: sing-box still alive after reclaim "
+                f"(refusing to ignore them): {left}"
+            )
+    except Exception as e:  # noqa: BLE001 — reclaim must not kill the daemon
+        applog.log(f"sing-box stray reclaim at startup failed: {e}")
+
+    try:
         # The control API server (REST API + Web UI) runs as a thread in this
         # process, so it ships and runs with the daemon (nothing extra to deploy).
         from anyhop.api import server as api_server
@@ -687,37 +702,48 @@ def run_applier(own_children: bool = False) -> None:
             # Supervision: sing-box liveness independent of probes (which only
             # *record* "stopped") — an unexpected exit is restarted with capped
             # exponential backoff so a crash-looping config can't start a storm.
+            # The lifecycle lock is held across the check. restart() holds the
+            # same lock from before the SIGTERM until the replacement pidfile
+            # is written, so this check cannot land in that gap and start a
+            # second process over the one the probe thread just spawned.
             if now - last_supervise >= SUPERVISE_INTERVAL:
                 last_supervise = now
-                if runtime_backend().is_running():
-                    if crashes and now - last_crash_at >= CRASH_RESET:
-                        crashes = 0  # stable again — forget the crash history
-                        _set_runtime("ok")
-                elif expected_running and now >= next_restart_at:
-                    crashes += 1
-                    last_crash_at = now
-                    delay = min(2.0 ** (crashes - 1), CRASH_BACKOFF_MAX)
-                    next_restart_at = now + delay
-                    _set_runtime(
-                        "crash_looping" if crashes >= 3 else "crashed",
-                        f"{crashes} unexpected exit(s); restarting",
+                # The check and the recovery stay in one critical section.
+                # reconcile() re-enters the lock; a probe-thread restart blocks
+                # until this section finishes rather than spawning beside it.
+                with singbox.lifecycle_lock:
+                    running = (
+                        singbox.restart_in_progress() or runtime_backend().is_running()
                     )
-                    applog.log(
-                        f"sing-box exited unexpectedly (crash {crashes}); "
-                        f"restarting (next attempt in {int(delay)}s if it "
-                        "crashes again)"
-                    )
-                    try:
-                        Engine(Store.load()).reconcile()
-                        applog.log("sing-box restarted after unexpected exit")
-                    except Exception as e:  # noqa: BLE001
-                        if runtime_backend().is_running():
-                            applog.log(
-                                "sing-box restarted on the last known-good "
-                                f"config (desired config still failing: {e})"
-                            )
-                        else:
-                            applog.log(f"supervised restart failed: {e}")
+                    if running:
+                        if crashes and now - last_crash_at >= CRASH_RESET:
+                            crashes = 0  # stable again — forget the crash history
+                            _set_runtime("ok")
+                    elif expected_running and now >= next_restart_at:
+                        crashes += 1
+                        last_crash_at = now
+                        delay = min(2.0 ** (crashes - 1), CRASH_BACKOFF_MAX)
+                        next_restart_at = now + delay
+                        _set_runtime(
+                            "crash_looping" if crashes >= 3 else "crashed",
+                            f"{crashes} unexpected exit(s); restarting",
+                        )
+                        applog.log(
+                            f"sing-box exited unexpectedly (crash {crashes}); "
+                            f"restarting (next attempt in {int(delay)}s if it "
+                            "crashes again)"
+                        )
+                        try:
+                            Engine(Store.load()).reconcile()
+                            applog.log("sing-box restarted after unexpected exit")
+                        except Exception as e:  # noqa: BLE001
+                            if runtime_backend().is_running():
+                                applog.log(
+                                    "sing-box restarted on the last known-good "
+                                    f"config (desired config still failing: {e})"
+                                )
+                            else:
+                                applog.log(f"supervised restart failed: {e}")
             # Traffic sampling runs on its own faster cadence than probing: the
             # Clash API only reports live connections, so the more often we look
             # the fewer short-lived connections slip through between samples.

@@ -101,6 +101,17 @@ def test_log_rotates_past_max_size(monkeypatch):
     assert "line 19" in applog.tail()  # latest lines are in the current file
 
 
+def test_log_rotation_keeps_older_generations():
+    path = applog._log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("first-generation\n")
+    applog.rotate_if_needed(path, 1, backups=2)
+    path.write_text("second-generation\n")
+    applog.rotate_if_needed(path, 1, backups=2)
+    assert "first-generation" in path.with_name(path.name + ".2").read_text()
+    assert "second-generation" in path.with_name(path.name + ".1").read_text()
+
+
 def test_follow_prints_existing_tail_and_closes(monkeypatch, capsys):
     path = applog._log_path()
     path.parent.mkdir(parents=True, exist_ok=True)

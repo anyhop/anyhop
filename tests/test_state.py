@@ -4,6 +4,7 @@ probe round-trips, cascade removal, and the config signature."""
 from __future__ import annotations
 
 import json
+import socket
 import stat
 import threading
 
@@ -761,6 +762,34 @@ def test_reallocate_covers_the_router_port():
     who, what, old, new = moved[0]
     assert (who, what, old) == ("router", "entrypoint", port)
     assert new != port and Store.load().router["port"] == new
+
+
+def test_reallocate_remembers_the_home_port_and_restore_returns_to_it():
+    store = Store.load()
+    store.add_provider("nordvpn")
+    channel = store.add_channel("nordvpn", "US", "", dict(WG))
+    original = channel.port
+    moved, held = store.reallocate_channel_ports({original})
+    assert held == [] and len(moved) == 1
+    assert Store.load().get_channel("nordvpn", channel.id).port != original
+    restored = Store.load().restore_home_ports()
+    assert ("nordvpn", channel.id, original) in restored
+    assert Store.load().get_channel("nordvpn", channel.id).port == original
+
+
+def test_restore_leaves_a_home_port_that_is_still_taken():
+    store = Store.load()
+    store.add_provider("nordvpn")
+    channel = store.add_channel("nordvpn", "US", "", dict(WG))
+    original = channel.port
+    store.reallocate_channel_ports({original})
+    held = socket.socket()
+    held.bind(("", original))
+    try:
+        assert Store.load().restore_home_ports() == []
+        assert Store.load().get_channel("nordvpn", channel.id).port != original
+    finally:
+        held.close()
 
 
 def test_config_signature_tracks_router_changes():

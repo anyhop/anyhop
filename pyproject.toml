@@ -7,13 +7,17 @@ name = "anyhop"
 version = "0.1.21"
 description = "A universal VPN client that manages multiple VPN connections with rule-based routing."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 authors = [{ name = "zydo" }]
 keywords = ["vpn", "sing-box", "nordvpn", "wireguard", "proxy", "gateway"]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
@@ -42,7 +46,7 @@ exclude = ["src/anyhop/assets/readme"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Keep the established baseline stable across Ruff releases. Ruff 0.16

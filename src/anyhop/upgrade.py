@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -141,24 +142,12 @@ def _uv_receipt_owns(prefix: Path) -> bool:
     """Whether ``prefix`` is the uv tool environment for anyhop.
 
     ``UV_TOOL_DIR`` can put tool environments anywhere, so the receipt is the
-    primary ownership signal. Python 3.11+ has a TOML parser; the narrow
-    fallback keeps anyhop's Python 3.10 support without adding a runtime parser
-    dependency and reads only uv's ``[tool] requirements`` assignment.
+    primary ownership signal.
     """
     try:
         text = (prefix / "uv-receipt.toml").read_text()
     except OSError:
         return False
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
-        if not re.search(r"(?m)^\s*\[tool\]\s*$", text):
-            return False
-        assignment = re.search(r"(?ms)^\s*requirements\s*=\s*\[(.*?)\]\s*$", text)
-        if assignment is None:
-            return False
-        names = re.findall(r"\bname\s*=\s*['\"]([^'\"]+)['\"]", assignment.group(1))
-        return any(_owns_package(name) for name in names)
     try:
         receipt = tomllib.loads(text)
     except (TypeError, ValueError):
@@ -182,30 +171,6 @@ def _uv_receipt_entrypoint(prefix: Path) -> Path | None:
     try:
         text = (prefix / "uv-receipt.toml").read_text()
     except OSError:
-        return None
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
-        records = re.findall(r"\{([^{}]*)\}", text)
-        for record in records:
-            # key = "value" / key = 'value' pairs, split-parsed instead of a
-            # regex: an unanchored ([\w-]+)\s*= scan backtracks super-linearly
-            # on long word runs, and this fallback may read attacker-adjacent
-            # bytes (a receipt file). Machine-generated inline tables never
-            # quote commas inside values, so a comma split is faithful here.
-            fields: dict[str, str] = {}
-            for pair in record.split(","):
-                key, eq, value = pair.partition("=")
-                value = value.strip()
-                if eq and len(value) >= 2 and value[0] == value[-1] in "'\"":
-                    fields[key.strip()] = value[1:-1]
-            if (
-                fields.get("name") == "anyhop"
-                and _owns_package(fields.get("from"))
-                and fields.get("install-path")
-            ):
-                path = Path(fields["install-path"])
-                return path if path.is_absolute() else None
         return None
     try:
         receipt = tomllib.loads(text)

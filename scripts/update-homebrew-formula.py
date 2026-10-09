@@ -18,7 +18,7 @@ By default it edits packaging/homebrew/anyhop.rb in place; `--formula` and
 `--output` override the source and destination (use `--output -` for stdout).
 It is idempotent: re-running for the same version reproduces the same file.
 
-Only the standard library is used, so it runs anywhere Python 3.10+ does with no
+Only the standard library is used, so it runs anywhere Python 3.11+ does with no
 install step.
 """
 

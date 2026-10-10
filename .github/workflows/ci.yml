@@ -86,11 +86,12 @@ jobs:
           EOF
 
   test:
-    runs-on: ubuntu-latest
+    # Python 3.15 prerelease builds are published for Ubuntu 26.04, not 24.04.
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -99,6 +100,7 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           cache-suffix: test-py${{ matrix.python-version }}
@@ -108,7 +110,7 @@ jobs:
       # floor is a ratchet set from the measured number, not an aspiration.
       - name: Run tests
         run: |
-          if [ "${{ matrix.python-version }}" = "3.14" ]; then
+          if [ "${{ matrix.python-version }}" = "3.15" ]; then
             uv run pytest -q --cov=anyhop --cov-branch --cov-fail-under=84
           else
             uv run pytest -q
@@ -150,12 +152,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.14"
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          cache-suffix: test-macos-py3.14
+          cache-suffix: test-macos-py3.15
+      # The available 3.15 macOS arm64 build is currently a prerelease.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.15"
+          allow-prereleases: true
       - run: uv lock --check
       - run: uv sync --locked --all-extras
       - run: uv run pytest -q

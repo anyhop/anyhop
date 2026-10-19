@@ -17,6 +17,7 @@ import pytest
 
 from anyhop import paths, service, singbox
 from anyhop.singbox import Runner
+from _runtime_hygiene import DATA_PLANE_START_TIMEOUT
 
 _FAKE = """#!/usr/bin/env python3
 import os, signal, socket, sys, time
@@ -268,6 +269,11 @@ def test_sigkill_daemon_recovers_one_native_child(real_background_runtime):
     # Daemon death leaves a live child. The replacement must adopt/reclaim it
     # before reconciling, rather than creating another invisible instance.
     real_background_runtime.start()
+    # A surviving child alone does not prove the replacement daemon recovered.
+    assert _wait_until(
+        lambda: (daemon.daemon_info() or {}).get("runtime", {}).get("singbox") == "ok",
+        timeout=DATA_PLANE_START_TIMEOUT,
+    )
     assert _wait_until(
         lambda: (
             len(singbox.managed_pids()) == 1

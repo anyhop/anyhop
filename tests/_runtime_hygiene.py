@@ -23,6 +23,9 @@ from anyhop import proc
 MARKER = ".anyhop-pytest-session.json"
 HOME_MARKER = ".anyhop-pytest-home.json"
 REGISTRY = ".anyhop-pytest-processes.json"
+# Hosted macOS cold starts can exceed 20 seconds. Every native-runtime test
+# shares this bound; the test contract is lifecycle correctness, not boot speed.
+DATA_PLANE_START_TIMEOUT = 60.0
 FORMAT = 1
 LARGE_BINARY = 8 << 20
 SESSION_BUDGET = 128 << 20
@@ -429,7 +432,9 @@ class RuntimeHandle:
         self.dispatch()
         self.wait_for("applier")
 
-    def wait_for(self, kind: str, timeout: float = 15.0) -> dict:
+    def wait_for(self, kind: str, timeout: float | None = None) -> dict:
+        if timeout is None:
+            timeout = DATA_PLANE_START_TIMEOUT if kind == "singbox" else 15.0
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             entries = self.session.refresh_registry()

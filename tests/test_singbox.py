@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from anyhop import singbox
+from anyhop import paths, singbox
 
 
 def _runner() -> singbox.Runner:
@@ -698,7 +698,8 @@ def test_ensure_binary_rejects_a_foreign_owned_cached_binary(monkeypatch):
     target = singbox.bin_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(content)
-    monkeypatch.setattr(singbox, "_owner_uid", lambda p: os.geteuid() + 1)
+    monkeypatch.setattr(os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(singbox, "_owner_uid", lambda p: 1001)
     with pytest.raises(singbox.SingBoxError, match="owned"):
         singbox.ensure_binary()
 
@@ -707,3 +708,81 @@ def test_ps_command_is_an_absolute_path():
     from anyhop import proc
 
     assert proc.PS.startswith("/")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["format", "-c"],
+        ["check", "-c"],
+        ["other", "run", "-c"],
+    ],
+)
+def test_process_scan_excludes_other_subcommands(args):
+    config = str(paths.state_dir() / "singbox.json")
+    assert not singbox._is_managed_singbox(
+        [str(singbox.bin_path()), *args, config], config
+    )
+
+
+def test_process_scan_requires_managed_binary_and_config_option():
+    config = str(paths.state_dir() / "singbox.json")
+    binary = str(singbox.bin_path())
+    assert singbox._is_managed_singbox([binary, "run", "-c", config], config)
+    assert not singbox._is_managed_singbox(
+        ["/tmp/foreign-sing-box", "run", "-c", config], config
+    )
+    assert not singbox._is_managed_singbox([binary, "run", "--other", config], config)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS KERN_PROCARGS2")
+def test_darwin_argv_preserves_spaces(tmp_path):
+    import subprocess
+
+    argument = str(tmp_path / "home with spaces" / "singbox.json")
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)", argument]
+    )
+    try:
+        import time
+
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            argv = singbox._darwin_argv(child.pid)
+            if argument in argv:
+                break
+            time.sleep(0.01)
+        assert argument in argv
+    finally:
+        child.kill()
+        child.wait()
+
+
+@pytest.mark.parametrize(
+    "listeners,managed,expected",
+    [
+        (None, [], "unknown"),
+        ([], [], "unknown"),
+        ([123], [123], "ours"),
+        ([456], [123], "foreign"),
+    ],
+)
+def test_holder_diagnostics_include_classification_and_pids(
+    monkeypatch, listeners, managed, expected
+):
+    messages = []
+    monkeypatch.setattr(singbox, "_listen_pids", lambda port: listeners)
+    monkeypatch.setattr(singbox, "managed_pids", lambda: managed)
+    monkeypatch.setattr(singbox.applog, "log", messages.append)
+    assert singbox.port_holder(23000) == expected
+    assert messages == [
+        f"reconcile: bind conflict port=23000 holder={expected} pids={listeners}"
+    ]
+
+
+def test_failed_listener_lookup_is_unknown(monkeypatch):
+    def fail(port):
+        raise OSError("lookup failed")
+
+    monkeypatch.setattr(singbox, "_listen_pids", fail)
+    assert singbox.port_holder(23000) == "unknown"

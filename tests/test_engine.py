@@ -576,6 +576,7 @@ class _PortStealRunner:
 
 
 def test_reconcile_reallocates_a_stolen_channel_port(monkeypatch):
+    monkeypatch.setattr(singbox, "port_holder", lambda port: "foreign")
     monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
     store = Store.load()
     store.add_provider("nordvpn")
@@ -593,6 +594,7 @@ def test_reconcile_reallocates_a_stolen_channel_port(monkeypatch):
 
 
 def test_reconcile_regenerates_a_stolen_clash_api_port(monkeypatch):
+    monkeypatch.setattr(singbox, "port_holder", lambda port: "foreign")
     monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
     before = singbox.clash_api()
     stolen = int(before["address"].rsplit(":", 1)[1])
@@ -950,3 +952,48 @@ def test_v6_guard_only_when_tun_is_on():
     config, errors = Engine(store)._build_config()
     assert errors == {}
     assert all("ip_version" not in r for r in config["route"]["rules"])
+
+
+@pytest.mark.parametrize("holder", ["ours", "unknown"])
+def test_unidentified_or_managed_holder_never_moves_ports(monkeypatch, holder):
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    monkeypatch.setattr(singbox, "port_holder", lambda port: holder)
+    monkeypatch.setattr(singbox, "reap_strays", lambda keep=None: [])
+    store = Store.load()
+    store.add_provider("nordvpn")
+    ch = store.add_channel("nordvpn", "US", "", dict(WG))
+    eng = Engine(Store.load())
+    runner = _PortStealRunner(ch.port)
+    eng.runner = cast(singbox.Runner, runner)
+    with pytest.raises(singbox.SingBoxRuntimeError):
+        eng.reconcile()
+    assert len(runner.applied) == (4 if holder == "ours" else 3)
+    assert Store.load().get_channel("nordvpn", ch.id).port == ch.port
+
+
+def test_holder_disappearing_before_recovery_keeps_original_port(monkeypatch):
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    holders = iter(["foreign", "unknown"])
+    monkeypatch.setattr(singbox, "port_holder", lambda port: next(holders))
+    store = Store.load()
+    store.add_provider("nordvpn")
+    ch = store.add_channel("nordvpn", "US", "", dict(WG))
+    eng = Engine(Store.load())
+    eng.runner = cast(singbox.Runner, _PortStealRunner(ch.port))
+    with pytest.raises(singbox.SingBoxRuntimeError):
+        eng.reconcile()
+    assert Store.load().get_channel("nordvpn", ch.id).port == ch.port
+
+
+@pytest.mark.parametrize("holder", ["ours", "unknown"])
+def test_unidentified_or_managed_api_holder_keeps_endpoint(monkeypatch, holder):
+    monkeypatch.setattr("anyhop.engine._BIND_RETRY_DELAYS", (0.0, 0.0))
+    monkeypatch.setattr(singbox, "port_holder", lambda port: holder)
+    monkeypatch.setattr(singbox, "reap_strays", lambda keep=None: [])
+    before = singbox.clash_api()
+    port = int(before["address"].rsplit(":", 1)[1])
+    eng = Engine(Store.load())
+    eng.runner = cast(singbox.Runner, _PortStealRunner(port))
+    with pytest.raises(singbox.SingBoxRuntimeError):
+        eng.reconcile()
+    assert singbox.clash_api() == before

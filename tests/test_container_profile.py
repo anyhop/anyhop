@@ -311,7 +311,8 @@ def test_stolen_explicit_router_port_is_held():
     assert Store.load().router["port"] == 24000
 
 
-def test_engine_degrades_held_explicit_port_and_keeps_the_rest_alive():
+def test_engine_degrades_held_explicit_port_and_keeps_the_rest_alive(monkeypatch):
+    monkeypatch.setattr("anyhop.singbox.port_holder", lambda port: "foreign")
     bundle.apply_import(bundle.dumps(_proton_bundle(port=23000)))
     store = Store.load()
     store.add_provider("nordvpn")
@@ -331,7 +332,8 @@ def test_engine_degrades_held_explicit_port_and_keeps_the_rest_alive():
     assert "in-protonvpn-us_1" not in tags
 
 
-def test_engine_degrades_held_router_port():
+def test_engine_degrades_held_router_port(monkeypatch):
+    monkeypatch.setattr("anyhop.singbox.port_holder", lambda port: "foreign")
     data = _proton_bundle()
     data["router"] = {"port": 24000}
     bundle.apply_import(bundle.dumps(data))

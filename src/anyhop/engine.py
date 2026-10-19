@@ -578,8 +578,8 @@ class Engine:
         short waits (right after a crash the holder is usually our own
         previous sing-box whose sockets aren't released yet — reallocating
         then would churn every consumer's port mapping per crash); only ports
-        still held after the retries are treated as stolen, reallocated, and
-        the apply retried once.
+        held by an identified foreign process after the retries are reallocated.
+        Unknown or managed holders keep their ports and fail for a later retry.
 
         Raises :class:`singbox.ConfigRejectedError` when sing-box refuses the
         generated config (deterministic — a timer retry cannot help, only a
@@ -658,21 +658,31 @@ class Engine:
         stolen = _ports_in_use(err_text)
         if not stolen:
             return False
+        # Recheck immediately before mutating allocations. A failed lookup or
+        # a listener that vanished is not evidence of a foreign owner.
+        foreign = set()
+        for port in sorted(stolen):
+            holder = singbox.port_holder(port)
+            if holder == "foreign":
+                foreign.add(port)
+        stolen = foreign
+        if not stolen:
+            return False
         recovered = False
         api = singbox.clash_api()
         api_port = int(api["address"].rsplit(":", 1)[1])
         if api_port in stolen:
             singbox.forget_clash_api()
             applog.log(
-                f"reconcile: clash api port {api_port} was taken by another "
-                "process — regenerated the endpoint"
+                f"reconcile: clash api port {api_port} has a foreign holder — "
+                "regenerated the endpoint"
             )
             recovered = True
         moved, held = self.store.reallocate_channel_ports(stolen)
         for provider, cid, old, new in moved:
             applog.log(
-                f"reconcile: port {old} of {provider}/{cid} was taken by "
-                f"another process — moved to :{new}"
+                f"reconcile: port {old} of {provider}/{cid} has a foreign holder "
+                f"— moved to :{new}"
             )
             recovered = True
         for provider, cid, port in held:
@@ -682,8 +692,8 @@ class Engine:
                 else f"channel {provider}/{cid}"
             )
             applog.log(
-                f"reconcile: declared port {port} of {owner} is taken by "
-                "another process — declarations are a contract and never "
+                f"reconcile: declared port {port} of {owner} has a foreign holder — "
+                "declarations are a contract and never "
                 "move; the owner stays degraded until you free the port or "
                 "change the declaration"
             )

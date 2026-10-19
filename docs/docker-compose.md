@@ -76,7 +76,10 @@ Notes:
 - **Declare `port:` on anything a compose file must reference.** Undeclared
   ports still work but are allocated (from `ANYHOP_PORT_BASE=20000` in the
   image), so their numbers depend on creation order — fine for
-  `docker exec` use, wrong for hard-coded compose wiring.
+  `docker exec` use, wrong for hard-coded compose wiring. A confirmed foreign
+  listener can temporarily move an automatic port outside a published range;
+  anyhop returns it to the original port when that port becomes free. Declare
+  ports explicitly for stable mappings rather than relying on spare range capacity.
 - **`token_env` / `token_file`** keep the secret out of the file, so
   `bundle.yaml` can live in the same repo as your compose file. Config
   providers (Proton VPN) instead embed their `wg:` block — translate the
@@ -95,6 +98,7 @@ network tricks:
 services:
   anyhop:
     image: ghcr.io/anyhop/anyhop:latest
+    init: true
     restart: unless-stopped
     volumes:
       - anyhop-state:/var/lib/anyhop                 # channels/keys/binary cache survive recreates
@@ -157,6 +161,7 @@ mode scoped to the container — the host's routes are never touched:
 services:
   anyhop:
     image: ghcr.io/anyhop/anyhop:latest
+    init: true
     restart: unless-stopped
     cap_add: [NET_ADMIN]               # tun creation + route table (this netns only)
     devices: [/dev/net/tun]
@@ -215,6 +220,7 @@ as files, which pairs with `token_file`:
 services:
   anyhop:
     image: ghcr.io/anyhop/anyhop:latest
+    init: true
     restart: unless-stopped
     secrets: [nordvpn_token]
     volumes:
@@ -255,6 +261,7 @@ ANYHOP_API_SECRET=change-me
 services:
   anyhop:
     image: ghcr.io/anyhop/anyhop:latest
+    init: true
     restart: unless-stopped
     environment:
       ANYHOP_API_LISTEN: "0.0.0.0:8080"      # bind the API onto the compose network

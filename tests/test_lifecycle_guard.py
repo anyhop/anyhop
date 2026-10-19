@@ -57,6 +57,18 @@ def fake_binary(monkeypatch):
     port = sock.getsockname()[1]
     sock.close()
     monkeypatch.setenv("FAKE_BIND_PORT", str(port))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(binary))
+    # The fixture is a Python script; the production executable is native.
+    # Normalize only this exact script's interpreter prefix in process scans.
+    iter_commands = singbox._iter_commands
+
+    def commands():
+        for pid, argv in iter_commands():
+            if len(argv) > 1 and argv[1] == str(binary):
+                argv = argv[1:]
+            yield pid, argv
+
+    monkeypatch.setattr(singbox, "_iter_commands", commands)
     runner = Runner(local_only=True)
     try:
         yield binary, runner
@@ -226,3 +238,59 @@ def test_pidfile_unlink_ignores_a_replaced_record():
     assert path.exists()
     assert singbox._unlink_pidfile_if(1) is True
     assert not path.exists()
+
+
+def test_sigstop_child_is_killed_and_replaced(fake_binary):
+    import signal
+
+    binary, runner = fake_binary
+    runner.start(binary)
+    old = runner.running_pid()
+    os.kill(old, signal.SIGSTOP)
+    runner.restart(binary)
+    assert singbox.managed_pids() == [runner.running_pid()]
+    assert runner.running_pid() != old
+    assert not singbox._alive(old)
+
+
+def test_sigkill_daemon_recovers_one_native_child(real_background_runtime):
+    import signal
+
+    from anyhop import daemon
+
+    real_background_runtime.start()
+    real_background_runtime.wait_for("singbox")
+    old_child = Runner(local_only=True).running_pid()
+    old_daemon = daemon.running_pid()
+    assert old_child is not None and old_daemon is not None
+    os.kill(old_daemon, signal.SIGKILL)
+    assert _wait_until(lambda: daemon.running_pid() is None, timeout=5)
+    # Daemon death leaves a live child. The replacement must adopt/reclaim it
+    # before reconciling, rather than creating another invisible instance.
+    real_background_runtime.start()
+    assert _wait_until(
+        lambda: (
+            len(singbox.managed_pids()) == 1
+            and Runner(local_only=True).running_pid() in singbox.managed_pids()
+        ),
+        timeout=8,
+    )
+
+
+def test_native_process_scan_with_home_containing_spaces(
+    monkeypatch, tmp_path, shared_singbox
+):
+    home = tmp_path / "anyhop home with spaces"
+    home.mkdir()
+    monkeypatch.setenv("ANYHOP_HOME", str(home))
+    monkeypatch.setenv("ANYHOP_SINGBOX", str(shared_singbox))
+    runner = Runner(local_only=True)
+    runner.config_path.write_text("{}\n")
+    try:
+        runner.start(shared_singbox)
+        assert singbox.managed_pids() == [runner.running_pid()]
+        # Exercise reclamation as well as discovery.
+        assert singbox.reap_strays() == []
+        assert singbox.managed_pids() == []
+    finally:
+        runner.stop()

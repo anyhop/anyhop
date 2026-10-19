@@ -274,3 +274,20 @@ binds stay loopback-only, ports stay OS-assigned, and lifecycle stays with
 `anyhop start`/`anyhop daemon install`. The only container-*detected* behaviors
 are refusals and hint text (e.g. `anyhop daemon install` explaining restart
 policies), never a silent change of binds, ports, or lifecycle.
+
+
+## Child processes and abrupt daemon exit
+
+Use `init: true` in Compose, as in the [Compose examples](docker-compose.md),
+to forward signals and reap orphaned children. An init process does not by
+itself terminate a live sing-box when only the Python daemon is SIGKILLed.
+On startup anyhop scans this home's managed sing-box processes and adopts the
+verified instance or reclaims extras before spawning.
+
+Linux `PR_SET_PDEATHSIG` can make a child exit when its parent dies, but anyhop
+does not currently install it. Implementing it requires a launcher that also
+checks for parent death during setup; Python `preexec_fn` is unsafe in this
+threaded daemon. Process-group termination is another option when a supervisor
+owns the entire group. anyhop currently starts sing-box in a new session and
+stops verified PIDs individually, so signalling only the daemon's group does
+not stop sing-box. Stopping the whole container ends its processes.

@@ -433,13 +433,30 @@ def _reap_os(pid: int) -> None:
         pass
 
 
-def _iter_commands():
-    """Yield ``(pid, argv)`` for every process we can see.
+def _darwin_argv(pid: int) -> list[str]:
+    """Read exact argv via KERN_PROCARGS2; ps cannot preserve argument boundaries."""
+    import ctypes
 
-    Linux reads ``/proc/<pid>/cmdline`` (NUL-separated, exact). Elsewhere one
-    ``ps`` supplies a whitespace-split approximation — good enough to recognise
-    our own ``sing-box run -c <this home's singbox.json>``.
-    """
+    libc = ctypes.CDLL(None, use_errno=True)
+    mib = (ctypes.c_int * 3)(1, 49, pid)  # CTL_KERN, KERN_PROCARGS2
+    size = ctypes.c_size_t(1 << 20)
+    buffer = ctypes.create_string_buffer(size.value)
+    if libc.sysctl(mib, 3, buffer, ctypes.byref(size), None, 0) != 0:
+        return []
+    raw = buffer.raw[: size.value]
+    if len(raw) < 4:
+        return []
+    argc = int.from_bytes(raw[:4], sys.byteorder, signed=True)
+    # argc, executable path, NUL padding, then argc NUL-delimited arguments.
+    end = raw.find(b"\0", 4)
+    if argc <= 0 or end < 0:
+        return []
+    args = raw[end:].lstrip(b"\0").split(b"\0")[:argc]
+    return [arg.decode(errors="replace") for arg in args] if len(args) == argc else []
+
+
+def _iter_commands():
+    """Yield exact argv from procfs on Linux or KERN_PROCARGS2 on macOS."""
     proc_root = Path("/proc")
     if proc_root.is_dir():
         for entry in proc_root.iterdir():
@@ -453,38 +470,35 @@ def _iter_commands():
             if argv:
                 yield int(entry.name), argv
         return
+    if sys.platform != "darwin":
+        return
     try:
         out = subprocess.run(
-            [proc.PS, "-ax", "-o", "pid=,command="],
+            [proc.PS, "-ax", "-o", "pid="],
             capture_output=True,
             text=True,
             timeout=5,
         )
     except (OSError, subprocess.TimeoutExpired):
         return
-    for line in out.stdout.splitlines():
-        text = line.strip()
-        if not text:
-            continue
-        pid_text, _, command = text.partition(" ")
-        try:
-            pid = int(pid_text)
-        except ValueError:
-            continue
-        if command:
-            yield pid, command.split()
+    for text in out.stdout.splitlines():
+        if text.strip().isdigit():
+            pid = int(text.strip())
+            argv = _darwin_argv(pid)
+            if argv:
+                yield pid, argv
 
 
 def _is_managed_singbox(argv: list[str], config: str) -> bool:
-    """A sing-box ``run`` of this home's config, not ``check`` and not a stranger."""
-    if not argv or config not in argv:
+    """Only the managed executable's run subcommand with this exact config."""
+    if len(argv) < 4 or argv[1] != "run":
         return False
-    blob = " ".join(argv)
-    if "sing-box" not in blob:
+    if Path(argv[0]).resolve() != bin_path().resolve():
         return False
-    if "check" in argv and "run" not in argv:
-        return False
-    return True
+    return any(
+        arg in ("-c", "--config") and argv[i + 1] == config
+        for i, arg in enumerate(argv[:-1])
+    )
 
 
 def managed_pids() -> list[int]:
@@ -755,18 +769,20 @@ def port_holder(port: int) -> str:
 
     ``ours`` is a sing-box running this home's config. ``unknown`` covers a
     failed lookup and a port with no listener — a start error can name a port
-    whose socket is already gone, and that case keeps the previous recovery.
+    whose socket is already gone. Unknown holders must never trigger renumbering.
     """
     try:
         pids = _listen_pids(port)
+        if not pids:
+            holder = "unknown"
+        elif set(pids) & set(managed_pids()):
+            holder = "ours"
+        else:
+            holder = "foreign"
     except Exception:  # noqa: BLE001 — identification must not break reconcile
-        return "unknown"
-    if not pids:
-        return "unknown"
-    ours = set(managed_pids())
-    if any(pid in ours for pid in pids):
-        return "ours"
-    return "foreign"
+        pids, holder = None, "unknown"
+    applog.log(f"reconcile: bind conflict port={port} holder={holder} pids={pids}")
+    return holder
 
 
 class ApplyOutcome(Enum):

@@ -4,6 +4,7 @@ probe round-trips, cascade removal, and the config signature."""
 from __future__ import annotations
 
 import json
+import os
 import socket
 import stat
 import threading
@@ -633,6 +634,7 @@ def test_merge_setup_unchanged_channel_is_reported_not_rewritten():
     assert summary["updated"] == [] and summary["created"] == []
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can read mode-000 files")
 def test_unreadable_state_aborts_instead_of_reading_empty():
     store = Store.load()
     store.add_provider("nordvpn")

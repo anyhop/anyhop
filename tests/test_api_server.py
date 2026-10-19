@@ -2415,3 +2415,41 @@ def test_unexpected_handler_error_is_bounded_and_secret_free(live, monkeypatch):
     log = applog.tail()
     assert data["request_id"] in log and "method=GET path=/api/v1/status" in log
     assert secret not in log and "never-log-this" not in log and "boom" not in log
+
+
+def test_concurrent_enable_disable_preserves_one_process(live, real_background_runtime):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from anyhop import singbox
+
+    base, secret = live
+    headers = {"Origin": base, "Authorization": f"Bearer {secret}"}
+    store = Store.load()
+    wg = wg_config("127.0.0.1")
+    import base64
+
+    wg["private_key"] = base64.b64encode(bytes(range(32))).decode()
+    wg["peer"]["public_key"] = base64.b64encode(bytes(range(1, 33))).decode()
+    # Loopback-only WireGuard peers: exercise config/lifecycle without a VPN account.
+    channels = [
+        store.add_channel("nordvpn", country, "", wg) for country in ("US", "CA")
+    ]
+    real_background_runtime.start()
+    real_background_runtime.wait_for("singbox")
+
+    def cycle(channel):
+        for _ in range(10):
+            for enabled in (True, False):
+                status, body, _ = _req(
+                    f"{base}/api/v1/channels/nordvpn/{channel.id}/enabled",
+                    method="POST",
+                    headers=headers,
+                    data={"enabled": enabled},
+                )
+                assert status == 200, body
+                assert len(singbox.managed_pids()) == 1
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(cycle, channels))
+    assert all(not ch.enabled for ch in Store.load().channels())
+    assert len(singbox.managed_pids()) == 1

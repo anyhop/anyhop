@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Analysis complete. The defect is **not yet reproduced in isolation**; fixes are proposed, none implemented. |
+| Status | Remediation implemented with regression tests; original production race remains a hypothesis. See Resolution below for coverage and remaining work. |
 | Events | 2026-10-05 .. 2026-10-09 (UTC). Census taken 2026-10-09 05:10 UTC. |
 | anyhop under observation | Container image `ghcr.io/anyhop/anyhop:0.1.20` (Docker Desktop on macOS, state volume mounted at `/var/lib/anyhop`). |
 | Source read | Checkout of `main` at 0.1.22. `git diff v0.1.20 v0.1.22 -- src/anyhop/singbox.py src/anyhop/proc.py` changes documentation text only, so the code paths below apply to both versions. |
@@ -186,6 +186,31 @@ Priority P2:
 
 9. Until renumbering is removed (item 4), document that a statically published port range must be wider than the channel count, because channels can drift beyond it.
 10. Chaos suite: SIGKILL the daemon while sing-box runs; SIGSTOP sing-box so stop times out; two concurrent API-driven enable/disable cycles; assert the census invariant (one instance) after each.
+
+## Resolution (2026-10-19)
+
+The evidence and source excerpts above describe the incident versions, not the
+current implementation. Commit `5314045` introduced lifecycle serialization,
+stray reclamation, census/health reporting and a persisted restart budget. Its
+claim that only foreign holders cause renumbering was premature: unknown holders
+and failed managed-holder reclamation could still reach allocation recovery.
+The follow-up changes enforce that requirement at the recovery boundary.
+
+| Recommendation | Current implementation and limits |
+| --- | --- |
+| 1. Serialize lifecycle | Implemented: a reentrant lifecycle lock covers apply/start/stop/restart and the supervisor's check/recovery. Tests overlap starts and restart/start. The proposed 1,000 randomized iterations have not been run. |
+| 2. Scan before spawn/startup | Implemented: startup and every spawn scan and reclaim extras; spawning refuses surviving strays. Matching now requires the managed executable, `run`, and this home's config option. macOS reads exact argv through KERN_PROCARGS2, preserving spaces. |
+| 3. Fail closed on missing/invalid pidfile | Implemented: stop logs and scans rather than silently returning; spawn refuses unreclaimed instances. Deleted-pidfile recovery has a regression test. |
+| 4. Identify holder before moving ports | Implemented: bounded same-config retries, managed-holder reclamation, and a fresh holder check before recovery. Only `foreign` permits automatic-port renumbering or Clash API replacement. `ours`/`unknown` preserve allocations and propagate runtime failure for the daemon's later retry. Explicit ports never move; automatic ports return home when free. Tests include a disappearing holder and failed reclamation. |
+| 5. Census/health/doctor | Partial: status and health expose PID, parent, age and socket count; health fails for multiple detected instances. A separate `anyhop doctor` command remains unimplemented. Census lookup failure still returns an empty list. |
+| 6. Lifecycle diagnostics | Partial: spawn, stop, reclaim and pidfile removal log identity details. Bind recovery logs holder classification and listener PIDs. Dedicated reload and pidfile-write events remain unimplemented (spawn logs follow the write). |
+| 7. Restart blast radius | Partial: persisted process-wide budget limits config-channel recovery to five restarts per six hours; per-channel attempt limits remain. Per-endpoint reconnection is not implemented. This budget does not cap every supervisor/operator restart. |
+| 8. Container child lifetime | Compose examples now use `init: true`; Docker documentation explains the limits and Linux PDEATHSIG/process-group options. Automatic parent-death signalling is not implemented. |
+| 9. Published port ranges | Compose guidance requires explicit ports for published wiring and explains that automatic ports can temporarily move for a confirmed foreign listener. |
+| 10. Chaos tests | Added real SIGKILL-daemon recovery with native sing-box, SIGSTOP-child timeout/escalation with a local test executable, and concurrent REST enable/disable cycles with a native runtime. Assertions check the one-process invariant. These are bounded regressions, not a production soak or reproduction of the original race. |
+
+Root-run tests: the foreign-owner test now simulates a non-root effective UID;
+the mode-000 unreadable-state test skips root because root can bypass that mode.
 
 ## 8. Proposed reproduction (not yet executed)
 

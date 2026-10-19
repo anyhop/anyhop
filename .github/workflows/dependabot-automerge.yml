@@ -17,9 +17,10 @@ name: Dependabot automerge
 on:
   workflow_run:
     workflows: [CI]
-    types: [requested]
+    types: [requested, completed]
 
-# Merge verification runs once per immutable head.
+# Serialize verification for the same immutable head; completion also recovers
+# auto-merge disabled after arming and handles CI reruns (no requested event).
 concurrency:
   group: dependabot-automerge-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
@@ -33,7 +34,9 @@ permissions:
 
 jobs:
   merge:
-    if: github.event.workflow_run.event == 'pull_request'
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      (github.event.action == 'requested' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -83,12 +86,29 @@ jobs:
       # requests"). It used to succeed under the personal account, and its
       # failure silently skipped the arming step below — nothing merged.
       # The identity check above plus the required checks are the whole gate.
+      # GITHUB_TOKEN cannot merge changes under .github/workflows: GitHub
+      # accepts enable-auto-merge, then disables it when the merge is attempted.
+      # For those PRs only, use a repository-scoped fine-grained PAT stored as
+      # DEPENDABOT_AUTOMERGE_TOKEN, with Contents, Pull requests and Workflows
+      # read/write. Never check out PR code or expose this token to PR jobs.
       - name: Enable auto-merge for the verified head
         if: steps.verify.outputs.merge == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKFLOW_MERGE_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ steps.verify.outputs.pr_number }}
         run: |
+          set -euo pipefail
+          files=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[].filename')
+          if grep -q '^\.github/workflows/' <<<"$files"; then
+            if [[ -z "$WORKFLOW_MERGE_TOKEN" ]]; then
+              echo "::error::Workflow changes require DEPENDABOT_AUTOMERGE_TOKEN with Contents, Pull requests and Workflows write permissions. GITHUB_TOKEN cannot merge this PR."
+              exit 1
+            fi
+            export GH_TOKEN="$WORKFLOW_MERGE_TOKEN"
+          fi
           gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto \
             --rebase --match-head-commit "$HEAD_SHA"

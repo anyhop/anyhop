@@ -59,6 +59,10 @@ UI), or set `ANYHOP_BUNDLE=none` to declare the no-bundle profile explicitly.
   volume, not per container. (This is deliberate: the image redistributes no
   GPL code. An offline variant with a baked binary is a possible later
   addition.)
+- **No pip in the image.** pip installs the hash-checked runtime requirements
+  and the wheel at build time, then that same layer deletes pip and ensurepip.
+  `python -m pip` is not available in the running container; extra packages
+  are not a supported way to extend the image.
 - **State lives in one volume** at `/var/lib/anyhop` (`ANYHOP_HOME`): providers,
   channels, keys, the generated sing-box config, logs, and the sing-box
   binary cache. Recreate containers freely; keep the volume.

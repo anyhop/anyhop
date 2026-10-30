@@ -8,6 +8,10 @@
 # * No sing-box is baked into this image (GPL option A): the pinned build is
 #   fetched and checksum-verified on first start, into the state volume, so a
 #   container recreate never re-downloads.
+# * pip is not a runtime dependency. It installs the hash-checked requirements
+#   and the wheel, then that same layer deletes pip, its dist-info, and
+#   ensurepip. Vendored copies inside pip (msgpack, urllib3, certifi) are not
+#   shipped, and `python -m pip` is not available in the running container.
 # * PID 1 is `anyhop run` (the daemon loop, foreground, logs on stderr);
 #   restart policies replace launchd/systemd. `docker stop` = clean SIGTERM,
 #   and foreground ownership stops/reaps sing-box + tears down TUN in the
@@ -25,7 +29,7 @@
 # digest-only `python@sha256:…` dependabot tracked the default `python` tag
 # and offered the full (non-slim) image. Resolved 2026-08-26; the digest is
 # the multi-arch manifest list.
-FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+FROM python:3.14-slim@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8
 ARG ANYHOP_WHEEL_SHA256
 LABEL org.opencontainers.image.anyhop-wheel-sha256=$ANYHOP_WHEEL_SHA256
 # Apply Debian security updates at build time. The pin above freezes the base
@@ -56,6 +60,17 @@ RUN set -eu; \
     pip install --no-cache-dir --no-deps "$wheel"; \
     python -c 'import importlib.metadata as m; assert m.version("pycountry") == "26.2.16"'; \
     python -c 'import importlib.metadata as m; assert m.version("pyyaml") == "6.0.3"'; \
+    py=$(python -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")'); \
+    rm -rf \
+      "/usr/local/lib/python${py}/site-packages/pip" \
+      /usr/local/lib/python${py}/site-packages/pip-*.dist-info \
+      /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.* \
+      "/usr/local/lib/python${py}/ensurepip"; \
+    python -c 'import importlib.util as u; assert u.find_spec("pip") is None'; \
+    test ! -e "/usr/local/lib/python${py}/ensurepip"; \
+    test ! -e /usr/local/bin/pip; \
+    test ! -e /usr/local/bin/pip3; \
+    if ls /usr/local/bin/pip3.* >/dev/null 2>&1; then exit 1; fi; \
     rm /tmp/*.whl /tmp/requirements.lock
 COPY packaging/docker/entrypoint.sh /usr/local/bin/anyhop-entrypoint
 RUN chmod 0755 /usr/local/bin/anyhop-entrypoint

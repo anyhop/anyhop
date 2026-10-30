@@ -257,6 +257,8 @@ Action is pinned to an immutable commit SHA, the Dockerfile's base images are
 pinned by manifest digest (the tag is only a comment), Hatchling is pinned in
 the application lock, and the image installs hash-checked runtime requirements
 exported from that lock plus the exact gated wheel with dependencies disabled.
+pip is removed in that same image layer, so the runtime image does not ship
+pip or the libraries it vendors.
 CI counterparts keep the
 pins honest: the image is built and boot-tested on every PR, OSV scans the
 lockfile and Trivy scans the built image's layers (weekly and pre-merge, so

@@ -1,37 +1,11 @@
 # Findings reviewed and knowingly accepted. Every entry names its drop
 # condition; the weekly supply-chain sweep is the review point. No bare
 # catch-alls — the gate stays actionable for anything not listed here.
-
-# msgpack 1.1.2 vendored inside pip (GHSA-6v7p-g79w-8964, HIGH): unpacker
-# out-of-bounds read on untrusted data. The image's only pip runs happen at
-# build time, against the hash-pinned requirements.lock and the
-# checksum-verified wheel — pip never unpacks untrusted msgpack in the
-# running container.
-# Added: 2026-08-17. Drop when: the base ships pip with vendored
-# msgpack >= 1.2.1.
-GHSA-6v7p-g79w-8964
-
-# setuptools 70.3.0 attributed to the pinned base (CVE-2025-47273, HIGH):
-# PackageIndex path traversal. Pathless: it exists only in the official
-# image's embedded SBOM ("AnalyzedBy: sbom", no file), not in the image
-# filesystem — no layer, pip/_vendor, or ensurepip entry carries it, so
-# filesystem checks cannot see this finding; only the scan can. setuptools
-# is never invoked at runtime anyway — PID 1 is `anyhop run`, and pip itself
-# only runs at build time against the hash-pinned lock.
-# Added: 2026-08-17; re-added 2026-08-26 after removal on a filesystem
-# check that could not see SBOM attributions (see above). Drop when: the
-# base SBOM stops claiming setuptools 70.3.0 or claims >= 78.1.1.
-CVE-2025-47273
-
-# urllib3 2.7.0 vendored inside pip (CVE-2026-97687, HIGH: HTTPS-proxy TLS
-# configuration override enabling traffic interception; CVE-2026-97689,
-# HIGH: unbounded memory allocation in the chunked-response parser). pip is
-# urllib3's only copy in the image — anyhop's runtime deps (requirements.lock)
-# do not include it — and pip runs only at build time, against PyPI and the
-# hash-pinned requirements.lock plus the checksum-verified wheel, so an
-# intercepted download would fail its hash check rather than install.
-# Nothing in the running container imports pip's urllib3.
-# Added: 2026-10-01 (pip 26.2.1, the latest release, still vendors 2.7.0).
-# Drop when: the base ships pip with vendored urllib3 >= 2.8.0.
-CVE-2026-97687
-CVE-2026-97689
+#
+# No accepted findings. The runtime image does not ship pip: the Dockerfile
+# removes pip, its dist-info, and ensurepip after the hash-checked install,
+# in the same layer. Advisories against libraries vendored inside pip
+# (msgpack, urllib3, certifi) and the SBOM-attributed setuptools finding are
+# not in the image, so they are not ignored here. A new finding needs its own
+# reviewed entry with a drop condition — do not restore a blanket pip-vendor
+# exception.

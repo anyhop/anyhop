@@ -29,7 +29,7 @@
 # digest-only `python@sha256:…` dependabot tracked the default `python` tag
 # and offered the full (non-slim) image. Resolved 2026-08-26; the digest is
 # the multi-arch manifest list.
-FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 ARG ANYHOP_WHEEL_SHA256
 LABEL org.opencontainers.image.anyhop-wheel-sha256=$ANYHOP_WHEEL_SHA256
 # Apply Debian security updates at build time. The pin above freezes the base
